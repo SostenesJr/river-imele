@@ -1,9 +1,16 @@
 /* ============================================================
    NAVLOG AMAZÔNIA — APP.JS
-   3 abas: Rotas · Informações · Mapa
+   4 abas: Rotas · Informações · Configurações · Mapa
    ============================================================ */
 
 var cur = 'r';
+var CURRENT_USER = null; // { id, email } — usuário logado (Supabase Auth)
+
+/* ── Login (contas individuais via Supabase Auth) ── */
+function sair() {
+  sb.auth.signOut().then(function () { window.location.href = '/login.html'; })
+    .catch(function () { window.location.href = '/login.html'; });
+}
 
 function normKey(s) { return (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 
@@ -23,76 +30,95 @@ ROTAS.forEach(function (rota) {
 });
 
 /* ============================================================
-   PERSISTENCIA — overrides do usuario por municipio, salvos no
-   navegador (localStorage). MUNINFO (data.js) e a base "de fabrica";
-   getInfo() devolve a base mesclada com o que o operador editou.
+   PERSISTENCIA — Supabase (banco de dados compartilhado)
+   MUNINFO (data.js) é usada só como valor "de fábrica" — pra quando
+   um município ainda não tem linha no banco, e como o que volta ao
+   clicar "Restaurar original". Os dados de verdade (o que aparece
+   pra todo mundo, de qualquer aparelho) vêm de MUNINFO_LIVE, que é
+   carregada do Supabase em carregarMunicipiosInfo().
    ============================================================ */
-var LS_KEY = 'riverops_muninfo_overrides_v1';
+var MUNINFO_LIVE = {}; // seq -> {ta, ps:{seca,cheia}, emb:{seca,cheia}}
 
-function carregarOverrides() {
-  try {
-    var raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) { return {}; }
-}
-var OVERRIDES = carregarOverrides();
-
-function salvarOverrides() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(OVERRIDES)); } catch (e) {}
-}
-
-/* Devolve o registro efetivo (base + edicoes) de um municipio. */
-function getInfo(seq) {
-  var base = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: { seca: [], cheia: [] } };
-  var ov = OVERRIDES[seq];
-  if (!ov) {
-    // clona pra nao vazar referencia do objeto base
-    return JSON.parse(JSON.stringify(base));
-  }
+function rowToInfo(row) {
   return {
-    ta: (ov.ta !== undefined) ? ov.ta : base.ta,
-    ps: {
-      seca: (ov.ps && ov.ps.seca !== undefined) ? ov.ps.seca : base.ps.seca,
-      cheia: (ov.ps && ov.ps.cheia !== undefined) ? ov.ps.cheia : base.ps.cheia
-    },
-    emb: {
-      seca: (ov.emb && ov.emb.seca) ? JSON.parse(JSON.stringify(ov.emb.seca)) : JSON.parse(JSON.stringify(base.emb.seca)),
-      cheia: (ov.emb && ov.emb.cheia) ? JSON.parse(JSON.stringify(ov.emb.cheia)) : JSON.parse(JSON.stringify(base.emb.cheia))
-    }
+    ta: row.ta,
+    ps: { seca: row.ps_seca, cheia: row.ps_cheia },
+    emb: { seca: row.emb_seca || [], cheia: row.emb_cheia || [] }
   };
 }
 
-function setInfo(seq, info) {
-  OVERRIDES[seq] = info;
-  salvarOverrides();
+async function carregarMunicipiosInfo() {
+  var res = await sb.from('municipios_info').select('*');
+  if (res.error) { console.error('Erro ao carregar municipios_info:', res.error); return; }
+  var live = {};
+  (res.data || []).forEach(function (row) { live[row.seq] = rowToInfo(row); });
+  MUNINFO_LIVE = live;
 }
 
-function resetInfo(seq) {
-  delete OVERRIDES[seq];
-  salvarOverrides();
+/* Devolve o registro efetivo (banco, ou o "de fábrica" se ainda não
+   existir linha pra esse município). */
+function getInfo(seq) {
+  var fonte = MUNINFO_LIVE[seq] || MUNINFO[seq]
+    || { ta: null, ps: { seca: null, cheia: null }, emb: { seca: [], cheia: [] } };
+  return JSON.parse(JSON.stringify(fonte)); // clona pra nao vazar referencia
 }
 
-/* ── Observações pessoais por município (independente das edições de
-   Configurações — cada pessoa/aparelho guarda as suas). ── */
-var OBS_KEY = 'riverops_obs_v1';
-
-function carregarObs() {
-  try {
-    var raw = localStorage.getItem(OBS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) { return {}; }
+/* Salva no banco (compartilhado com todo mundo) e atualiza o cache local. */
+async function setInfo(seq, info) {
+  var res = await sb.from('municipios_info').upsert({
+    seq: seq,
+    ta: info.ta,
+    ps_seca: info.ps.seca,
+    ps_cheia: info.ps.cheia,
+    emb_seca: info.emb.seca,
+    emb_cheia: info.emb.cheia
+  }, { onConflict: 'seq' });
+  if (res.error) { alert('Não consegui salvar: ' + res.error.message); throw res.error; }
+  MUNINFO_LIVE[seq] = JSON.parse(JSON.stringify(info));
 }
-var OBS = carregarObs();
 
-function salvarObs() {
-  try { localStorage.setItem(OBS_KEY, JSON.stringify(OBS)); } catch (e) {}
+/* "Restaurar original" agora escreve os valores de fábrica de volta
+   no banco — vale pra equipe toda, não só pra quem clicou. */
+async function resetInfo(seq) {
+  var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: { seca: [], cheia: [] } };
+  await setInfo(seq, JSON.parse(JSON.stringify(original)));
+}
+
+/* ── Observações pessoais por município — cada usuário só vê e edita
+   as próprias (RLS no banco garante isso), salvas no Supabase. ── */
+var OBS = {}; // seq -> texto (do usuario atual)
+var obsSaveTimers = {};
+
+async function carregarObs() {
+  if (!CURRENT_USER) return;
+  var res = await sb.from('observacoes').select('*').eq('user_id', CURRENT_USER.id);
+  if (res.error) { console.error('Erro ao carregar observações:', res.error); return; }
+  var novo = {};
+  (res.data || []).forEach(function (row) { novo[row.seq] = row.texto; });
+  OBS = novo;
 }
 
 function getObs(seq) { return OBS[seq] || ''; }
 
+/* Salva com debounce (600ms depois de parar de digitar) pra não bater
+   no banco a cada tecla. */
 function setObs(seq, texto) {
-  if (texto && texto.trim()) OBS[seq] = texto; else delete OBS[seq];
-  salvarObs();
+  OBS[seq] = texto || '';
+  if (obsSaveTimers[seq]) clearTimeout(obsSaveTimers[seq]);
+  obsSaveTimers[seq] = setTimeout(function () { salvarObsRemoto(seq); }, 600);
+}
+
+function salvarObsRemoto(seq) {
+  if (!CURRENT_USER) return;
+  var texto = OBS[seq] || '';
+  sb.from('observacoes').upsert({
+    seq: seq,
+    user_id: CURRENT_USER.id,
+    texto: texto,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'seq,user_id' }).then(function (res) {
+    if (res.error) console.error('Erro ao salvar observação:', res.error);
+  });
 }
 
 /* ============================================================
@@ -267,7 +293,7 @@ function renderInfoView() {
     + '</div>'
 
     + '<div class="sh-obs-wrap">'
-    + '<label class="sh-sub">Observações <span class="sh-obs-hint">(salvo só neste navegador)</span></label>'
+    + '<label class="sh-sub">Observações <span class="sh-obs-hint">(só você vê — fica na sua conta)</span></label>'
     + '<textarea class="sh-obs" id="in-obs" placeholder="Anotações pessoais sobre ' + m.nome + '..." oninput="setObs(\'' + seq + '\', this.value)">' + (getObs(seq) || '').replace(/</g, '&lt;') + '</textarea>'
     + '</div>';
 
@@ -451,16 +477,28 @@ function salvarSheet() {
   ['seca', 'cheia'].forEach(function (regime) {
     editState.info.emb[regime] = editState.info.emb[regime].filter(function (it) { return it.n && it.n.trim(); });
   });
-  setInfo(editState.seq, editState.info);
-  fecharSheet();
-  bCO();
+  var seq = editState.seq, info = editState.info;
+  var btn = document.querySelector('.sh-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  setInfo(seq, info).then(function () {
+    fecharSheet();
+    bCO();
+  }).catch(function () {
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Salvar'; }
+  });
 }
 
 function resetSheetAtual() {
   if (!editState) return;
-  resetInfo(editState.seq);
-  editState.info = getInfo(editState.seq);
-  renderSheet();
+  var seq = editState.seq;
+  var btn = document.querySelector('.sh-reset');
+  if (btn) { btn.disabled = true; btn.textContent = 'Restaurando...'; }
+  resetInfo(seq).then(function () {
+    editState.info = getInfo(seq);
+    renderSheet();
+  }).catch(function () {
+    if (btn) { btn.disabled = false; btn.textContent = '⟲ Restaurar original'; }
+  });
 }
 
 /* ============================================================
@@ -758,6 +796,39 @@ function SS(name, btn) {
   if (name === 'm') { buildMapFilters(); renderMap(); initMapInteractions(); }
 }
 
-bRO();
-bINFO();
-bCO();
+/* ============================================================
+   INICIALIZAÇÃO
+   Chamada pelo index.html depois de carregar data.js e app.js.
+   ============================================================ */
+async function initApp() {
+  var sessionRes = await sb.auth.getSession();
+  var session = sessionRes.data && sessionRes.data.session;
+  if (!session) { window.location.replace('/login.html'); return; }
+  CURRENT_USER = session.user;
+
+  var badge = document.getElementById('user-badge');
+  if (badge) badge.textContent = CURRENT_USER.email || '';
+
+  await carregarMunicipiosInfo();
+  await carregarObs();
+
+  bRO();
+  bINFO();
+  bCO();
+
+  // Realtime: quando alguém edita Configurações em outro aparelho,
+  // a tela de quem estiver olhando atualiza sozinha.
+  sb.channel('municipios_info_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'municipios_info' }, function (payload) {
+      if (payload.new && payload.new.seq) {
+        MUNINFO_LIVE[payload.new.seq] = rowToInfo(payload.new);
+      }
+      if (cur === 'i') bINFO();
+      if (cur === 'c') bCO();
+    })
+    .subscribe();
+
+  sb.auth.onAuthStateChange(function (event) {
+    if (event === 'SIGNED_OUT') window.location.replace('/login.html');
+  });
+}
