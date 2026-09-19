@@ -54,7 +54,7 @@ Santa Isabel do Rio Negro) não tinham histórico na planilha e entram com os
 campos vazios, prontos para edição manual na aba Configurações.
 
 Preço por saca (seca/cheia) foi aplicado por regra definida pelo operador:
-- Não-Transamazônica: R$30 (seca) / R$50 (cheia)
+- Não-Transamazônica: R$50 (seca) / R$30 (cheia)
 - Transamazônica (9 municípios): R$35 (seca e cheia)
 - Apuí, Humaitá e Labréa: R$70 (seca e cheia)
 Todos os valores continuam editáveis por município na aba Configurações.
