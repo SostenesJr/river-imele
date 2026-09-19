@@ -18,6 +18,7 @@
   <div class="htabs">
     <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span>Rotas</button>
     <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span>Informações</button>
+    <button class="htab" data-s="c" onclick="SS('c',this)"><span class="hti">⚙️</span>Configurações</button>
     <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span>Mapa</button>
   </div>
 </div>
@@ -26,6 +27,7 @@
   <div class="brow">
     <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span>Rotas</button>
     <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span>Informações</button>
+    <button class="btab" id="bt-c" onclick="SS('c',null)"><span class="bti">⚙️</span>Config.</button>
     <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span>Mapa</button>
   </div>
 </div>
@@ -43,15 +45,26 @@
     <div class="rbdy" id="rbdy"></div>
   </div>
 
-  <!-- INFORMAÇÕES -->
+  <!-- INFORMAÇÕES (somente leitura) -->
   <div class="scr h" id="sc-i">
     <div class="rhdr">
       <div class="rsw">
         <span class="rsi">🔍</span>
-        <input type="text" id="isearch" placeholder="Buscar município ou código..." oninput="fI(this.value)">
+        <input type="text" id="isearch" placeholder="Buscar município ou código..." oninput="fINFO(this.value)">
       </div>
     </div>
     <div class="rbdy" id="ibdy"></div>
+  </div>
+
+  <!-- CONFIGURAÇÕES (editável) -->
+  <div class="scr h" id="sc-c">
+    <div class="rhdr">
+      <div class="rsw">
+        <span class="rsi">🔍</span>
+        <input type="text" id="csearch" placeholder="Buscar município ou código..." oninput="fC(this.value)">
+      </div>
+    </div>
+    <div class="rbdy" id="cbdy"></div>
   </div>
 
   <!-- MAPA -->
@@ -71,7 +84,8 @@
 
 </div>
 
-<!-- BOTTOM SHEET: usado pelo balão editável de município (Informações) -->
+<!-- BOTTOM SHEET: reaproveitado pelo balão somente-leitura (Informações)
+     e pelo balão editável (Configurações) -->
 <div id="sheet-overlay" onclick="fecharSheet(event)">
   <div id="sheet" onclick="event.stopPropagation()">
     <div class="shdl"></div>
