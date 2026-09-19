@@ -148,9 +148,9 @@ function buildRotaHeader(r) {
 
 function bRO() {
   var body = document.getElementById('rbdy'); if (!body) return;
-  body.innerHTML = ROTAS.map(function (r) {
+  body.innerHTML = ROTAS.map(function (r, ri) {
     var mRows = r.municipios.map(function (m, i) {
-      return '<div class="mrow" data-txt="' + normKey(m.seq + ' ' + m.nome) + '">'
+      return '<div class="mrow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '">'
         + '<span class="mpos">' + (i + 1) + '</span>'
         + '<span class="mseq" style="color:' + r.cor + '">' + m.seq + '</span>'
         + '<span class="mname">' + m.nome + '</span>'
@@ -158,9 +158,9 @@ function bRO() {
         + '<span class="mtt">' + m.tt + '</span>'
         + '</div>';
     }).join('');
-    return '<div class="rcard" id="rcard-' + r.num + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
+    return '<div class="rcard" id="rcard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + buildRotaHeader(r)
-      + '<div class="rbody">' + mRows + '</div>'
+      + '<div class="rbody"><div class="rbody-inner">' + mRows + '</div></div>'
       + '</div>';
   }).join('');
 }
@@ -202,22 +202,22 @@ function fR(q) {
 
 function bINFO() {
   var body = document.getElementById('ibdy'); if (!body) return;
-  body.innerHTML = ROTAS.map(function (r) {
+  body.innerHTML = ROTAS.map(function (r, ri) {
     var chips = r.municipios.map(function (m) {
       var seg = SEGURANCA[m.seq];
       var dot = seg ? '<span class="chip-segdot" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
       var obsDot = getObs(m.seq) ? '<span class="chip-obsdot" title="Tem observação salva"></span>' : '';
-      return '<button class="chip" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" style="border-color:' + r.cor + '" onclick="abrirInfoView(\'' + m.seq + '\')">'
+      return '<button class="chip" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" style="border-color:' + r.cor + '" onclick="abrirInfoView(\'' + m.seq + '\')">'
         + '<span class="chip-seq" style="color:' + r.cor + '">' + m.seq + '</span>'
         + dot + obsDot
         + '</button>';
     }).join('');
-    return '<div class="rcard open" id="icard-' + r.num + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
+    return '<div class="rcard open" id="icard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + '<div class="rhead rhead-static">'
       + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
       + '<div class="rinfo"><div class="rnome">Calha ' + r.nome + '</div>'
       + '<div class="rsub">' + r.municipios.length + ' municípios</div></div></div>'
-      + '<div class="rbody" style="display:block"><div class="chipgrid">' + chips + '</div></div>'
+      + '<div class="rbody"><div class="rbody-inner"><div class="chipgrid">' + chips + '</div></div></div>'
       + '</div>';
   }).join('');
 }
@@ -309,14 +309,14 @@ function renderInfoView() {
 
 function bCO() {
   var body = document.getElementById('cbdy'); if (!body) return;
-  body.innerHTML = ROTAS.map(function (r) {
+  body.innerHTML = ROTAS.map(function (r, ri) {
     var mRows = r.municipios.map(function (m, i) {
       var info = getInfo(m.seq);
       var pSeca = principalEmb(info.emb.seca);
       var pCheia = principalEmb(info.emb.cheia);
       var seg = SEGURANCA[m.seq];
       var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
-      return '<div class="irow" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
+      return '<div class="irow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
         + '<span class="mseq" style="color:' + r.cor + '">' + m.seq + '</span>'
         + '<div class="iinfo">'
         + '<div class="iname">' + m.nome + segIc + '</div>'
@@ -328,12 +328,12 @@ function bCO() {
         + '<div class="ichv">›</div>'
         + '</div>';
     }).join('');
-    return '<div class="rcard open" id="ccard-' + r.num + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
+    return '<div class="rcard open" id="ccard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + '<div class="rhead rhead-static">'
       + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
       + '<div class="rinfo"><div class="rnome">Calha ' + r.nome + '</div>'
       + '<div class="rsub">' + r.municipios.length + ' municípios</div></div></div>'
-      + '<div class="rbody" style="display:block">' + mRows + '</div>'
+      + '<div class="rbody"><div class="rbody-inner">' + mRows + '</div></div>'
       + '</div>';
   }).join('');
 }
@@ -800,6 +800,28 @@ function SS(name, btn) {
    INICIALIZAÇÃO
    Chamada pelo index.html depois de carregar data.js e app.js.
    ============================================================ */
+/* ── Indicador "ao vivo" (status da conexão Realtime) ── */
+function setLiveStatus(state) {
+  // state: 'connecting' | 'live' | 'offline'
+  var dot = document.getElementById('live-dot'); if (!dot) return;
+  dot.classList.remove('live', 'offline');
+  if (state === 'live') { dot.classList.add('live'); dot.title = 'Ao vivo — atualizações da equipe em tempo real'; }
+  else if (state === 'offline') { dot.classList.add('offline'); dot.title = 'Sem conexão em tempo real — pode não ver atualizações da equipe agora'; }
+  else { dot.title = 'Conectando...'; }
+}
+
+/* Pisca por um instante o card/chip do município que acabou de ser
+   atualizado por outra pessoa, pra chamar atenção pra mudança. */
+function flashSeq(seq) {
+  requestAnimationFrame(function () {
+    document.querySelectorAll('[data-seq="' + seq + '"]').forEach(function (el) {
+      el.classList.remove('flash-update');
+      void el.offsetWidth; // reinicia a animação, se já tinha rodado
+      el.classList.add('flash-update');
+    });
+  });
+}
+
 async function initApp() {
   var sessionRes = await sb.auth.getSession();
   var session = sessionRes.data && sessionRes.data.session;
@@ -818,15 +840,19 @@ async function initApp() {
 
   // Realtime: quando alguém edita Configurações em outro aparelho,
   // a tela de quem estiver olhando atualiza sozinha.
+  setLiveStatus('connecting');
   sb.channel('municipios_info_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'municipios_info' }, function (payload) {
-      if (payload.new && payload.new.seq) {
-        MUNINFO_LIVE[payload.new.seq] = rowToInfo(payload.new);
-      }
+      var seq = payload.new && payload.new.seq;
+      if (seq) { MUNINFO_LIVE[seq] = rowToInfo(payload.new); }
       if (cur === 'i') bINFO();
       if (cur === 'c') bCO();
+      if (seq) flashSeq(seq);
     })
-    .subscribe();
+    .subscribe(function (status) {
+      if (status === 'SUBSCRIBED') setLiveStatus('live');
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setLiveStatus('offline');
+    });
 
   sb.auth.onAuthStateChange(function (event) {
     if (event === 'SIGNED_OUT') window.location.replace('/login.html');

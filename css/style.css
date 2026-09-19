@@ -52,6 +52,14 @@ html, body {
 
 .hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(20,184,166,.55); } 70% { box-shadow: 0 0 0 6px rgba(20,184,166,0); } 100% { box-shadow: 0 0 0 0 rgba(20,184,166,0); } }
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #f59e0b;
+  transition: background .3s;
+}
+.live-dot.live { background: #14b8a6; animation: livePulse 2.2s infinite; }
+.live-dot.offline { background: #ef4444; animation: none; }
+
 .user-badge {
   flex-shrink: 0; font-size: 10px; color: var(--mu); font-weight: 700;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: none;
@@ -107,20 +115,43 @@ html, body {
 .rbdy { overflow-y: auto; flex: 1; padding: 10px; padding-bottom: 24px; }
 
 /* ── ROTAS: cartão de calha (accordion) ── */
-.rcard { background: var(--s1); border: 1px solid var(--bd); border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
-.rhead { display: flex; align-items: center; gap: 12px; padding: 14px; cursor: pointer; user-select: none; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.rcard {
+  background: var(--s1); border: 1px solid var(--bd); border-radius: 12px; margin-bottom: 8px; overflow: hidden;
+  animation: cardIn .4s cubic-bezier(.2,.8,.2,1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+  transition: border-color .2s, box-shadow .2s;
+}
+.rhead { display: flex; align-items: center; gap: 12px; padding: 14px; cursor: pointer; user-select: none; transition: background .15s; }
 .rhead-static { cursor: default; }
-.rnb { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 17px; font-weight: 800; flex-shrink: 0; color: #fff; }
+.rhead:not(.rhead-static):hover { background: var(--s2); }
+.rhead:not(.rhead-static):active { background: #1f2530; }
+.rnb {
+  width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 17px; font-weight: 800; flex-shrink: 0; color: #fff;
+  transition: transform .2s;
+}
+.rcard.open .rnb { transform: scale(1.06); }
 .rinfo { flex: 1; min-width: 0; }
 .rnome { font-size: 14px; font-weight: 700; }
 .rsub { font-size: 11px; color: var(--mu); margin-top: 1px; }
-.rchv { color: var(--mu); font-size: 12px; transition: transform .2s; flex-shrink: 0; }
+.rchv { color: var(--mu); font-size: 12px; transition: transform .25s cubic-bezier(.2,.8,.2,1); flex-shrink: 0; }
 .rcard.open .rchv { transform: rotate(90deg); }
-.rbody { display: none; border-top: 1px solid var(--bd); }
-.rcard.open .rbody { display: block; }
 
-.mrow { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,.04); }
+/* accordion com altura animada (grid-template-rows 0fr -> 1fr) */
+.rbody {
+  display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s cubic-bezier(.2,.8,.2,1);
+}
+.rcard.open .rbody { grid-template-rows: 1fr; }
+.rbody-inner { min-height: 0; overflow: hidden; border-top: 1px solid var(--bd); }
+.rcard:not(.open) .rbody-inner { border-top-color: transparent; }
+
+.mrow {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .15s;
+}
 .mrow:last-child { border-bottom: none; }
+.mrow:hover { background: rgba(255,255,255,.03); }
 .mpos { font-family: var(--font-mono); font-size: 10px; color: var(--mu); width: 18px; flex-shrink: 0; text-align: center; }
 .mseq { font-family: var(--font-mono); font-size: 12px; font-weight: 800; flex-shrink: 0; min-width: 44px; }
 .mname { flex: 1; font-size: 13px; font-weight: 600; min-width: 0; }
@@ -128,9 +159,22 @@ html, body {
 .mtt { font-size: 10px; color: var(--mu); background: #0b0d11; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
 
 /* ── INFORMAÇÕES: linha clicável de município ── */
-.irow { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.04); cursor: pointer; }
+.irow {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.04);
+  cursor: pointer; transition: background .15s;
+}
 .irow:last-child { border-bottom: none; }
+.irow:hover { background: rgba(255,255,255,.03); }
 .irow:active { background: var(--s2); }
+
+/* pisca de leve quando um município é atualizado por outra pessoa (Realtime) */
+@keyframes flashUpdate { 0% { background: rgba(20,184,166,.4); } 100% { background: transparent; } }
+.flash-update { animation: flashUpdate 1.4s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rcard, .live-dot.live, .flash-update { animation: none !important; }
+  .rbody, .rchv, .rnb, .rhead, .mrow, .irow, .live-dot { transition: none !important; }
+}
 .iinfo { flex: 1; min-width: 0; }
 .iname { font-size: 13px; font-weight: 700; }
 .iseg-ic { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; font-size: 9px; margin-left: 6px; vertical-align: middle; }
