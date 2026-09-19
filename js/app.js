@@ -72,6 +72,29 @@ function resetInfo(seq) {
   salvarOverrides();
 }
 
+/* ── Observações pessoais por município (independente das edições de
+   Configurações — cada pessoa/aparelho guarda as suas). ── */
+var OBS_KEY = 'riverops_obs_v1';
+
+function carregarObs() {
+  try {
+    var raw = localStorage.getItem(OBS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+var OBS = carregarObs();
+
+function salvarObs() {
+  try { localStorage.setItem(OBS_KEY, JSON.stringify(OBS)); } catch (e) {}
+}
+
+function getObs(seq) { return OBS[seq] || ''; }
+
+function setObs(seq, texto) {
+  if (texto && texto.trim()) OBS[seq] = texto; else delete OBS[seq];
+  salvarObs();
+}
+
 /* ============================================================
    ABA 1 — ROTAS
    Lista oculta: só as 10 rotas aparecem. Ao abrir, mostra os
@@ -81,9 +104,9 @@ function resetInfo(seq) {
 function fmtSaca(v) { return (v === null || v === undefined || v === '') ? '—' : ('R$ ' + Number(v).toFixed(2).replace('.', ',')); }
 function fmtTA(v) { return (v === null || v === undefined || v === '') ? '—' : (v + ' d'); }
 function principalEmb(lista) {
+  // as listas ja vem ordenadas da mais usada pra menos usada (fonte: planilha)
   if (!lista || !lista.length) return null;
-  var ordenado = lista.slice().sort(function (a, b) { return (b.freq || 0) - (a.freq || 0); });
-  return ordenado[0];
+  return lista[0];
 }
 
 function buildRotaHeader(r) {
@@ -145,14 +168,121 @@ function fR(q) {
 }
 
 /* ============================================================
-   ABA 2 — INFORMAÇÕES
+   ABA 2 — INFORMAÇÕES (somente leitura)
+   Grade de balões compactos (o código do node) agrupados por
+   calha. Tocar num balão abre um pop-up com o nome do município
+   e todas as informações + observações pessoais editáveis.
+   ============================================================ */
+
+function bINFO() {
+  var body = document.getElementById('ibdy'); if (!body) return;
+  body.innerHTML = ROTAS.map(function (r) {
+    var chips = r.municipios.map(function (m) {
+      var seg = SEGURANCA[m.seq];
+      var dot = seg ? '<span class="chip-segdot" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
+      var obsDot = getObs(m.seq) ? '<span class="chip-obsdot" title="Tem observação salva"></span>' : '';
+      return '<button class="chip" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" style="border-color:' + r.cor + '" onclick="abrirInfoView(\'' + m.seq + '\')">'
+        + '<span class="chip-seq" style="color:' + r.cor + '">' + m.seq + '</span>'
+        + dot + obsDot
+        + '</button>';
+    }).join('');
+    return '<div class="rcard open" id="icard-' + r.num + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
+      + '<div class="rhead rhead-static">'
+      + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
+      + '<div class="rinfo"><div class="rnome">Calha ' + r.nome + '</div>'
+      + '<div class="rsub">' + r.municipios.length + ' municípios</div></div></div>'
+      + '<div class="rbody" style="display:block"><div class="chipgrid">' + chips + '</div></div>'
+      + '</div>';
+  }).join('');
+}
+
+function fINFO(q) {
+  q = normKey(q.trim());
+  document.querySelectorAll('#ibdy .rcard').forEach(function (card) {
+    var chips = card.querySelectorAll('.chip');
+    if (!q) { card.style.display = ''; chips.forEach(function (c) { c.style.display = ''; }); return; }
+    var rotaMatch = card.dataset.txt.indexOf(q) !== -1;
+    var alguma = false;
+    chips.forEach(function (c) {
+      var hit = rotaMatch || c.dataset.txt.indexOf(q) !== -1;
+      c.style.display = hit ? '' : 'none';
+      if (hit) alguma = true;
+    });
+    card.style.display = alguma ? '' : 'none';
+  });
+}
+
+/* ── BALÃO SOMENTE LEITURA (Informações) ── */
+
+var viewSeq = null; // seq do município aberto no balão de visualização
+
+function abrirInfoView(seq) {
+  var hit = NODEIDX[seq]; if (!hit) return;
+  viewSeq = seq;
+  segAberto = true;
+  renderInfoView();
+  document.getElementById('sheet-overlay').classList.add('on');
+}
+
+function embListViewHTML(lista) {
+  if (!lista || !lista.length) return '<div class="emb-empty">Nenhuma embarcação cadastrada.</div>';
+  return lista.map(function (item) {
+    return '<div class="sh-view-emb">'
+      + '<span class="sh-view-emb-n">' + (item.n || '—') + '</span>'
+      + ((item.tt !== null && item.tt !== undefined && item.tt !== '') ? '<span class="sh-view-emb-tt">' + item.tt + ' d</span>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function renderInfoView() {
+  if (!viewSeq) return;
+  var seq = viewSeq; var info = getInfo(seq);
+  var hit = NODEIDX[seq]; var r = hit.rota; var m = hit.mun;
+
+  var html =
+    '<div class="sh-hdr">'
+    + '<div class="sh-seq" style="color:' + r.cor + '">' + m.seq + '</div>'
+    + '<div><div class="sh-nome">' + m.nome + '</div>'
+    + '<div class="sh-badge" style="background:' + r.cor + '">CALHA ' + r.nome.toUpperCase() + '</div></div>'
+    + '</div>'
+
+    + segHTML(seq)
+
+    + '<div class="sh-view-grid">'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">TT Amazon</div><div class="sh-view-kv">' + fmtTA(info.ta) + '</div></div>'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">Distância</div><div class="sh-view-kv">' + m.km + ' km</div></div>'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">Transit rota</div><div class="sh-view-kv">' + m.tt + '</div></div>'
+    + '</div>'
+
+    + '<div class="sh-season" style="border-color:#f59e0b55">'
+    + '<div class="sh-season-hdr" style="color:#f59e0b">🏜️ SECA <span class="sh-view-price">' + fmtSaca(info.ps.seca) + ' /saca</span></div>'
+    + '<label class="sh-sub">Embarcações mais usadas</label>'
+    + '<div class="sh-view-emblist">' + embListViewHTML(info.emb.seca) + '</div>'
+    + '</div>'
+
+    + '<div class="sh-season" style="border-color:#0ea5e955">'
+    + '<div class="sh-season-hdr" style="color:#0ea5e9">🌊 CHEIA <span class="sh-view-price">' + fmtSaca(info.ps.cheia) + ' /saca</span></div>'
+    + '<label class="sh-sub">Embarcações mais usadas</label>'
+    + '<div class="sh-view-emblist">' + embListViewHTML(info.emb.cheia) + '</div>'
+    + '</div>'
+
+    + '<div class="sh-obs-wrap">'
+    + '<label class="sh-sub">Observações <span class="sh-obs-hint">(salvo só neste navegador)</span></label>'
+    + '<textarea class="sh-obs" id="in-obs" placeholder="Anotações pessoais sobre ' + m.nome + '..." oninput="setObs(\'' + seq + '\', this.value)">' + (getObs(seq) || '').replace(/</g, '&lt;') + '</textarea>'
+    + '</div>';
+
+  document.getElementById('sheet-body').innerHTML = html;
+}
+
+/* ============================================================
+   ABA 3 — CONFIGURAÇÕES
    Mesma lista por calha; ao clicar num município abre um balão
    (bottom sheet) editável com transit Amazon, preço/saca (seca
    e cheia) e as embarcações usadas em cada regime do rio.
    ============================================================ */
 
-function bIO() {
-  var body = document.getElementById('ibdy'); if (!body) return;
+function bCO() {
+  var body = document.getElementById('cbdy'); if (!body) return;
   body.innerHTML = ROTAS.map(function (r) {
     var mRows = r.municipios.map(function (m, i) {
       var info = getInfo(m.seq);
@@ -160,7 +290,7 @@ function bIO() {
       var pCheia = principalEmb(info.emb.cheia);
       var seg = SEGURANCA[m.seq];
       var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
-      return '<div class="irow" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirInfo(\'' + m.seq + '\')">'
+      return '<div class="irow" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
         + '<span class="mseq" style="color:' + r.cor + '">' + m.seq + '</span>'
         + '<div class="iinfo">'
         + '<div class="iname">' + m.nome + segIc + '</div>'
@@ -172,7 +302,7 @@ function bIO() {
         + '<div class="ichv">›</div>'
         + '</div>';
     }).join('');
-    return '<div class="rcard open" id="icard-' + r.num + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
+    return '<div class="rcard open" id="ccard-' + r.num + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + '<div class="rhead rhead-static">'
       + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
       + '<div class="rinfo"><div class="rnome">Calha ' + r.nome + '</div>'
@@ -182,9 +312,9 @@ function bIO() {
   }).join('');
 }
 
-function fI(q) {
+function fC(q) {
   q = normKey(q.trim());
-  document.querySelectorAll('#ibdy .rcard').forEach(function (card) {
+  document.querySelectorAll('#cbdy .rcard').forEach(function (card) {
     var rows = card.querySelectorAll('.irow');
     if (!q) { card.style.display = ''; rows.forEach(function (row) { row.style.display = ''; }); return; }
     var rotaMatch = card.dataset.txt.indexOf(q) !== -1;
@@ -202,7 +332,7 @@ function fI(q) {
 
 var editState = null; // { seq, info } — copia de trabalho antes de salvar
 
-function abrirInfo(seq) {
+function abrirConfig(seq) {
   var hit = NODEIDX[seq]; if (!hit) return;
   editState = { seq: seq, info: getInfo(seq) };
   segAberto = true;
@@ -214,6 +344,7 @@ function fecharSheet(e) {
   if (e && e.target && e.target.id !== 'sheet-overlay') return;
   document.getElementById('sheet-overlay').classList.remove('on');
   editState = null;
+  viewSeq = null;
 }
 
 /* ── Classificação de segurança (Aduaneiro / Corredor de Escoamento) ── */
@@ -308,7 +439,7 @@ function removeEmb(regime, idx) {
 
 function addEmb(regime) {
   if (!editState) return;
-  editState.info.emb[regime].push({ n: '', freq: 1, tt: null });
+  editState.info.emb[regime].push({ n: '', tt: null });
   renderSheet();
   var inputs = document.querySelectorAll('#emb-list-' + regime + ' .emb-nome');
   var last = inputs[inputs.length - 1]; if (last) last.focus();
@@ -322,7 +453,7 @@ function salvarSheet() {
   });
   setInfo(editState.seq, editState.info);
   fecharSheet();
-  bIO();
+  bCO();
 }
 
 function resetSheetAtual() {
@@ -514,7 +645,7 @@ function showMapPopup(hit, label) {
 function verDetalheSeg(seq) {
   fecharPopupMapa();
   SS('i', null);
-  setTimeout(function () { abrirInfo(seq); }, 60);
+  setTimeout(function () { abrirInfoView(seq); }, 60);
 }
 
 function fecharPopupMapa() {
@@ -615,16 +746,18 @@ function zR() { T = { s: 1, x: 0, y: 0 }; rotaFiltrada = null; tipoFiltrado = nu
    ============================================================ */
 function SS(name, btn) {
   cur = name;
-  ['r', 'i', 'm'].forEach(function (s) {
+  ['r', 'i', 'c', 'm'].forEach(function (s) {
     var el = document.getElementById('sc-' + s);
     if (el) el.classList.toggle('h', s !== name);
   });
   document.querySelectorAll('.htab').forEach(function (b) { b.classList.toggle('on', b.dataset.s === name); });
-  ['r', 'i', 'm'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
+  ['r', 'i', 'c', 'm'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
 
-  if (name === 'i') bIO();
+  if (name === 'i') bINFO();
+  if (name === 'c') bCO();
   if (name === 'm') { buildMapFilters(); renderMap(); initMapInteractions(); }
 }
 
 bRO();
-bIO();
+bINFO();
+bCO();
