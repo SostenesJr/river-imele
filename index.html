@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d11">
+<title>NavLog Amazônia · Fácil Express</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="hdr">
+  <div class="dot"></div>
+  <div>
+    <div class="lt">NAVLOG AMAZÔNIA</div>
+    <div class="lt2">FÁCIL EXPRESS LTDA</div>
+  </div>
+  <div class="htabs">
+    <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span>Rotas</button>
+    <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span>Informações</button>
+    <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span>Mapa</button>
+  </div>
+</div>
+
+<div id="btabs">
+  <div class="brow">
+    <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span>Rotas</button>
+    <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span>Informações</button>
+    <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span>Mapa</button>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- ROTAS -->
+  <div class="scr" id="sc-r">
+    <div class="rhdr">
+      <div class="rsw">
+        <span class="rsi">🔍</span>
+        <input type="text" id="rsearch" placeholder="Buscar município ou código..." oninput="fR(this.value)">
+      </div>
+    </div>
+    <div class="rbdy" id="rbdy"></div>
+  </div>
+
+  <!-- INFORMAÇÕES -->
+  <div class="scr h" id="sc-i">
+    <div class="rhdr">
+      <div class="rsw">
+        <span class="rsi">🔍</span>
+        <input type="text" id="isearch" placeholder="Buscar município ou código..." oninput="fI(this.value)">
+      </div>
+    </div>
+    <div class="rbdy" id="ibdy"></div>
+  </div>
+
+  <!-- MAPA -->
+  <div class="scr h scr-map" id="sc-m">
+    <div id="map-toolbar">
+      <div id="map-filters"></div>
+      <div class="map-zoomctl">
+        <button class="mcb" onclick="zI()">+</button>
+        <button class="mcb" onclick="zO()">−</button>
+        <button class="mcb" onclick="zR()">⟳</button>
+      </div>
+    </div>
+    <div id="map-wrap">
+      <svg id="msvg" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM SHEET: usado pelo balão editável de município (Informações) -->
+<div id="sheet-overlay" onclick="fecharSheet(event)">
+  <div id="sheet" onclick="event.stopPropagation()">
+    <div class="shdl"></div>
+    <div id="sheet-body"></div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
