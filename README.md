@@ -54,33 +54,7 @@ Login individual por pessoa e dados compartilhados em tempo real via Supabase.
 - `supabase/seed.sql` — popula as tabelas com os dados atuais dos 57
   municípios (rode uma vez, depois do schema.sql)
 
-## Como configurar o Supabase (uma vez só)
 
-1. **Crie o projeto**: em [supabase.com](https://supabase.com), crie uma
-   conta gratuita e um novo projeto (ex: "navlog-amazonia").
-2. **Rode o schema**: no painel do projeto, abra **SQL Editor → New query**,
-   cole todo o conteúdo de `supabase/schema.sql` e clique em **Run**. Isso
-   cria as tabelas `municipios_info` e `observacoes` com as regras de acesso
-   (cada pessoa só edita observações suas; Configurações vale pra quem
-   estiver logado).
-3. **Popule os dados**: nova query, cole todo o conteúdo de
-   `supabase/seed.sql` e rode. Isso carrega os 57 municípios com os valores
-   atuais (o mesmo que já estava em `data.js`).
-4. **Pegue a URL e a chave pública**: em **Project Settings → API Keys**,
-   copie o **Project URL** e a chave **anon/public** (NÃO a `service_role`,
-   essa é secreta). Cole essas duas informações em `js/supabase-config.js`,
-   substituindo os textos `COLE_AQUI_A_PROJECT_URL` e `COLE_AQUI_A_ANON_KEY`.
-5. **Crie as contas da equipe**: em **Authentication → Users → Add user**,
-   crie um usuário (e-mail + senha) pra cada pessoa que vai acessar o app.
-   Marque a opção de já confirmar o e-mail automaticamente (já que é você,
-   administrador, criando a conta — não precisa de um fluxo de confirmação
-   por e-mail). Cada pessoa loga com o e-mail e senha que você definir.
-6. **Desative cadastro público** (recomendado): em
-   **Authentication → Sign In / Providers → Email**, deixe desligada a opção
-   de permitir que qualquer um se cadastre sozinho — assim só entra quem
-   você cadastrar manualmente no passo 5.
-
-Pronto — depois disso o app já lê e escreve direto no Supabase.
 
 ## Dados de origem
 
