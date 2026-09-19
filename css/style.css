@@ -126,6 +126,46 @@ html, body {
 .ita { font-family: var(--font-mono); font-size: 11px; color: var(--mu); flex-shrink: 0; }
 .ichv { color: var(--mu); font-size: 18px; flex-shrink: 0; }
 
+/* ── INFORMAÇÕES: grade de balões (chips) por município ── */
+.chipgrid { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+.chip {
+  position: relative; width: 60px; height: 60px; border-radius: 16px;
+  background: var(--s2); border: 1.5px solid var(--bd);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-family: var(--font-sans); padding: 0;
+  transition: transform .1s;
+}
+.chip:active { transform: scale(.94); }
+.chip-seq { font-family: var(--font-mono); font-size: 13px; font-weight: 900; letter-spacing: .3px; }
+.chip-segdot {
+  position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 9px;
+  border: 1.5px solid var(--bg);
+}
+.chip-obsdot {
+  position: absolute; bottom: -3px; left: -3px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ac); border: 1.5px solid var(--bg);
+}
+
+/* ── Balão somente leitura (Informações) — reaproveita .sh-* ── */
+.sh-view-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+.sh-view-kpi { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px; padding: 10px 8px; text-align: center; }
+.sh-view-kt { font-size: 9px; color: var(--mu); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.sh-view-kv { font-size: 14px; font-weight: 800; }
+.sh-view-price { float: right; font-size: 12px; font-weight: 700; color: var(--tx); letter-spacing: 0; text-transform: none; }
+.sh-view-emblist { display: flex; flex-direction: column; gap: 6px; }
+.sh-view-emb { display: flex; align-items: center; justify-content: space-between; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 9px 11px; }
+.sh-view-emb-n { font-size: 13px; font-weight: 600; }
+.sh-view-emb-tt { font-family: var(--font-mono); font-size: 11px; color: var(--mu); flex-shrink: 0; margin-left: 10px; }
+.sh-obs-wrap { margin-top: 6px; }
+.sh-obs-hint { text-transform: none; font-weight: 500; letter-spacing: 0; color: var(--mu); font-size: 10px; }
+.sh-obs {
+  width: 100%; min-height: 76px; background: var(--bg); border: 1px solid var(--bd); border-radius: 10px;
+  padding: 11px 12px; color: var(--tx); font-size: 13px; font-family: var(--font-sans); outline: none;
+  resize: vertical; line-height: 1.5;
+}
+.sh-obs:focus { border-color: var(--ac); }
+
 /* ── BOTTOM SHEET (balão editável) ── */
 #sheet-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 500;
