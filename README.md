@@ -2,6 +2,7 @@
 
 App web mobile-first (iOS, Android e desktop Windows via navegador) para consulta
 de rotas fluviais, precificação e embarcações da Fácil Express na malha do Amazonas.
+Login individual por pessoa e dados compartilhados em tempo real via Supabase.
 
 ## Estrutura (4 abas)
 
@@ -16,42 +17,78 @@ de rotas fluviais, precificação e embarcações da Fácil Express na malha do 
    - Embarcações mais usadas em cada regime do rio
    - Classificação de segurança (Aduaneiro/Corredor), quando aplicável, em
      seção retrátil
-   - **Observações** — campo de texto livre por município, pessoal, salvo
-     apenas no navegador de cada aparelho (não é a mesma base das edições de
-     Configurações).
+   - **Observações** — campo de texto livre por município. Pessoal de cada
+     usuário (ninguém mais vê a sua), salvo na conta de quem escreveu — não
+     depende do aparelho.
 3. **Configurações** — os mesmos municípios por calha; ao tocar num município
    abre um balão **editável** com:
    - Transit Time Amazon (dias)
    - Preço por saca — Seca e Cheia
    - Embarcações mais usadas em cada regime do rio, com opção de adicionar,
      remover ou renomear e ajustar o transit time de cada uma.
-   Edições ficam salvas no navegador do aparelho (localStorage) e podem ser
-   restauradas para o valor original a qualquer momento. É o que alimenta o
-   que aparece na aba Informações e no mapa.
+   Edições são salvas no banco de dados e aparecem **para toda a equipe, em
+   qualquer aparelho, na hora** (inclusive pra quem já está com o app aberto,
+   via Realtime). "Restaurar original" devolve o valor de fábrica (o que veio
+   da planilha), também pra todo mundo.
 4. **Mapa** — mapa vetorial (SVG) do Amazonas com as 10 rotas coloridas por calha,
    filtro por rota, zoom (botões e pinça no celular) e popup por município com
    KPIs (transit, distância, TT Amazon) e embarcações principais. Municípios
-   classificados como **Aduaneiro** ou **Corredor de Escoamento** (ver abaixo)
-   ganham um selo diferenciado no mapa, filtro próprio e um link "ver detalhes"
-   que abre o balão somente-leitura da aba Informações.
+   classificados como **Aduaneiro** ou **Corredor de Escoamento** ganham um
+   selo diferenciado no mapa, filtro próprio e um link "ver detalhes" que abre
+   o balão somente-leitura da aba Informações.
 
 ## Arquivos
 
-- `index.html` — estrutura das 4 abas
+- `index.html` — estrutura das 4 abas + verificação de login ao abrir
+- `login.html` — tela de login (e-mail + senha, via Supabase Auth)
 - `css/style.css` — tema escuro, responsivo (mobile-first + desktop)
-- `js/data.js` — dados estáticos: coordenadas (LATLNG), contorno do Amazonas
-  (AM_BORDER), rios (RIOS), rotas e municípios (ROTAS) e a base de informações
-  por município (MUNINFO, extraída de `ANALISE_POR_MUNICIPIO.xlsx`)
-- `js/app.js` — lógica das 4 abas, persistência de edições e observações
-  (localStorage) e renderização do mapa
+- `js/data.js` — dados estáticos que não mudam pelo app: coordenadas
+  (LATLNG), contorno do Amazonas (AM_BORDER), rios (RIOS), rotas e
+  municípios (ROTAS), classificação de segurança (SEGURANCA) e os valores
+  "de fábrica" de cada município (MUNINFO — usados como ponto de partida e
+  pelo botão "Restaurar original")
+- `js/supabase-config.js` — URL do projeto e chave pública do Supabase
+- `js/app.js` — lógica das 4 abas, leitura/escrita no Supabase (Configurações
+  e Observações) e renderização do mapa
+- `supabase/schema.sql` — cria as tabelas e as regras de acesso (rode uma vez)
+- `supabase/seed.sql` — popula as tabelas com os dados atuais dos 57
+  municípios (rode uma vez, depois do schema.sql)
+
+## Como configurar o Supabase (uma vez só)
+
+1. **Crie o projeto**: em [supabase.com](https://supabase.com), crie uma
+   conta gratuita e um novo projeto (ex: "navlog-amazonia").
+2. **Rode o schema**: no painel do projeto, abra **SQL Editor → New query**,
+   cole todo o conteúdo de `supabase/schema.sql` e clique em **Run**. Isso
+   cria as tabelas `municipios_info` e `observacoes` com as regras de acesso
+   (cada pessoa só edita observações suas; Configurações vale pra quem
+   estiver logado).
+3. **Popule os dados**: nova query, cole todo o conteúdo de
+   `supabase/seed.sql` e rode. Isso carrega os 57 municípios com os valores
+   atuais (o mesmo que já estava em `data.js`).
+4. **Pegue a URL e a chave pública**: em **Project Settings → API Keys**,
+   copie o **Project URL** e a chave **anon/public** (NÃO a `service_role`,
+   essa é secreta). Cole essas duas informações em `js/supabase-config.js`,
+   substituindo os textos `COLE_AQUI_A_PROJECT_URL` e `COLE_AQUI_A_ANON_KEY`.
+5. **Crie as contas da equipe**: em **Authentication → Users → Add user**,
+   crie um usuário (e-mail + senha) pra cada pessoa que vai acessar o app.
+   Marque a opção de já confirmar o e-mail automaticamente (já que é você,
+   administrador, criando a conta — não precisa de um fluxo de confirmação
+   por e-mail). Cada pessoa loga com o e-mail e senha que você definir.
+6. **Desative cadastro público** (recomendado): em
+   **Authentication → Sign In / Providers → Email**, deixe desligada a opção
+   de permitir que qualquer um se cadastre sozinho — assim só entra quem
+   você cadastrar manualmente no passo 5.
+
+Pronto — depois disso o app já lê e escreve direto no Supabase.
 
 ## Dados de origem
 
-`MUNINFO` foi gerado a partir da planilha `ANALISE_POR_MUNICIPIO.xlsx`
-(abas DETALHE_MUNICÍPIOS/RESUMO_MUNICIPIOS), casando os 57 municípios das rotas
-com os municípios da planilha. 4 municípios (Iranduba, Balbina, Canutama e
-Santa Isabel do Rio Negro) não tinham histórico na planilha e entram com os
-campos vazios, prontos para edição manual na aba Configurações.
+`MUNINFO`/o seed inicial foi gerado a partir da planilha
+`ANALISE_POR_MUNICIPIO.xlsx` (abas DETALHE_MUNICÍPIOS/RESUMO_MUNICIPIOS),
+casando os 57 municípios das rotas com os municípios da planilha. 4
+municípios (Iranduba, Balbina, Canutama e Santa Isabel do Rio Negro) não
+tinham histórico na planilha e entram com os campos vazios.
 
 Preço por saca (seca/cheia) foi aplicado por regra definida pelo operador:
 - Não-Transamazônica: R$50 (seca) / R$30 (cheia)
@@ -64,17 +101,30 @@ Todos os valores continuam editáveis por município na aba Configurações.
 Cachoeira, Santo Antônio do Içá, Amaturá) ou **Corredor de Escoamento**
 (Coari, Tefé, Jutaí, Codajás, Fonte Boa, Manacapuru, Iranduba).
 
-## Observações por município
+## Login (contas individuais)
 
-Cada operador pode deixar uma nota livre por município na aba Informações.
-Esse campo é local — fica salvo em `localStorage` (`riverops_obs_v1`) do
-navegador/aparelho de quem escreveu, então cada pessoa vê só as próprias
-anotações. Um ponto verde no canto do balão, na grade, indica que existe uma
-observação salva ali.
+Cada pessoa da equipe tem seu próprio e-mail/senha (criados pelo
+administrador no painel do Supabase — ver "Como configurar o Supabase"
+acima, passo 5). Funciona assim:
+- `login.html` pede e-mail e senha, e usa o Supabase Auth pra conferir.
+- `index.html` confere se há uma sessão válida assim que abre; se não
+  houver, redireciona pra `login.html`.
+- O botão ⏻ no cabeçalho desconecta a sessão atual.
+
+Não existe cadastro público — só quem o administrador cadastrar no Supabase
+consegue entrar. A URL e a chave pública do projeto (`js/supabase-config.js`)
+são seguras de ficar no código: o acesso de verdade é controlado pelas
+regras (Row Level Security) configuradas no banco, não por essas duas
+informações ficarem "escondidas".
 
 ## Publicação (Vercel)
 
-Este é um site estático (HTML/CSS/JS puro, sem build step) — basta apontar o
-projeto Vercel para a raiz desta pasta (`index.html` na raiz). Não há variáveis
-de ambiente nem backend: os dados editados pelo usuário ficam no localStorage
-de cada navegador/aparelho.
+O site é HTML/CSS/JS estático (sem build step) — a Vercel só serve os
+arquivos, sem precisar de nenhuma função de servidor. Basta apontar o
+projeto Vercel para a raiz desta pasta (`index.html` na raiz). Toda a lógica
+de login e dados compartilhados roda direto do navegador pro Supabase, sem
+passar pelo servidor da Vercel.
+
+**Antes de publicar**, garanta que `js/supabase-config.js` já tem a URL e a
+anon key reais do seu projeto Supabase (ver seção acima) — sem isso o login
+não funciona.

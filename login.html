@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d11">
+<title>Login · NavLog Amazônia</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  html, body { overflow: auto; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .login-box { width: 100%; max-width: 340px; padding: 28px; background: var(--s1); border: 1px solid var(--bd); border-radius: 16px; }
+  .login-logo { text-align: center; margin-bottom: 22px; }
+  .login-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 8px var(--ac); margin: 0 auto 10px; }
+  .login-title { font-size: 15px; font-weight: 800; letter-spacing: .08em; }
+  .login-sub { font-size: 10px; color: var(--ac); font-weight: 900; letter-spacing: .04em; margin-top: 3px; }
+  .login-field { margin-top: 18px; }
+  .login-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--mu); margin-bottom: 6px; }
+  .login-field input { width: 100%; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 12px; color: var(--tx); font-size: 15px; outline: none; font-family: var(--font-sans); }
+  .login-field input:focus { border-color: var(--ac); }
+  .login-btn { width: 100%; margin-top: 20px; background: var(--ac); color: #fff; border: none; border-radius: 9px; padding: 13px; font-size: 14px; font-weight: 800; cursor: pointer; font-family: var(--font-sans); }
+  .login-btn:disabled { opacity: .6; cursor: default; }
+  .login-err { color: var(--re); font-size: 12px; margin-top: 12px; text-align: center; display: none; }
+  .login-hint { color: var(--mu); font-size: 11px; margin-top: 16px; text-align: center; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-dot"></div>
+      <div class="login-title">NAVLOG AMAZÔNIA</div>
+      <div class="login-sub">FÁCIL EXPRESS LTDA</div>
+    </div>
+    <form id="login-form">
+      <div class="login-field">
+        <label>E-mail</label>
+        <input type="email" id="in-email" autocomplete="username" autofocus required>
+      </div>
+      <div class="login-field">
+        <label>Senha</label>
+        <input type="password" id="in-senha" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="login-btn" id="btn-entrar">Entrar</button>
+      <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
+    </form>
+    <div class="login-hint">Sua conta é criada pelo administrador do sistema.<br>Não tem acesso ainda? Fale com quem administra o NavLog.</div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script>
+(function () {
+  // se já tem sessão válida, pula direto pro app
+  sb.auth.getSession().then(function (res) {
+    if (res.data && res.data.session) window.location.replace('/index.html');
+  });
+})();
+
+document.getElementById('login-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var btn = document.getElementById('btn-entrar');
+  var err = document.getElementById('login-err');
+  var email = document.getElementById('in-email').value.trim();
+  var senha = document.getElementById('in-senha').value;
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  err.style.display = 'none';
+
+  sb.auth.signInWithPassword({ email: email, password: senha }).then(function (res) {
+    if (res.error) {
+      err.textContent = 'E-mail ou senha incorretos.';
+      err.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Entrar';
+      return;
+    }
+    window.location.href = '/index.html';
+  }).catch(function () {
+    err.textContent = 'Falha de conexão. Tente novamente.';
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Entrar';
+  });
+});
+</script>
+</body>
+</html>

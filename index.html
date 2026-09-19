@@ -6,6 +6,20 @@
 <meta name="theme-color" content="#0b0d11">
 <title>NavLog Amazônia · Fácil Express</title>
 <link rel="stylesheet" href="css/style.css">
+<style>html:not(.authed) body { visibility: hidden; }</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script>
+(function () {
+  // document.body pode ainda não existir aqui (estamos no <head>) —
+  // por isso a classe vai na <html>, que já existe, em vez de mexer
+  // direto no <body>.
+  sb.auth.getSession().then(function (res) {
+    if (res.data && res.data.session) { document.documentElement.classList.add('authed'); }
+    else { window.location.replace('/login.html'); }
+  }).catch(function () { window.location.replace('/login.html'); });
+})();
+</script>
 </head>
 <body>
 
@@ -15,11 +29,15 @@
     <div class="lt">NAVLOG AMAZÔNIA</div>
     <div class="lt2">FÁCIL EXPRESS LTDA</div>
   </div>
-  <div class="htabs">
-    <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span>Rotas</button>
-    <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span>Informações</button>
-    <button class="htab" data-s="c" onclick="SS('c',this)"><span class="hti">⚙️</span>Configurações</button>
-    <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span>Mapa</button>
+  <div class="hdr-right">
+    <div class="htabs">
+      <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span>Rotas</button>
+      <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span>Informações</button>
+      <button class="htab" data-s="c" onclick="SS('c',this)"><span class="hti">⚙️</span>Configurações</button>
+      <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span>Mapa</button>
+    </div>
+    <span class="user-badge" id="user-badge"></span>
+    <button class="logout-btn" onclick="sair()" title="Sair">⏻</button>
   </div>
 </div>
 
@@ -95,5 +113,6 @@
 
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
+<script>initApp();</script>
 </body>
 </html>
