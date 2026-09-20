@@ -928,6 +928,20 @@ function applyMapTransform() {
   if (g) g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
 }
 
+/* Muda o zoom (T.s) mantendo o CENTRO da tela fixo no mesmo ponto do mapa —
+   sem isso, dar zoom (botão, roda do mouse ou pinça) ia deslocando o mapa
+   pro canto superior esquerdo a cada vez (porque a escala do <g> é aplicada
+   a partir da origem 0,0). 450,300 é sempre o centro do viewBox (900x600),
+   que é sempre o centro visível da tela (o SVG usa xMidYMid), então "manter
+   o ponto que está em 450,300 fixo" == "manter o mapa centralizado". */
+function zoomAroundCenter(newS) {
+  newS = Math.max(0.5, Math.min(8, newS));
+  var r = newS / T.s;
+  T.x = 450 - r * (450 - T.x);
+  T.y = 300 - r * (300 - T.y);
+  T.s = newS;
+}
+
 function initMapInteractions() {
   var svg = document.getElementById('msvg');
   if (!svg || mapInteractionsBound) return;
@@ -945,31 +959,41 @@ function initMapInteractions() {
   });
   window.addEventListener('mouseup', function () { mapDrag.active = false; });
 
+  /* touchstart/touchmove NÃO podem ser passive aqui: sem chamar
+     preventDefault(), o navegador do celular também tentava fazer o
+     "pinch-zoom" nativo da página inteira ao mesmo tempo que o nosso zoom
+     próprio do mapa — daí a página inteira deslizava/dava zoom, e a barra
+     de filtros parecia "sumir" (só tinha saído da área visível). Com
+     preventDefault(), só o mapa reage ao gesto. */
   svg.addEventListener('touchstart', function (e) {
     if (e.touches.length === 1) {
       mapDrag.active = true; mapDrag.moved = false;
       mapDrag.x = e.touches[0].clientX; mapDrag.y = e.touches[0].clientY;
     } else if (e.touches.length === 2) {
+      e.preventDefault();
       mapDrag.active = false;
       mapPinch.active = true;
       var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
       mapPinch.dist = Math.hypot(dx, dy); mapPinch.s0 = T.s;
     }
-  }, { passive: true });
+  }, { passive: false });
   svg.addEventListener('touchmove', function (e) {
     if (mapPinch.active && e.touches.length === 2) {
+      e.preventDefault();
       var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
       var d = Math.hypot(dx, dy);
-      T.s = mapPinch.s0 * (d / mapPinch.dist);
+      // pinça: zoom centralizado na tela, pra não "puxar" o mapa pro canto
+      zoomAroundCenter(mapPinch.s0 * (d / mapPinch.dist));
       applyMapTransform();
     } else if (mapDrag.active && e.touches.length === 1) {
+      e.preventDefault();
       var tdx = e.touches[0].clientX - mapDrag.x, tdy = e.touches[0].clientY - mapDrag.y;
       if (Math.abs(tdx) > 2 || Math.abs(tdy) > 2) mapDrag.moved = true;
       T.x += tdx; T.y += tdy;
       mapDrag.x = e.touches[0].clientX; mapDrag.y = e.touches[0].clientY;
       applyMapTransform();
     }
-  }, { passive: true });
+  }, { passive: false });
   svg.addEventListener('touchend', function (e) {
     mapDrag.active = false;
     if (e.touches.length < 2) mapPinch.active = false;
@@ -978,13 +1002,13 @@ function initMapInteractions() {
   svg.addEventListener('wheel', function (e) {
     e.preventDefault();
     var delta = e.deltaY < 0 ? 1.12 : (1 / 1.12);
-    T.s *= delta;
+    zoomAroundCenter(T.s * delta); // zoom com a roda do mouse também fica centralizado
     applyMapTransform();
   }, { passive: false });
 }
 
-function zI() { T.s = Math.min(T.s * 1.3, 8); renderMap(); }
-function zO() { T.s = Math.max(T.s / 1.3, 0.5); renderMap(); }
+function zI() { zoomAroundCenter(T.s * 1.3); renderMap(); }
+function zO() { zoomAroundCenter(T.s / 1.3); renderMap(); }
 function zR() {
   T = { s: 1, x: 0, y: 0 };
   rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa();
