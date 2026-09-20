@@ -30,12 +30,19 @@ Login individual por pessoa e dados compartilhados em tempo real via Supabase.
    qualquer aparelho, na hora** (inclusive pra quem já está com o app aberto,
    via Realtime). "Restaurar original" devolve o valor de fábrica (o que veio
    da planilha), também pra todo mundo.
-4. **Mapa** — mapa vetorial (SVG) do Amazonas com as 10 rotas coloridas por calha,
-   filtro por rota, zoom (botões e pinça no celular) e popup por município com
-   KPIs (transit, distância, TT Amazon) e embarcações principais. Municípios
-   classificados como **Aduaneiro** ou **Corredor de Escoamento** ganham um
-   selo diferenciado no mapa, filtro próprio e um link "ver detalhes" que abre
-   o balão somente-leitura da aba Informações.
+4. **Mapa** — mapa real do Amazonas (tiles escuros gratuitos da CARTO/OpenStreetMap,
+   via [Leaflet](https://leafletjs.com), sem chave de API) com as 10 rotas coloridas
+   por calha desenhadas por cima, filtro por rota, zoom/arraste nativos (botões,
+   scroll e pinça no celular) e popup por município com KPIs (transit, distância,
+   TT Amazon) e embarcações principais. Ao selecionar uma calha específica, uma
+   embarcação (🚤) ou ônibus (🚌, nas calhas rodoviárias) anima percorrendo a rota
+   do hub (Manaus) até os municípios. Municípios classificados como **Aduaneiro**
+   ou **Corredor de Escoamento** ganham um selo diferenciado, uma aura vermelha
+   pulsante (ponto de atenção/fiscalização), filtro próprio e um link "ver
+   detalhes" que abre o balão somente-leitura da aba Informações.
+   Como o mapa carrega tiles direto do navegador de quem acessa, precisa de
+   internet no aparelho pra aparecer (igual o Google Maps) — sem internet, as
+   rotas/municípios continuam aparecendo, só o fundo do mapa que fica em branco.
 
 ## Arquivos
 
