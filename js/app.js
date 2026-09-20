@@ -507,6 +507,7 @@ function resetSheetAtual() {
 var T = { s: 1, x: 0, y: 0 };
 var rotaFiltrada = null;
 var tipoFiltrado = null; // null | 'aduaneiro' | 'corredor'
+var mapAnimateEntrance = true; // true = próxima renderMap() anima entrada dos nós/linhas
 
 function nodeAtivo(m, rNum) {
   if (tipoFiltrado) {
@@ -520,6 +521,8 @@ function mapLabel(rotaNum, idx) { return rotaNum + idx; }
 
 function renderMap() {
   var svg = document.getElementById('msvg'); if (!svg) return;
+  var animarEntrada = mapAnimateEntrance;
+  mapAnimateEntrance = false;
   svg.innerHTML = '';
   var NS = 'http://www.w3.org/2000/svg';
   var W = 900, H = 600;
@@ -534,6 +537,7 @@ function renderMap() {
 
   var g = document.createElementNS(NS, 'g'); g.id = 'mg';
   g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
+  svg.appendChild(g); // anexa já aqui: getTotalLength() (usado no desenho das linhas) exige o elemento renderizado
 
   var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#070c14'); g.appendChild(bg);
   var gr = document.createElementNS(NS, 'rect'); gr.setAttribute('width', W); gr.setAttribute('height', H); gr.setAttribute('fill', 'url(#gr)'); g.appendChild(gr);
@@ -551,13 +555,19 @@ function renderMap() {
   });
 
   var hub = proj(-3.119, -60.021);
+  ['hub-ring', 'hub-ring hub-ring2'].forEach(function (cls) {
+    var ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('cx', hub.x); ring.setAttribute('cy', hub.y); ring.setAttribute('r', '8');
+    ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#14b8a6'); ring.setAttribute('stroke-width', '1.5');
+    ring.setAttribute('class', cls); g.appendChild(ring);
+  });
   var hc = document.createElementNS(NS, 'circle');
   hc.setAttribute('cx', hub.x); hc.setAttribute('cy', hub.y); hc.setAttribute('r', '8'); hc.setAttribute('fill', '#14b8a6'); hc.setAttribute('filter', 'url(#gw)'); g.appendChild(hc);
   var hl = document.createElementNS(NS, 'text');
   hl.setAttribute('x', hub.x + 11); hl.setAttribute('y', hub.y + 4); hl.setAttribute('font-size', '9');
   hl.setAttribute('fill', '#14b8a6'); hl.setAttribute('font-weight', '900'); hl.setAttribute('font-family', 'monospace'); hl.textContent = 'MANAUS'; g.appendChild(hl);
 
-  ROTAS.forEach(function (r) {
+  ROTAS.forEach(function (r, ri) {
     var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
     var pts = r.municipios.map(function (m) { return LATLNG[m.seq] ? proj(LATLNG[m.seq].lat, LATLNG[m.seq].lng) : null; }).filter(Boolean);
     if (pts.length) {
@@ -565,12 +575,21 @@ function renderMap() {
       var polyPts = lineCoords.map(function (p) { return p[0] + ' ' + p[1]; }).join(', ');
       var line = document.createElementNS(NS, 'polyline');
       line.setAttribute('points', polyPts); line.setAttribute('fill', 'none');
+      line.setAttribute('class', 'mline');
       line.setAttribute('stroke', r.cor); line.setAttribute('stroke-width', (algumAtivo && !tipoFiltrado) ? '2.4' : '1');
       line.setAttribute('opacity', tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06')); line.setAttribute('stroke-linecap', 'round'); g.appendChild(line);
+      if (animarEntrada) {
+        var len = line.getTotalLength();
+        line.style.strokeDasharray = len;
+        line.style.setProperty('--len', len);
+        line.classList.add('mline-draw');
+        line.style.animationDelay = (ri * 60) + 'ms';
+      }
     }
   });
 
   var iz = 1 / T.s;
+  var nodeCounter = 0;
   ROTAS.forEach(function (r) {
     r.municipios.forEach(function (m, idx) {
       var ll = LATLNG[m.seq]; if (!ll) return;
@@ -579,6 +598,9 @@ function renderMap() {
       var p = proj(ll.lat, ll.lng);
       var label = mapLabel(r.num, idx + 1);
       var grp = document.createElementNS(NS, 'g');
+      grp.setAttribute('class', 'mnode' + (animarEntrada ? ' mnode-in' : ''));
+      grp.setAttribute('data-ativo', ativo ? '1' : '0');
+      if (animarEntrada) { grp.style.setProperty('--i', nodeCounter); nodeCounter++; }
       grp.style.cursor = ativo ? 'pointer' : 'default';
       grp.style.opacity = ativo ? '1' : '0.08';
 
@@ -639,7 +661,6 @@ function renderMap() {
     });
   });
 
-  svg.appendChild(g);
 }
 
 function showMapPopup(hit, label) {
@@ -777,7 +798,7 @@ function initMapInteractions() {
 
 function zI() { T.s = Math.min(T.s * 1.3, 8); renderMap(); }
 function zO() { T.s = Math.max(T.s / 1.3, 0.5); renderMap(); }
-function zR() { T = { s: 1, x: 0, y: 0 }; rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa(); renderMap(); }
+function zR() { T = { s: 1, x: 0, y: 0 }; rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa(); mapAnimateEntrance = true; renderMap(); }
 
 /* ============================================================
    NAVEGAÇÃO ENTRE ABAS
@@ -793,7 +814,7 @@ function SS(name, btn) {
 
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
-  if (name === 'm') { buildMapFilters(); renderMap(); initMapInteractions(); }
+  if (name === 'm') { mapAnimateEntrance = true; buildMapFilters(); renderMap(); initMapInteractions(); }
 }
 
 /* ============================================================

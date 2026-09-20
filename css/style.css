@@ -288,7 +288,9 @@ html, body {
   flex-shrink: 0; background: var(--s2); border: 1.5px solid var(--bd); color: var(--mu);
   padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer;
   font-family: var(--font-sans); white-space: nowrap;
+  transition: background .18s, border-color .18s, color .18s, transform .12s;
 }
+.mfbtn:active { transform: scale(.94); }
 .mfbtn[data-rota]:not([data-rota=""]) { border-color: var(--rc); color: var(--rc); background: color-mix(in srgb, var(--rc) 14%, transparent); }
 .mfbtn.active { background: var(--ac); border-color: var(--ac); color: #fff; }
 .mfbtn[data-rota]:not([data-rota=""]).active { background: var(--rc); border-color: var(--rc); color: #fff; }
@@ -296,17 +298,45 @@ html, body {
 .mfbtn-seg { border-color: var(--rc); color: var(--rc); background: color-mix(in srgb, var(--rc) 14%, transparent); display: flex; align-items: center; gap: 4px; }
 .mfbtn-seg.active { background: var(--rc); border-color: var(--rc); color: #fff; }
 .map-zoomctl { display: flex; gap: 5px; flex-shrink: 0; }
-.mcb { width: 36px; height: 36px; background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; color: var(--tx); font-size: 17px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.mcb:active { border-color: var(--ac); color: var(--ac); }
+.mcb {
+  width: 36px; height: 36px; background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; color: var(--tx);
+  font-size: 17px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s, transform .12s;
+}
+.mcb:hover { border-color: var(--ac); color: var(--ac); }
+.mcb:active { border-color: var(--ac); color: var(--ac); transform: scale(.9); }
 
 #map-wrap { flex: 1; position: relative; overflow: hidden; }
 #msvg { width: 100%; height: 100%; display: block; touch-action: none; background: #070c14; }
+#msvg #mg.mg-anim { transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+
+/* ── animações dos elementos do mapa ── */
+@keyframes nodeIn { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+.mnode { transform-box: fill-box; transform-origin: center; transform: scale(1); transition: transform .15s; }
+.mnode.mnode-in { animation: nodeIn .32s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i, 0) * 16ms); }
+.mnode[data-ativo="1"]:hover { transform: scale(1.16); }
+
+@keyframes hubPing { 0% { transform: scale(.6); opacity: .8; } 100% { transform: scale(2.6); opacity: 0; } }
+.hub-ring { transform-box: fill-box; transform-origin: center; animation: hubPing 2.4s cubic-bezier(.2,.6,.4,1) infinite; }
+.hub-ring2 { animation-delay: 1.2s; }
+
+.mline { transition: opacity .3s; }
+.mline-draw { animation: mlineDraw 1s cubic-bezier(.2,.7,.3,1) backwards; }
+@keyframes mlineDraw { from { stroke-dashoffset: var(--len, 0); } to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mnode.mnode-in, .hub-ring, .mline-draw { animation: none !important; }
+  .mnode, .mline, .mfbtn, .mcb { transition: none !important; }
+}
 
 #map-popup {
-  display: none; position: absolute; z-index: 200; left: 50%; bottom: 12px; transform: translateX(-50%);
+  position: absolute; z-index: 200; left: 50%; bottom: 12px;
+  transform: translateX(-50%) translateY(16px); opacity: 0; pointer-events: none;
   background: #12151b; border-radius: 12px; padding: 14px 16px; width: calc(100% - 24px); max-width: 320px;
   box-sizing: border-box; box-shadow: 0 8px 30px rgba(0,0,0,.85); border: 1.5px solid var(--bd); font-family: inherit;
+  transition: opacity .22s cubic-bezier(.2,.8,.2,1), transform .22s cubic-bezier(.2,.8,.2,1);
 }
+#map-popup.on { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
 #map-popup.on { display: block; }
 .mp-close { position: absolute; top: 8px; right: 8px; background: var(--s2); border: none; color: var(--mu); width: 26px; height: 26px; border-radius: 50%; font-size: 12px; cursor: pointer; }
 .mp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-right: 24px; }
