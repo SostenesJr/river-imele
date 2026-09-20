@@ -83,6 +83,8 @@ html, body {
 }
 .htab.on { background: var(--ac); border-color: var(--ac); color: #fff; }
 .hti { font-size: 13px; }
+.htab-icon { padding: 7px 10px; gap: 0; }
+.htab-icon .hti { font-size: 15px; }
 
 /* MENU INFERIOR MOBILE */
 #btabs {
@@ -99,6 +101,7 @@ html, body {
 }
 .btab.on { color: var(--ac); }
 .bti { font-size: 18px; line-height: 1; }
+.btab-icon .bti { font-size: 21px; }
 
 /* CONTEUDO */
 #app { position: fixed; top: calc(50px + var(--safe-top)); left: 0; right: 0; bottom: 0; display: flex; overflow: hidden; }
@@ -117,7 +120,8 @@ html, body {
 /* ── ROTAS: cartão de calha (accordion) ── */
 @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .rcard {
-  background: var(--s1); border: 1px solid var(--bd); border-radius: 12px; margin-bottom: 8px; overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--rc, var(--ac)) 13%, var(--s1)) 0%, var(--s1) 65%);
+  border: 1px solid var(--bd); border-radius: 12px; margin-bottom: 8px; overflow: hidden;
   animation: cardIn .4s cubic-bezier(.2,.8,.2,1) backwards;
   animation-delay: calc(var(--i, 0) * 45ms);
   transition: border-color .2s, box-shadow .2s;
@@ -133,7 +137,12 @@ html, body {
 }
 .rcard.open .rnb { transform: scale(1.06); }
 .rinfo { flex: 1; min-width: 0; }
-.rnome { font-size: 14px; font-weight: 700; }
+.rnome { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rveic { font-size: 13px; }
+.rseg-badge {
+  font-size: 10px; width: 18px; height: 18px; border-radius: 50%; border: 1px solid;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
 .rsub { font-size: 11px; color: var(--mu); margin-top: 1px; }
 .rchv { color: var(--mu); font-size: 12px; transition: transform .25s cubic-bezier(.2,.8,.2,1); flex-shrink: 0; }
 .rcard.open .rchv { transform: rotate(90deg); }
@@ -146,13 +155,28 @@ html, body {
 .rbody-inner { min-height: 0; overflow: hidden; border-top: 1px solid var(--bd); }
 .rcard:not(.open) .rbody-inner { border-top-color: transparent; }
 
+.rtimeline { --tl: var(--rc, var(--ac)); }
 .mrow {
-  display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,.04);
-  transition: background .15s;
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px 11px 10px; border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .15s; position: relative;
 }
 .mrow:last-child { border-bottom: none; }
 .mrow:hover { background: rgba(255,255,255,.03); }
-.mpos { font-family: var(--font-mono); font-size: 10px; color: var(--mu); width: 18px; flex-shrink: 0; text-align: center; }
+.mrow:hover .mpos { box-shadow: 0 0 0 4px color-mix(in srgb, var(--tl) 30%, transparent); }
+
+/* linha do tempo: um traço vertical conectando os pontos de cada município,
+   com o número dentro de uma bolinha na cor da calha. */
+.mpos {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 800; color: #fff;
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--tl); position: relative; z-index: 1;
+  transition: box-shadow .15s;
+}
+.mrow:not(:last-child) .mpos::after {
+  content: ''; position: absolute; left: 50%; top: 100%; width: 2px; height: 22px;
+  transform: translateX(-50%); background: color-mix(in srgb, var(--tl) 45%, transparent);
+}
 .mseq { font-family: var(--font-mono); font-size: 12px; font-weight: 800; flex-shrink: 0; min-width: 44px; }
 .mname { flex: 1; font-size: 13px; font-weight: 600; min-width: 0; }
 .mkm { font-family: var(--font-mono); font-size: 11px; color: var(--mu); flex-shrink: 0; }

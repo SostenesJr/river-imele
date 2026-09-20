@@ -135,12 +135,40 @@ function principalEmb(lista) {
   return lista[0];
 }
 
+/* Uma calha é "rodoviária" (ônibus/estrada) quando o nome ou a direção
+   menciona isso — usado aqui, no cabeçalho do card, e no mapa (ícone
+   do veículo animado na calha selecionada). */
+function isRodoviaria(r) { return /rodovi/i.test((r.nome || '') + ' ' + (r.dir || '')); }
+
+function kmTotalRota(r) {
+  return r.municipios.reduce(function (soma, m) { return soma + (Number(m.km) || 0); }, 0);
+}
+
+/* Tipos de segurança (Aduaneiro / Corredor de Escoamento) presentes na
+   calha, sem repetir — vira selinho no cabeçalho do card. */
+function segTiposDaRota(r) {
+  var vistos = {};
+  var lista = [];
+  r.municipios.forEach(function (m) {
+    var seg = SEGURANCA[m.seq];
+    if (seg && !vistos[seg.tipo]) { vistos[seg.tipo] = true; lista.push(seg.tipo); }
+  });
+  return lista;
+}
+
 function buildRotaHeader(r) {
+  var rodoviaria = isRodoviaria(r);
+  var veicIc = rodoviaria ? '🚌' : '🚤';
+  var kmFmt = kmTotalRota(r).toLocaleString('pt-BR');
+  var segBadges = segTiposDaRota(r).map(function (tipo) {
+    var meta = SEGURANCA_META[tipo];
+    return '<span class="rseg-badge" style="background:' + meta.cor + '22;color:' + meta.cor + ';border-color:' + meta.cor + '55" title="' + meta.label + '">' + meta.icone + '</span>';
+  }).join('');
   return '<div class="rhead" onclick="toggleRota(\'' + r.num + '\', this)">'
     + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
     + '<div class="rinfo">'
-    + '<div class="rnome">Calha ' + r.nome + '</div>'
-    + '<div class="rsub">' + r.municipios.length + ' municípios · ' + r.dir + '</div>'
+    + '<div class="rnome">Calha ' + r.nome + ' <span class="rveic" title="' + (rodoviaria ? 'Rota rodoviária' : 'Rota fluvial') + '">' + veicIc + '</span>' + segBadges + '</div>'
+    + '<div class="rsub">' + r.municipios.length + ' municípios · ' + kmFmt + ' km total · ' + r.dir + '</div>'
     + '</div>'
     + '<div class="rchv">▶</div>'
     + '</div>';
@@ -158,9 +186,9 @@ function bRO() {
         + '<span class="mtt">' + m.tt + '</span>'
         + '</div>';
     }).join('');
-    return '<div class="rcard" id="rcard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
+    return '<div class="rcard" id="rcard-' + r.num + '" style="--i:' + ri + ';--rc:' + r.cor + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + buildRotaHeader(r)
-      + '<div class="rbody"><div class="rbody-inner">' + mRows + '</div></div>'
+      + '<div class="rbody"><div class="rbody-inner"><div class="rtimeline">' + mRows + '</div></div></div>'
       + '</div>';
   }).join('');
 }
@@ -690,7 +718,7 @@ function iniciarAnimacaoRota(num, line, iz) {
   var len = line.getTotalLength(); if (!len) return;
 
   var r = ROTAS.filter(function (x) { return x.num === num; })[0]; if (!r) return;
-  var rodoviaria = /rodovi/i.test((r.nome || '') + ' ' + (r.dir || ''));
+  var rodoviaria = isRodoviaria(r);
   var NS = 'http://www.w3.org/2000/svg';
 
   // grupo com um halo escuro atrás (pra destacar em cima de qualquer cor de linha/fundo) + o emoji
