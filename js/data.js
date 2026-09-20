@@ -198,7 +198,7 @@ const MUNINFO = {
   RRT9:{ta:15.5,ps:{seca:50,cheia:30},emb:[{n:"JESUS TE AMA",tt:6},{n:"O NOIVO",tt:1},{n:"LADY LUIZA",tt:3}]},
   RIP9:{ta:null,ps:{seca:50,cheia:30},emb:[]},
   RBL9:{ta:null,ps:{seca:50,cheia:30},emb:[]},
-  RIR9:{ta:null,ps:{seca:50,cheia:30},emb:[]},
+  RIR9:{ta:null,ps:{seca:00,cheia:00},emb:[]},
   RBB9:{ta:null,ps:{seca:50,cheia:30},emb:[]},
 };
 
