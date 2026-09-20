@@ -140,13 +140,14 @@ var NIVEL_ZONAS = [
 ];
 
 async function carregarNivelRio() {
-  // 400 dias cobre mais de 1 ano — dá pra comparar "hoje" com o mesmo dia
-  // do ano passado, além de alimentar o gráfico de histórico.
-  var res = await sb.from('nivel_rio').select('*').order('data', { ascending: true }).limit(400);
+  // Precisa dos 400 dias MAIS RECENTES (não os mais antigos) — por isso
+  // busca em ordem decrescente e depois inverte pra ascendente, já que
+  // agora a tabela pode ter milhares de linhas (histórico desde 2000).
+  var res = await sb.from('nivel_rio').select('*').order('data', { ascending: false }).limit(400);
   if (res.error) { console.error('Erro ao carregar nivel_rio:', res.error); return; }
   NIVEL_HIST = (res.data || []).map(function (row) {
     return { data: row.data, nivel_m: Number(row.nivel_m), variacao_cm: Number(row.variacao_cm), tendencia: row.tendencia, fonte: row.fonte };
-  });
+  }).reverse();
 }
 
 function nivelDoAnoPassado(hoje) {
