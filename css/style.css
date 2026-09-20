@@ -235,7 +235,10 @@ html, body {
 .sh-view-kpi { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px; padding: 10px 8px; text-align: center; }
 .sh-view-kt { font-size: 9px; color: var(--mu); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
 .sh-view-kv { font-size: 14px; font-weight: 800; }
-.sh-view-price { float: right; font-size: 12px; font-weight: 700; color: var(--tx); letter-spacing: 0; text-transform: none; }
+.sh-view-price { font-size: 12px; font-weight: 700; color: var(--tx); letter-spacing: 0; text-transform: none; }
+.sh-price-line { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--bd); }
+.sh-price-line:last-child { border-bottom: none; }
+.sh-price-tag { font-size: 13px; font-weight: 700; }
 .sh-view-emblist { display: flex; flex-direction: column; gap: 6px; }
 .sh-view-emb { display: flex; align-items: center; justify-content: space-between; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 9px 11px; }
 .sh-view-emb-n { font-size: 13px; font-weight: 600; }

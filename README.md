@@ -96,6 +96,10 @@ reinstalar nada.
 - `supabase/schema.sql` — cria as tabelas e as regras de acesso (rode uma vez)
 - `supabase/seed.sql` — popula as tabelas com os dados atuais dos 57
   municípios (rode uma vez, depois do schema.sql)
+- `supabase/migracao-emb-unico.sql` — só pra quem já tinha rodado o
+  `schema.sql` **antes de 20/09/2026**: une as colunas antigas `emb_seca`/
+  `emb_cheia` numa coluna só `emb` (ver "Dados de origem" abaixo). Instalação
+  nova não precisa rodar isso.
 - `manifest.json` — metadados do PWA (nome, ícone, cor, modo "standalone")
   que o navegador lê na hora de instalar o app
 - `sw.js` — service worker: guarda o "esqueleto" do app em cache local pra
@@ -138,6 +142,11 @@ reinstalar nada.
 
 Pronto — depois disso o app já lê e escreve direto no Supabase.
 
+**Já tinha configurado antes de 20/09/2026?** Rode também, uma vez só, o
+`supabase/migracao-emb-unico.sql` no SQL Editor — ele une as colunas antigas
+`emb_seca`/`emb_cheia` numa coluna só `emb`, sem perder nenhuma edição que
+vocês já tinham feito em Configurações.
+
 ## Dados de origem
 
 `MUNINFO`/o seed inicial foi gerado a partir da planilha
@@ -150,7 +159,15 @@ Preço por saca (seca/cheia) foi aplicado por regra definida pelo operador:
 - Não-Transamazônica: R$50 (seca) / R$30 (cheia)
 - Transamazônica (9 municípios): R$35 (seca e cheia)
 - Apuí, Humaitá e Labréa: R$70 (seca e cheia)
-Todos os valores continuam editáveis por município na aba Configurações.
+Todos os valores continuam editáveis por município na aba Configurações,
+mostrados um embaixo do outro (seca em cima, cheia embaixo).
+
+A lista de "embarcações mais usadas" por município é única (não separada por
+seca/cheia): até 20/09/2026 ela existia duplicada nos dois regimes, mas como
+as duas listas sempre vinham idênticas (mesma fonte de dados), foi unificada
+numa lista só — pra não sugerir uma precisão que a empresa ainda não tem. Se
+no futuro vocês souberem realmente quais embarcações rodam só na seca e
+quais só na cheia, dá pra reintroduzir essa separação.
 
 `SEGURANCA` (em `data.js`) classifica 13 municípios como **Aduaneiro**
 (fronteira — Tabatinga, Benjamin Constant, Atalaia do Norte, São Gabriel da

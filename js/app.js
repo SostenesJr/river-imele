@@ -37,13 +37,13 @@ ROTAS.forEach(function (rota) {
    pra todo mundo, de qualquer aparelho) vêm de MUNINFO_LIVE, que é
    carregada do Supabase em carregarMunicipiosInfo().
    ============================================================ */
-var MUNINFO_LIVE = {}; // seq -> {ta, ps:{seca,cheia}, emb:{seca,cheia}}
+var MUNINFO_LIVE = {}; // seq -> {ta, ps:{seca,cheia}, emb:[...]}
 
 function rowToInfo(row) {
   return {
     ta: row.ta,
     ps: { seca: row.ps_seca, cheia: row.ps_cheia },
-    emb: { seca: row.emb_seca || [], cheia: row.emb_cheia || [] }
+    emb: row.emb || []
   };
 }
 
@@ -59,7 +59,7 @@ async function carregarMunicipiosInfo() {
    existir linha pra esse município). */
 function getInfo(seq) {
   var fonte = MUNINFO_LIVE[seq] || MUNINFO[seq]
-    || { ta: null, ps: { seca: null, cheia: null }, emb: { seca: [], cheia: [] } };
+    || { ta: null, ps: { seca: null, cheia: null }, emb: [] };
   return JSON.parse(JSON.stringify(fonte)); // clona pra nao vazar referencia
 }
 
@@ -70,8 +70,7 @@ async function setInfo(seq, info) {
     ta: info.ta,
     ps_seca: info.ps.seca,
     ps_cheia: info.ps.cheia,
-    emb_seca: info.emb.seca,
-    emb_cheia: info.emb.cheia
+    emb: info.emb
   }, { onConflict: 'seq' });
   if (res.error) { alert('Não consegui salvar: ' + res.error.message); throw res.error; }
   MUNINFO_LIVE[seq] = JSON.parse(JSON.stringify(info));
@@ -80,7 +79,7 @@ async function setInfo(seq, info) {
 /* "Restaurar original" agora escreve os valores de fábrica de volta
    no banco — vale pra equipe toda, não só pra quem clicou. */
 async function resetInfo(seq) {
-  var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: { seca: [], cheia: [] } };
+  var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: [] };
   await setInfo(seq, JSON.parse(JSON.stringify(original)));
 }
 
@@ -452,16 +451,15 @@ function renderInfoView() {
     + '<div class="sh-view-kpi"><div class="sh-view-kt">Transit rota</div><div class="sh-view-kv">' + m.tt + '</div></div>'
     + '</div>'
 
-    + '<div class="sh-season" style="border-color:#f59e0b55">'
-    + '<div class="sh-season-hdr" style="color:#f59e0b">🏜️ SECA <span class="sh-view-price">' + fmtSaca(info.ps.seca) + ' /saca</span></div>'
-    + '<label class="sh-sub">Embarcações mais usadas</label>'
-    + '<div class="sh-view-emblist">' + embListViewHTML(info.emb.seca) + '</div>'
+    + '<div class="sh-season">'
+    + '<div class="sh-season-hdr">💰 PREÇO POR SACA</div>'
+    + '<div class="sh-price-line"><span class="sh-price-tag" style="color:#f59e0b">🏜️ Seca</span><span class="sh-view-price">' + fmtSaca(info.ps.seca) + ' /saca</span></div>'
+    + '<div class="sh-price-line"><span class="sh-price-tag" style="color:#0ea5e9">🌊 Cheia</span><span class="sh-view-price">' + fmtSaca(info.ps.cheia) + ' /saca</span></div>'
     + '</div>'
 
-    + '<div class="sh-season" style="border-color:#0ea5e955">'
-    + '<div class="sh-season-hdr" style="color:#0ea5e9">🌊 CHEIA <span class="sh-view-price">' + fmtSaca(info.ps.cheia) + ' /saca</span></div>'
-    + '<label class="sh-sub">Embarcações mais usadas</label>'
-    + '<div class="sh-view-emblist">' + embListViewHTML(info.emb.cheia) + '</div>'
+    + '<div class="sh-season">'
+    + '<label class="sh-sub" style="margin-top:0">Embarcações mais usadas</label>'
+    + '<div class="sh-view-emblist">' + embListViewHTML(info.emb) + '</div>'
     + '</div>'
 
     + '<div class="sh-obs-wrap">'
@@ -484,8 +482,7 @@ function bCO() {
   body.innerHTML = ROTAS.map(function (r, ri) {
     var mRows = r.municipios.map(function (m, i) {
       var info = getInfo(m.seq);
-      var pSeca = principalEmb(info.emb.seca);
-      var pCheia = principalEmb(info.emb.cheia);
+      var pEmb = principalEmb(info.emb);
       var seg = SEGURANCA[m.seq];
       var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
       return '<div class="irow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
@@ -493,8 +490,9 @@ function bCO() {
         + '<div class="iinfo">'
         + '<div class="iname">' + m.nome + segIc + '</div>'
         + '<div class="isub">'
-        + '<span class="itag ise">🏜️ ' + (pSeca ? pSeca.n : '—') + '</span>'
-        + '<span class="itag ich">🌊 ' + (pCheia ? pCheia.n : '—') + '</span>'
+        + '<span class="itag ise">🏜️ ' + fmtSaca(info.ps.seca) + '</span>'
+        + '<span class="itag ich">🌊 ' + fmtSaca(info.ps.cheia) + '</span>'
+        + '<span class="itag">🚢 ' + (pEmb ? pEmb.n : '—') + '</span>'
         + '</div></div>'
         + '<div class="ita">' + fmtTA(info.ta) + '</div>'
         + '<div class="ichv">›</div>'
@@ -563,13 +561,13 @@ function segHTML(seq) {
     + '</div></div>';
 }
 
-function embRowHTML(seq, regime, idx, item) {
+function embRowHTML(idx, item) {
   return '<div class="emb-row">'
     + '<input class="emb-in emb-nome" type="text" value="' + (item.n || '').replace(/"/g, '&quot;') + '" placeholder="Nome da embarcação" '
-    + 'oninput="editEmb(\'' + regime + '\',' + idx + ',\'n\',this.value)">'
+    + 'oninput="editEmb(' + idx + ',\'n\',this.value)">'
     + '<input class="emb-in emb-tt" type="number" step="0.1" min="0" value="' + (item.tt === null || item.tt === undefined ? '' : item.tt) + '" placeholder="dias" '
-    + 'oninput="editEmb(\'' + regime + '\',' + idx + ',\'tt\',this.value)">'
-    + '<button class="emb-rm" onclick="removeEmb(\'' + regime + '\',' + idx + ')">✕</button>'
+    + 'oninput="editEmb(' + idx + ',\'tt\',this.value)">'
+    + '<button class="emb-rm" onclick="removeEmb(' + idx + ')">✕</button>'
     + '</div>';
 }
 
@@ -578,9 +576,7 @@ function renderSheet() {
   var seq = editState.seq; var info = editState.info;
   var hit = NODEIDX[seq]; var r = hit.rota; var m = hit.mun;
 
-  var embSecaHTML = info.emb.seca.map(function (item, i) { return embRowHTML(seq, 'seca', i, item); }).join('')
-    || '<div class="emb-empty">Nenhuma embarcação cadastrada.</div>';
-  var embCheiaHTML = info.emb.cheia.map(function (item, i) { return embRowHTML(seq, 'cheia', i, item); }).join('')
+  var embHTML = info.emb.map(function (item, i) { return embRowHTML(i, item); }).join('')
     || '<div class="emb-empty">Nenhuma embarcação cadastrada.</div>';
 
   var html =
@@ -597,22 +593,18 @@ function renderSheet() {
     + '<input type="number" step="0.1" min="0" id="in-ta" value="' + (info.ta === null || info.ta === undefined ? '' : info.ta) + '" oninput="editState.info.ta = this.value === \'\' ? null : Number(this.value)">'
     + '</div>'
 
-    + '<div class="sh-season" style="border-color:#f59e0b55">'
-    + '<div class="sh-season-hdr" style="color:#f59e0b">🏜️ SECA</div>'
-    + '<div class="sh-field"><label>Preço por saca (R$)</label>'
+    + '<div class="sh-season">'
+    + '<div class="sh-season-hdr">💰 PREÇO POR SACA</div>'
+    + '<div class="sh-field"><label style="color:#f59e0b">🏜️ Seca (R$)</label>'
     + '<input type="number" step="0.5" min="0" value="' + (info.ps.seca === null || info.ps.seca === undefined ? '' : info.ps.seca) + '" oninput="editState.info.ps.seca = this.value === \'\' ? null : Number(this.value)"></div>'
-    + '<label class="sh-sub">Embarcações mais usadas</label>'
-    + '<div id="emb-list-seca">' + embSecaHTML + '</div>'
-    + '<button class="emb-add" onclick="addEmb(\'seca\')">+ Adicionar embarcação</button>'
+    + '<div class="sh-field"><label style="color:#0ea5e9">🌊 Cheia (R$)</label>'
+    + '<input type="number" step="0.5" min="0" value="' + (info.ps.cheia === null || info.ps.cheia === undefined ? '' : info.ps.cheia) + '" oninput="editState.info.ps.cheia = this.value === \'\' ? null : Number(this.value)"></div>'
     + '</div>'
 
-    + '<div class="sh-season" style="border-color:#0ea5e955">'
-    + '<div class="sh-season-hdr" style="color:#0ea5e9">🌊 CHEIA</div>'
-    + '<div class="sh-field"><label>Preço por saca (R$)</label>'
-    + '<input type="number" step="0.5" min="0" value="' + (info.ps.cheia === null || info.ps.cheia === undefined ? '' : info.ps.cheia) + '" oninput="editState.info.ps.cheia = this.value === \'\' ? null : Number(this.value)"></div>'
-    + '<label class="sh-sub">Embarcações mais usadas</label>'
-    + '<div id="emb-list-cheia">' + embCheiaHTML + '</div>'
-    + '<button class="emb-add" onclick="addEmb(\'cheia\')">+ Adicionar embarcação</button>'
+    + '<div class="sh-season">'
+    + '<label class="sh-sub" style="margin-top:0">Embarcações mais usadas</label>'
+    + '<div id="emb-list">' + embHTML + '</div>'
+    + '<button class="emb-add" onclick="addEmb()">+ Adicionar embarcação</button>'
     + '</div>'
 
     + '<div class="sh-actions">'
@@ -623,32 +615,30 @@ function renderSheet() {
   document.getElementById('sheet-body').innerHTML = html;
 }
 
-function editEmb(regime, idx, campo, valor) {
+function editEmb(idx, campo, valor) {
   if (!editState) return;
-  var item = editState.info.emb[regime][idx]; if (!item) return;
+  var item = editState.info.emb[idx]; if (!item) return;
   item[campo] = (campo === 'tt') ? (valor === '' ? null : Number(valor)) : valor;
 }
 
-function removeEmb(regime, idx) {
+function removeEmb(idx) {
   if (!editState) return;
-  editState.info.emb[regime].splice(idx, 1);
+  editState.info.emb.splice(idx, 1);
   renderSheet();
 }
 
-function addEmb(regime) {
+function addEmb() {
   if (!editState) return;
-  editState.info.emb[regime].push({ n: '', tt: null });
+  editState.info.emb.push({ n: '', tt: null });
   renderSheet();
-  var inputs = document.querySelectorAll('#emb-list-' + regime + ' .emb-nome');
+  var inputs = document.querySelectorAll('#emb-list .emb-nome');
   var last = inputs[inputs.length - 1]; if (last) last.focus();
 }
 
 function salvarSheet() {
   if (!editState) return;
   // limpa embarcacoes sem nome antes de salvar
-  ['seca', 'cheia'].forEach(function (regime) {
-    editState.info.emb[regime] = editState.info.emb[regime].filter(function (it) { return it.n && it.n.trim(); });
-  });
+  editState.info.emb = editState.info.emb.filter(function (it) { return it.n && it.n.trim(); });
   var seq = editState.seq, info = editState.info;
   var btn = document.querySelector('.sh-save');
   if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
@@ -969,7 +959,7 @@ function showMapPopup(hit, label) {
   }
   var r = hit.rota; var m = hit.mun; var prev = hit.prev; var next = hit.next;
   var info = getInfo(m.seq);
-  var pSeca = principalEmb(info.emb.seca); var pCheia = principalEmb(info.emb.cheia);
+  var pEmb = principalEmb(info.emb);
   var seg = SEGURANCA[m.seq];
   var segMeta = seg ? SEGURANCA_META[seg.tipo] : null;
 
@@ -988,8 +978,9 @@ function showMapPopup(hit, label) {
     + '<div class="mp-kpi"><div class="mp-kt">TT Amazon</div><div class="mp-kv">' + fmtTA(info.ta) + '</div></div>'
     + '</div>'
     + '<div class="mp-emb">'
-    + '<div class="mp-embrow">🏜️ <b>' + (pSeca ? pSeca.n : '—') + '</b></div>'
-    + '<div class="mp-embrow">🌊 <b>' + (pCheia ? pCheia.n : '—') + '</b></div>'
+    + '<div class="mp-embrow">🏜️ <b>' + fmtSaca(info.ps.seca) + '</b></div>'
+    + '<div class="mp-embrow">🌊 <b>' + fmtSaca(info.ps.cheia) + '</b></div>'
+    + '<div class="mp-embrow">🚢 <b>' + (pEmb ? pEmb.n : '—') + '</b></div>'
     + '</div>'
     + '<div class="mp-nav">'
     + (prev ? '<span>⬅ ' + prev.nome + '</span>' : '<span class="mp-dim">⬅ Início</span>')
