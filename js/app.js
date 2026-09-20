@@ -567,6 +567,9 @@ function renderMap() {
   hl.setAttribute('x', hub.x + 11); hl.setAttribute('y', hub.y + 4); hl.setAttribute('font-size', '9');
   hl.setAttribute('fill', '#14b8a6'); hl.setAttribute('font-weight', '900'); hl.setAttribute('font-family', 'monospace'); hl.textContent = 'MANAUS'; g.appendChild(hl);
 
+  var iz = 1 / T.s;
+  var routeLineEls = {}; // num da calha -> elemento <polyline> (pra animar a embarcação/ônibus por cima)
+
   ROTAS.forEach(function (r, ri) {
     var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
     var pts = r.municipios.map(function (m) { return LATLNG[m.seq] ? proj(LATLNG[m.seq].lat, LATLNG[m.seq].lng) : null; }).filter(Boolean);
@@ -578,6 +581,7 @@ function renderMap() {
       line.setAttribute('class', 'mline');
       line.setAttribute('stroke', r.cor); line.setAttribute('stroke-width', (algumAtivo && !tipoFiltrado) ? '2.4' : '1');
       line.setAttribute('opacity', tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06')); line.setAttribute('stroke-linecap', 'round'); g.appendChild(line);
+      routeLineEls[r.num] = line;
       if (animarEntrada) {
         var len = line.getTotalLength();
         line.style.strokeDasharray = len;
@@ -588,7 +592,6 @@ function renderMap() {
     }
   });
 
-  var iz = 1 / T.s;
   var nodeCounter = 0;
   ROTAS.forEach(function (r) {
     r.municipios.forEach(function (m, idx) {
@@ -661,6 +664,87 @@ function renderMap() {
     });
   });
 
+  // Se tem uma calha específica selecionada (não "TODAS"), anima uma
+  // embarcação (ou ônibus, pras calhas rodoviárias) percorrendo a rota.
+  if (rotaFiltrada && routeLineEls[rotaFiltrada]) {
+    iniciarAnimacaoRota(rotaFiltrada, routeLineEls[rotaFiltrada], iz);
+  } else {
+    pararAnimacaoRota();
+  }
+}
+
+/* ── Ícone animado percorrendo a calha selecionada no mapa ── */
+var routeAnim = { raf: null, num: null };
+
+function pararAnimacaoRota() {
+  if (routeAnim.raf) cancelAnimationFrame(routeAnim.raf);
+  routeAnim.raf = null;
+  routeAnim.num = null;
+  var el = document.getElementById('route-anim-icon');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function iniciarAnimacaoRota(num, line, iz) {
+  pararAnimacaoRota();
+  var g = document.getElementById('mg'); if (!g || !line) return;
+  var len = line.getTotalLength(); if (!len) return;
+
+  var r = ROTAS.filter(function (x) { return x.num === num; })[0]; if (!r) return;
+  var rodoviaria = /rodovi/i.test((r.nome || '') + ' ' + (r.dir || ''));
+  var NS = 'http://www.w3.org/2000/svg';
+
+  // grupo com um halo escuro atrás (pra destacar em cima de qualquer cor de linha/fundo) + o emoji
+  var icon = document.createElementNS(NS, 'g');
+  icon.id = 'route-anim-icon';
+  icon.setAttribute('class', 'route-anim-icon');
+
+  var halo = document.createElementNS(NS, 'circle');
+  halo.setAttribute('r', String(11 * iz));
+  halo.setAttribute('fill', '#070c14');
+  halo.setAttribute('stroke', r.cor);
+  halo.setAttribute('stroke-width', String(1.2 * iz));
+  halo.setAttribute('opacity', '0.92');
+  icon.appendChild(halo);
+
+  var glyph = document.createElementNS(NS, 'text');
+  glyph.setAttribute('class', 'route-anim-glyph');
+  glyph.setAttribute('text-anchor', 'middle');
+  glyph.setAttribute('dominant-baseline', 'central');
+  glyph.setAttribute('y', String(1 * iz));
+  glyph.setAttribute('font-size', String(15 * iz));
+  glyph.setAttribute('font-family', "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif");
+  glyph.setAttribute('fill', '#fff'); // usado como cor só se a fonte não tiver o emoji colorido (fallback)
+  glyph.textContent = rodoviaria ? '🚌' : '🚤';
+  icon.appendChild(glyph);
+
+  g.appendChild(icon);
+
+  routeAnim.num = num;
+
+  function posicionar(t) {
+    var pt = line.getPointAtLength(t * len);
+    icon.setAttribute('transform', 'translate(' + pt.x + ',' + pt.y + ')');
+  }
+
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) {
+    posicionar(0.5); // sem movimento: só mostra o ícone parado no meio da rota
+    return;
+  }
+
+  var duration = 4200; // ms pra ir do porto/garagem até o fim da calha
+  var pausa = 900;     // ms parado no fim antes de reiniciar o percurso
+  var startTime = null;
+
+  function frame(ts) {
+    if (routeAnim.num !== num) return; // outra rota foi selecionada / animação foi parada
+    if (!startTime) startTime = ts;
+    var elapsed = (ts - startTime) % (duration + pausa);
+    var t = Math.min(elapsed / duration, 1);
+    posicionar(t);
+    routeAnim.raf = requestAnimationFrame(frame);
+  }
+  routeAnim.raf = requestAnimationFrame(frame);
 }
 
 function showMapPopup(hit, label) {

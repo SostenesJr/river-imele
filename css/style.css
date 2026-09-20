@@ -321,11 +321,18 @@ html, body {
 .hub-ring2 { animation-delay: 1.2s; }
 
 .mline { transition: opacity .3s; }
+
+@keyframes iconBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.route-anim-icon { pointer-events: none; }
+/* o "bob" anima o glifo interno, não o grupo — o grupo já é posicionado via
+   atributo transform (translate) pelo JS a cada frame, e um transform CSS no
+   mesmo elemento substituiria (não somaria) esse posicionamento. */
+.route-anim-icon .route-anim-glyph { transform-box: fill-box; transform-origin: center; animation: iconBob 1s ease-in-out infinite; }
 .mline-draw { animation: mlineDraw 1s cubic-bezier(.2,.7,.3,1) backwards; }
 @keyframes mlineDraw { from { stroke-dashoffset: var(--len, 0); } to { stroke-dashoffset: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .mnode.mnode-in, .hub-ring, .mline-draw { animation: none !important; }
+  .mnode.mnode-in, .hub-ring, .mline-draw, .route-anim-icon .route-anim-glyph { animation: none !important; }
   .mnode, .mline, .mfbtn, .mcb { transition: none !important; }
 }
 
