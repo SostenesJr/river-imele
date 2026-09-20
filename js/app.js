@@ -122,6 +122,116 @@ function salvarObsRemoto(seq) {
 }
 
 /* ============================================================
+   ABA "NOTÍCIAS" — nível do Rio Negro em Manaus
+   Os dados vêm da tabela nivel_rio, alimentada 1x por dia por uma
+   função da Vercel (api/cron/nivel-rio.js) que lê portodemanaus.com.br
+   e grava no Supabase — o app só LÊ essa tabela, nunca escreve nela.
+   ============================================================ */
+var NIVEL_HIST = []; // [{data,nivel_m,variacao_cm,tendencia,fonte}], mais antigo -> mais novo
+
+// Faixa de referência pro medidor visual (baixa/normal/cheia). É uma
+// aproximação pra dar noção visual de onde o nível está — não é uma cota
+// de alerta oficial da Marinha/Defesa Civil.
+var NIVEL_ESCALA_MIN = 12, NIVEL_ESCALA_MAX = 30;
+var NIVEL_ZONAS = [
+  { ate: 18, label: 'Seca', cor: '#f59e0b' },
+  { ate: 25, label: 'Normal', cor: '#14b8a6' },
+  { ate: 30, label: 'Cheia', cor: '#3b82c4' }
+];
+
+async function carregarNivelRio() {
+  var res = await sb.from('nivel_rio').select('*').order('data', { ascending: true }).limit(60);
+  if (res.error) { console.error('Erro ao carregar nivel_rio:', res.error); return; }
+  NIVEL_HIST = (res.data || []).map(function (row) {
+    return { data: row.data, nivel_m: Number(row.nivel_m), variacao_cm: Number(row.variacao_cm), tendencia: row.tendencia, fonte: row.fonte };
+  });
+}
+
+function fmtDataBR(iso) {
+  var p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+function niveTrendIcone(t) { return t === 'subindo' ? '📈' : (t === 'descendo' ? '📉' : '➖'); }
+function niveTrendTexto(t) { return t === 'subindo' ? 'Enchendo' : (t === 'descendo' ? 'Vazando' : 'Estável'); }
+
+function nivelGaugeHTML(nivel) {
+  var min = NIVEL_ESCALA_MIN, max = NIVEL_ESCALA_MAX;
+  var pct = Math.max(0, Math.min(100, (nivel - min) / (max - min) * 100));
+  var zonasHTML = '', anterior = min;
+  NIVEL_ZONAS.forEach(function (z) {
+    var largura = (Math.min(z.ate, max) - anterior) / (max - min) * 100;
+    zonasHTML += '<div class="niv-gauge-zone" style="width:' + largura + '%;background:' + z.cor + '"></div>';
+    anterior = z.ate;
+  });
+  return '<div class="niv-gauge-wrap">'
+    + '<div class="niv-gauge">' + zonasHTML + '<div class="niv-gauge-marker" style="left:' + pct + '%"></div></div>'
+    + '<div class="niv-gauge-labels"><span>Seca</span><span>Normal</span><span>Cheia</span></div>'
+    + '<div class="niv-gauge-note">Escala aproximada de referência (' + min + 'm–' + max + 'm), não é uma cota oficial de alerta.</div>'
+    + '</div>';
+}
+
+function nivelChartSVG(hist) {
+  if (hist.length < 2) return '';
+  var W = 600, H = 140, PAD = 10;
+  var vals = hist.map(function (h) { return h.nivel_m; });
+  var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+  if (min === max) { min -= 1; max += 1; }
+  var pts = hist.map(function (h, i) {
+    var x = PAD + (i / (hist.length - 1)) * (W - PAD * 2);
+    var y = H - PAD - ((h.nivel_m - min) / (max - min)) * (H - PAD * 2);
+    return x + ',' + y;
+  });
+  var last = hist[hist.length - 1];
+  var lastPt = pts[pts.length - 1].split(',');
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+    + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#2f9bd6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+    + '<circle cx="' + lastPt[0] + '" cy="' + lastPt[1] + '" r="4" fill="#2f9bd6"/>'
+    + '</svg>'
+    + '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--mu);margin-top:4px">'
+    + '<span>mín ' + min.toFixed(2) + 'm</span><span>máx ' + max.toFixed(2) + 'm</span></div>';
+}
+
+function bNIVEL() {
+  var body = document.getElementById('nbdy'); if (!body) return;
+
+  if (!NIVEL_HIST.length) {
+    body.innerHTML = '<div class="niv-empty">Ainda não tem nenhuma leitura do nível do rio salva.<br>A coleta automática roda 1x por dia — volte mais tarde.</div>';
+    return;
+  }
+
+  var atual = NIVEL_HIST[NIVEL_HIST.length - 1];
+  var historico30 = NIVEL_HIST.slice(-30);
+  var feedItens = NIVEL_HIST.slice().reverse().slice(0, 14);
+
+  var cardHTML = '<div class="niv-card">'
+    + '<div class="niv-top"><span class="niv-label">🌊 Nível do Rio Negro</span><span class="niv-fonte">Fonte:<br>' + atual.fonte + '</span></div>'
+    + '<div class="niv-value-row"><span class="niv-value">' + atual.nivel_m.toFixed(2).replace('.', ',') + '</span><span class="niv-unit">metros</span></div>'
+    + '<span class="niv-trend ' + atual.tendencia + '">' + niveTrendIcone(atual.tendencia) + ' ' + niveTrendTexto(atual.tendencia)
+    + ' · ' + (atual.variacao_cm > 0 ? '+' : '') + atual.variacao_cm.toFixed(0) + ' cm hoje</span>'
+    + '<div class="niv-date">Atualizado em ' + fmtDataBR(atual.data) + '</div>'
+    + nivelGaugeHTML(atual.nivel_m)
+    + '</div>';
+
+  var chartHTML = '<div class="niv-chart-card">'
+    + '<div class="niv-chart-hdr"><span class="niv-chart-title">Histórico</span><span class="niv-chart-range">últimas ' + historico30.length + ' leituras</span></div>'
+    + '<div class="niv-chart">' + nivelChartSVG(historico30) + '</div>'
+    + '</div>';
+
+  var feedHTML = '<div class="niv-feed-title">Notícias do nível</div>'
+    + feedItens.map(function (h) {
+      var txt = (h.tendencia === 'estavel')
+        ? 'Nível estável em ' + h.nivel_m.toFixed(2) + 'm'
+        : (niveTrendTexto(h.tendencia) + ' ' + Math.abs(h.variacao_cm).toFixed(0) + 'cm — nível em ' + h.nivel_m.toFixed(2) + 'm');
+      return '<div class="niv-feed-item">'
+        + '<div class="niv-feed-icon">' + niveTrendIcone(h.tendencia) + '</div>'
+        + '<div class="niv-feed-body"><div class="niv-feed-text">' + txt + '</div><div class="niv-feed-date">' + fmtDataBR(h.data) + ' · ' + h.fonte + '</div></div>'
+        + '</div>';
+    }).join('');
+
+  body.innerHTML = cardHTML + chartHTML + feedHTML;
+}
+
+/* ============================================================
    ABA 1 — ROTAS
    Lista oculta: só as 10 rotas aparecem. Ao abrir, mostra os
    municípios na ordem de passagem, com km e transit time.
@@ -1021,16 +1131,17 @@ function zR() {
    ============================================================ */
 function SS(name, btn) {
   cur = name;
-  ['r', 'i', 'c', 'm'].forEach(function (s) {
+  ['r', 'i', 'c', 'm', 'n'].forEach(function (s) {
     var el = document.getElementById('sc-' + s);
     if (el) el.classList.toggle('h', s !== name);
   });
   document.querySelectorAll('.htab').forEach(function (b) { b.classList.toggle('on', b.dataset.s === name); });
-  ['r', 'i', 'c', 'm'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
+  ['r', 'i', 'c', 'm', 'n'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
 
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
   if (name === 'm') { mapAnimateEntrance = true; buildMapFilters(); renderMap(); initMapInteractions(); }
+  if (name === 'n') bNIVEL();
 }
 
 /* ============================================================
@@ -1070,10 +1181,12 @@ async function initApp() {
 
   await carregarMunicipiosInfo();
   await carregarObs();
+  await carregarNivelRio();
 
   bRO();
   bINFO();
   bCO();
+  bNIVEL();
 
   // Realtime: quando alguém edita Configurações em outro aparelho,
   // a tela de quem estiver olhando atualiza sozinha.
@@ -1090,6 +1203,14 @@ async function initApp() {
       if (status === 'SUBSCRIBED') setLiveStatus('live');
       else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setLiveStatus('offline');
     });
+
+  // Realtime também pro nível do rio: quando a coleta diária (Vercel Cron)
+  // grava a leitura do dia, quem estiver com o app aberto vê na hora.
+  sb.channel('nivel_rio_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'nivel_rio' }, function () {
+      carregarNivelRio().then(function () { if (cur === 'n') bNIVEL(); });
+    })
+    .subscribe();
 
   sb.auth.onAuthStateChange(function (event) {
     if (event === 'SIGNED_OUT') window.location.replace('/login.html');

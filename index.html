@@ -53,6 +53,7 @@ if ('serviceWorker' in navigator) {
       <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span>Rotas</button>
       <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span>Informações</button>
       <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span>Mapa</button>
+      <button class="htab" data-s="n" onclick="SS('n',this)"><span class="hti">🌊</span>Notícias</button>
       <button class="htab htab-icon" data-s="c" onclick="SS('c',this)" title="Configurações"><span class="hti">⚙️</span></button>
     </div>
     <span class="live-dot" id="live-dot" title="Conectando..."></span>
@@ -66,6 +67,7 @@ if ('serviceWorker' in navigator) {
     <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span>Rotas</button>
     <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span>Informações</button>
     <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span>Mapa</button>
+    <button class="btab" id="bt-n" onclick="SS('n',null)"><span class="bti">🌊</span>Notícias</button>
     <button class="btab btab-icon" id="bt-c" onclick="SS('c',null)" title="Configurações"><span class="bti">⚙️</span></button>
   </div>
 </div>
@@ -118,6 +120,11 @@ if ('serviceWorker' in navigator) {
     <div id="map-wrap">
       <svg id="msvg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
+  </div>
+
+  <!-- NOTÍCIAS: nível do Rio Negro (referência Porto de Manaus) + feed -->
+  <div class="scr h" id="sc-n">
+    <div class="rbdy" id="nbdy"></div>
   </div>
 
 </div>

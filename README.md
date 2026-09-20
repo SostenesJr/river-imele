@@ -32,7 +32,7 @@ na hora mesmo com internet ruim. Toda vez que o site for atualizado e
 publicado de novo, o app instalado atualiza sozinho, sem precisar
 reinstalar nada.
 
-## Estrutura (4 abas)
+## Estrutura (5 abas)
 
 1. **Rotas** — lista oculta com as 10 calhas (A–J). Ao abrir uma calha, mostra os
    municípios em ordem de passagem, com distância (km) e transit time de cada um.
@@ -70,10 +70,19 @@ reinstalar nada.
    selo diferenciado, uma aura vermelha pulsante (ponto de atenção/
    fiscalização), filtro próprio e um link "ver detalhes" que abre o balão
    somente-leitura da aba Informações.
+5. **Notícias** — nível do Rio Negro em Manaus (referência: Porto de
+   Manaus), atualizado **automaticamente 1x por dia**: valor atual em
+   metros, se está enchendo ou vazando (com a variação do dia em cm),
+   medidor visual de baixa/normal/cheia, gráfico com o histórico e um feed
+   tipo notícia com as leituras de cada dia. O app só *lê* esses dados — a
+   coleta é feita por uma função separada (`api/cron/nivel-rio.js`, rodando
+   na Vercel), não pelo navegador de quem usa o app. Veja "Como configurar
+   a coleta do nível do rio" abaixo — é um passo a mais, só precisa fazer
+   uma vez.
 
 ## Arquivos
 
-- `index.html` — estrutura das 4 abas + verificação de login ao abrir
+- `index.html` — estrutura das 5 abas + verificação de login ao abrir
 - `login.html` — tela de login (e-mail + senha, via Supabase Auth)
 - `css/style.css` — tema escuro, responsivo (mobile-first + desktop)
 - `js/data.js` — dados estáticos que não mudam pelo app: coordenadas
@@ -94,6 +103,12 @@ reinstalar nada.
   Supabase, que continuam sempre vindo direto da rede em tempo real
 - `icons/` — ícones do app em vários tamanhos, usados pelo `manifest.json`
   e como favicon
+- `supabase/nivel_rio.sql` — cria a tabela do nível do rio (aba Notícias)
+  e a linha inicial ("âncora") pra coleta automática começar a funcionar
+- `api/cron/nivel-rio.js` — função que roda 1x por dia (agendada pela
+  Vercel, veja `vercel.json`) e busca o nível do dia
+- `vercel.json` — configura o agendamento (cron) da função acima: roda
+  todo dia às 11h UTC (7h da manhã em Manaus)
 
 ## Como configurar o Supabase (uma vez só)
 
@@ -160,12 +175,60 @@ informações ficarem "escondidas".
 
 ## Publicação (Vercel)
 
-O site é HTML/CSS/JS estático (sem build step) — a Vercel só serve os
-arquivos, sem precisar de nenhuma função de servidor. Basta apontar o
-projeto Vercel para a raiz desta pasta (`index.html` na raiz). Toda a lógica
-de login e dados compartilhados roda direto do navegador pro Supabase, sem
-passar pelo servidor da Vercel.
+O site continua sendo HTML/CSS/JS estático (sem build step) pra tudo que a
+equipe usa — a Vercel só serve os arquivos, e toda a lógica de login e
+dados compartilhados roda direto do navegador pro Supabase. A única exceção
+é a pasta `api/` (a coleta diária do nível do rio, explicada na próxima
+seção): a Vercel detecta esses arquivos automaticamente e roda como função
+de servidor, sem precisar configurar nada especial no projeto — o resto do
+site continua 100% estático como antes.
+
+Basta apontar o projeto Vercel para a raiz desta pasta (`index.html` na
+raiz), do mesmo jeito de sempre (upload do zip).
 
 **Antes de publicar**, garanta que `js/supabase-config.js` já tem a URL e a
 anon key reais do seu projeto Supabase (ver seção acima) — sem isso o login
 não funciona.
+
+## Como configurar a coleta do nível do rio (uma vez só)
+
+Isso é **opcional** — se você pular esta seção, o app inteiro continua
+funcionando normalmente, só a aba Notícias fica vazia (mostra um aviso
+"ainda não tem leitura salva") até você configurar.
+
+1. **Rode o SQL**: no Supabase, **SQL Editor → New query**, cole todo o
+   conteúdo de `supabase/nivel_rio.sql` e rode. Isso cria a tabela
+   `nivel_rio` e já deixa uma primeira leitura salva (do dia em que este
+   recurso foi criado), que serve de ponto de partida pra coleta diária.
+2. **Pegue a chave "service_role"**: no Supabase, **Project Settings → API
+   Keys**, copie a chave **service_role** (não é a mesma "anon" que já está
+   em `supabase-config.js` — essa aqui é secreta, nunca cole ela em nenhum
+   arquivo do site).
+3. **Configure as variáveis de ambiente na Vercel**: no painel do seu
+   projeto na Vercel, **Settings → Environment Variables**, adicione:
+   - `SUPABASE_URL` → a mesma URL do projeto (a que está em
+     `supabase-config.js`)
+   - `SUPABASE_SERVICE_ROLE_KEY` → a chave que você copiou no passo 2
+   - `CRON_SECRET` → opcional, mas recomendado: invente uma senha
+     qualquer só sua (ex: gere uma em [1password.com/password-generator](https://1password.com/password-generator/)
+     ou similar) — isso impede que qualquer pessoa na internet chame a
+     rota de coleta manualmente
+4. **Publique** (upload do zip, como sempre). A Vercel lê o `vercel.json` e
+   já agenda a função `api/cron/nivel-rio.js` pra rodar 1x por dia, sozinha,
+   sem precisar abrir o app nem ter ninguém logado.
+
+**Pra testar sem esperar o agendamento**: com o site publicado, abra
+`https://SEU-SITE.vercel.app/api/cron/nivel-rio` no navegador (ou peça pra
+alguém rodar) — se tiver configurado um `CRON_SECRET`, essa chamada manual
+pelo navegador vai dar "não autorizado" (isso é esperado e é o que protege
+a rota); nesse caso, teste direto no painel da Vercel em **Deployments →
+Functions → nivel-rio → Run** (ou similar, o nome exato muda um pouco
+conforme a versão do painel).
+
+A fonte dos dados (portodemanaus.com.br) publica a leitura do dia em
+formato de página comum (não é uma API oficial), então a função faz uma
+leitura simples do texto da página. Se o site mudar de layout no futuro, a
+coleta pode parar de reconhecer o valor do dia — nesse caso a função
+responde com um erro claro em vez de gravar um número errado, e o app
+continua mostrando a última leitura válida até alguém ajustar o texto que a
+função procura.
