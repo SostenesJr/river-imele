@@ -328,6 +328,18 @@ html, body {
 .niv-gauge-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--mu); margin-top: 6px; text-transform: uppercase; letter-spacing: .04em; }
 .niv-gauge-note { font-size: 10px; color: var(--mu); margin-top: 8px; line-height: 1.4; }
 
+.niv-comp {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd);
+  font-size: 11px;
+}
+.niv-comp-label { color: var(--mu); }
+.niv-comp-val { font-weight: 700; color: var(--tx); white-space: nowrap; }
+.niv-comp-diff { font-weight: 700; }
+.niv-comp-diff.subindo { color: #3b82c4; }
+.niv-comp-diff.descendo { color: #f59e0b; }
+.niv-comp-diff.estavel { color: var(--mu); }
+
 .niv-chart-card { background: var(--s1); border: 1px solid var(--bd); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
 .niv-chart-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .niv-chart-title { font-size: 12px; font-weight: 800; color: var(--tx); }

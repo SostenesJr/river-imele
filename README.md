@@ -232,3 +232,26 @@ coleta pode parar de reconhecer o valor do dia — nesse caso a função
 responde com um erro claro em vez de gravar um número errado, e o app
 continua mostrando a última leitura válida até alguém ajustar o texto que a
 função procura.
+
+## Histórico completo do nível do rio (opcional, recomendado)
+
+Além da coleta diária (que só grava a partir de hoje em diante), dá pra
+carregar de uma vez todo o histórico disponível na fonte:
+**9.679 leituras diárias, de 01/01/2000 até 18/09/2026**. Com isso, a aba
+Notícias já nasce com gráfico e comparação "mesmo dia do ano passado"
+funcionando, em vez de esperar meses pra acumular dados sozinha.
+
+1. Depois de rodar `supabase/nivel_rio.sql` (passo 1 acima), rode também
+   `supabase/nivel_rio_backfill.sql` no mesmo **SQL Editor** do Supabase.
+   É um arquivo grande (~9.700 linhas, dividido em 20 blocos de `insert`),
+   pode demorar alguns segundos pra rodar — é normal.
+2. Pode rodar esse arquivo quantas vezes quiser sem medo: cada linha usa
+   `on conflict (data) do nothing`, então ele nunca sobrescreve uma leitura
+   que já esteja salva (nem as que a coleta automática for adicionando).
+
+Esse histórico foi extraído diretamente do site portodemanaus.com.br
+(o mesmo que a coleta diária usa), então tem a mesma origem e confiabilidade
+dos dados — só que de uma vez, para todos os anos disponíveis. A aba
+Notícias, com o histórico carregado, mostra automaticamente: "hoje: X,XXm
+— mesmo dia do ano passado: Y,YYm (diferença)" no card principal, além de
+um gráfico com os últimos 90 dias.

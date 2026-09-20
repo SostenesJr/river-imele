@@ -140,11 +140,30 @@ var NIVEL_ZONAS = [
 ];
 
 async function carregarNivelRio() {
-  var res = await sb.from('nivel_rio').select('*').order('data', { ascending: true }).limit(60);
+  // 400 dias cobre mais de 1 ano — dá pra comparar "hoje" com o mesmo dia
+  // do ano passado, além de alimentar o gráfico de histórico.
+  var res = await sb.from('nivel_rio').select('*').order('data', { ascending: true }).limit(400);
   if (res.error) { console.error('Erro ao carregar nivel_rio:', res.error); return; }
   NIVEL_HIST = (res.data || []).map(function (row) {
     return { data: row.data, nivel_m: Number(row.nivel_m), variacao_cm: Number(row.variacao_cm), tendencia: row.tendencia, fonte: row.fonte };
   });
+}
+
+function nivelDoAnoPassado(hoje) {
+  // Procura a leitura de exatamente 1 ano atrás; se não tiver (ex: 29/fev),
+  // aceita até 3 dias de diferença pra ainda mostrar uma comparação útil.
+  var p = hoje.split('-');
+  var alvoISO = (Number(p[0]) - 1) + '-' + p[1] + '-' + p[2];
+  var porData = {};
+  NIVEL_HIST.forEach(function (h) { porData[h.data] = h; });
+  if (porData[alvoISO]) return { item: porData[alvoISO], exato: true };
+  var alvoMs = new Date(alvoISO + 'T00:00:00Z').getTime();
+  var melhor = null, melhorDist = Infinity;
+  NIVEL_HIST.forEach(function (h) {
+    var dist = Math.abs(new Date(h.data + 'T00:00:00Z').getTime() - alvoMs);
+    if (dist < melhorDist && dist <= 3 * 86400000) { melhorDist = dist; melhor = h; }
+  });
+  return melhor ? { item: melhor, exato: false } : null;
 }
 
 function fmtDataBR(iso) {
@@ -200,8 +219,21 @@ function bNIVEL() {
   }
 
   var atual = NIVEL_HIST[NIVEL_HIST.length - 1];
-  var historico30 = NIVEL_HIST.slice(-30);
+  var historico90 = NIVEL_HIST.slice(-90);
   var feedItens = NIVEL_HIST.slice().reverse().slice(0, 14);
+  var anoPassado = nivelDoAnoPassado(atual.data);
+
+  var compHTML = '';
+  if (anoPassado) {
+    var diff = Math.round((atual.nivel_m - anoPassado.item.nivel_m) * 100) / 100;
+    var diffTxt = (diff > 0 ? '+' : '') + diff.toFixed(2).replace('.', ',') + 'm';
+    var diffClasse = diff > 0.05 ? 'subindo' : (diff < -0.05 ? 'descendo' : 'estavel');
+    compHTML = '<div class="niv-comp">'
+      + '<span class="niv-comp-label">' + (anoPassado.exato ? 'Mesmo dia do ano passado' : 'Próximo do mesmo dia, ano passado') + ' (' + fmtDataBR(anoPassado.item.data) + ')</span>'
+      + '<span class="niv-comp-val">' + anoPassado.item.nivel_m.toFixed(2).replace('.', ',') + 'm'
+      + ' <span class="niv-comp-diff ' + diffClasse + '">(' + diffTxt + ')</span></span>'
+      + '</div>';
+  }
 
   var cardHTML = '<div class="niv-card">'
     + '<div class="niv-top"><span class="niv-label">🌊 Nível do Rio Negro</span><span class="niv-fonte">Fonte:<br>' + atual.fonte + '</span></div>'
@@ -210,11 +242,12 @@ function bNIVEL() {
     + ' · ' + (atual.variacao_cm > 0 ? '+' : '') + atual.variacao_cm.toFixed(0) + ' cm hoje</span>'
     + '<div class="niv-date">Atualizado em ' + fmtDataBR(atual.data) + '</div>'
     + nivelGaugeHTML(atual.nivel_m)
+    + compHTML
     + '</div>';
 
   var chartHTML = '<div class="niv-chart-card">'
-    + '<div class="niv-chart-hdr"><span class="niv-chart-title">Histórico</span><span class="niv-chart-range">últimas ' + historico30.length + ' leituras</span></div>'
-    + '<div class="niv-chart">' + nivelChartSVG(historico30) + '</div>'
+    + '<div class="niv-chart-hdr"><span class="niv-chart-title">Histórico</span><span class="niv-chart-range">últimas ' + historico90.length + ' leituras</span></div>'
+    + '<div class="niv-chart">' + nivelChartSVG(historico90) + '</div>'
     + '</div>';
 
   var feedHTML = '<div class="niv-feed-title">Notícias do nível</div>'
