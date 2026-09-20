@@ -3,6 +3,34 @@
 App web mobile-first (iOS, Android e desktop Windows via navegador) para consulta
 de rotas fluviais, precificação e embarcações na malha do Amazonas.
 Login individual por pessoa e dados compartilhados em tempo real via Supabase.
+É um **PWA** (Progressive Web App): dá pra "instalar" pelo navegador e usar
+como um aplicativo de verdade, com ícone próprio, sem barra de endereço —
+ver seção "Instalar como aplicativo" abaixo.
+
+## Instalar como aplicativo
+
+O site já vem pronto pra ser instalado direto do navegador — não precisa de
+loja de aplicativo nem de instalador separado.
+
+**No computador (Windows/Mac/Linux), pelo Chrome ou Edge:**
+1. Abra o site normalmente e faça login.
+2. Na barra de endereço, clique no ícone de instalar (um monitor com uma
+   setinha ⊕, do lado direito, perto dos favoritos) — ou vá no menu ⋮ →
+   **"Instalar NavLog Amazônia..."**.
+3. Confirme. O app abre numa janela própria (sem abas nem barra de
+   endereço), com ícone na área de trabalho e no menu iniciar/dock, igual
+   qualquer outro programa instalado.
+
+**No celular (Android, pelo Chrome):** menu ⋮ → **"Instalar aplicativo"**
+(ou o banner que aparece sozinho). **No iPhone (Safari):** botão de
+compartilhar → **"Adicionar à Tela de Início"**.
+
+O app instalado continua sendo o mesmo site (os dados vêm do Supabase em
+tempo real, do mesmo jeito) — só abre mais rápido, como janela própria, e o
+"esqueleto" do app (telas, mapa, ícones) fica salvo no aparelho, então abre
+na hora mesmo com internet ruim. Toda vez que o site for atualizado e
+publicado de novo, o app instalado atualiza sozinho, sem precisar
+reinstalar nada.
 
 ## Estrutura (4 abas)
 
@@ -59,6 +87,13 @@ Login individual por pessoa e dados compartilhados em tempo real via Supabase.
 - `supabase/schema.sql` — cria as tabelas e as regras de acesso (rode uma vez)
 - `supabase/seed.sql` — popula as tabelas com os dados atuais dos 57
   municípios (rode uma vez, depois do schema.sql)
+- `manifest.json` — metadados do PWA (nome, ícone, cor, modo "standalone")
+  que o navegador lê na hora de instalar o app
+- `sw.js` — service worker: guarda o "esqueleto" do app em cache local pra
+  abrir instantâneo (inclusive com internet ruim); nunca guarda dados do
+  Supabase, que continuam sempre vindo direto da rede em tempo real
+- `icons/` — ícones do app em vários tamanhos, usados pelo `manifest.json`
+  e como favicon
 
 ## Como configurar o Supabase (uma vez só)
 
