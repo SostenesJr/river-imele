@@ -42,18 +42,23 @@ reinstalar nada.
    balão abre um pop-up com o nome do município e todas as informações:
    - Transit Time Amazon, distância e transit da rota
    - Preço por saca — **Seca** e **Cheia**
-   - Embarcações mais usadas em cada regime do rio
+   - Embarcações mais usadas, com avaliação (estrelas) e dias de saída na
+     semana, quando cadastrados
    - Classificação de segurança (Aduaneiro/Corredor), quando aplicável, em
      seção retrátil
    - **Observações** — campo de texto livre por município. Pessoal de cada
      usuário (ninguém mais vê a sua), salvo na conta de quem escreveu — não
      depende do aparelho.
-3. **Configurações** — os mesmos municípios por calha; ao tocar num município
-   abre um balão **editável** com:
+3. **Configurações** — **só aparece pra quem tem perfil admin** (ver "Perfis:
+   admin e cliente" abaixo). Os mesmos municípios por calha; ao tocar num
+   município abre um balão **editável** com:
    - Transit Time Amazon (dias)
    - Preço por saca — Seca e Cheia
-   - Embarcações mais usadas em cada regime do rio, com opção de adicionar,
-     remover ou renomear e ajustar o transit time de cada uma.
+   - Embarcações mais usadas, com opção de adicionar, remover ou renomear,
+     ajustar o transit time, dar uma **avaliação (1 a 5 estrelas)** e marcar
+     em quais **dias da semana** ela costuma sair (seg a dom).
+   - No topo da aba, um card **"Dados da empresa"** pra definir o nome e o
+     logo que aparecem no cabeçalho do app, pra todo mundo.
    Edições são salvas no banco de dados e aparecem **para toda a equipe, em
    qualquer aparelho, na hora** (inclusive pra quem já está com o app aberto,
    via Realtime). "Restaurar original" devolve o valor de fábrica (o que veio
@@ -100,6 +105,11 @@ reinstalar nada.
   `schema.sql` **antes de 20/09/2026**: une as colunas antigas `emb_seca`/
   `emb_cheia` numa coluna só `emb` (ver "Dados de origem" abaixo). Instalação
   nova não precisa rodar isso.
+- `supabase/migracao-perfis-empresa.sql` — só pra quem já tinha rodado o
+  `schema.sql` **antes de 20/09/2026** (versão anterior à divisão admin/
+  cliente): cria as tabelas `perfis`/`config_empresa` e restringe edição de
+  Configurações a quem for admin (ver "Perfis: admin e cliente" abaixo).
+  Instalação nova não precisa rodar isso.
 - `manifest.json` — metadados do PWA (nome, ícone, cor, modo "standalone")
   que o navegador lê na hora de instalar o app
 - `sw.js` — service worker: guarda o "esqueleto" do app em cache local pra
@@ -139,13 +149,28 @@ reinstalar nada.
    **Authentication → Sign In / Providers → Email**, deixe desligada a opção
    de permitir que qualquer um se cadastre sozinho — assim só entra quem
    você cadastrar manualmente no passo 5.
+7. **Defina quem é admin**: por padrão, todo mundo que loga é tratado como
+   **cliente** (só visualiza). Pra alguém poder editar Configurações, nova
+   query no SQL Editor com (trocando o e-mail pelo da pessoa):
+   ```sql
+   insert into public.perfis (user_id, role, nome)
+   select id, 'admin', email from auth.users where email = 'email-da-pessoa@aqui.com'
+   on conflict (user_id) do update set role = 'admin';
+   ```
+   Repita pra cada pessoa da equipe que deve editar. Quem não for cadastrado
+   aqui continua como cliente — só visualiza Rotas/Informações/Mapa/Notícias.
 
 Pronto — depois disso o app já lê e escreve direto no Supabase.
 
-**Já tinha configurado antes de 20/09/2026?** Rode também, uma vez só, o
-`supabase/migracao-emb-unico.sql` no SQL Editor — ele une as colunas antigas
-`emb_seca`/`emb_cheia` numa coluna só `emb`, sem perder nenhuma edição que
-vocês já tinham feito em Configurações.
+**Já tinha configurado antes de 20/09/2026?** Rode também, uma vez só, os
+scripts de migração no SQL Editor (nessa ordem):
+1. `supabase/migracao-emb-unico.sql` — une as colunas antigas `emb_seca`/
+   `emb_cheia` numa coluna só `emb`, sem perder nenhuma edição que vocês já
+   tinham feito.
+2. `supabase/migracao-perfis-empresa.sql` — cria os perfis (admin/cliente)
+   e os dados da empresa. **Importante**: depois de rodar esse arquivo,
+   ninguém mais edita Configurações até você rodar o passo 3 dele (cadastrar
+   o primeiro admin) — o próprio arquivo tem esse passo no final, comentado.
 
 ## Dados de origem
 
@@ -189,6 +214,39 @@ consegue entrar. A URL e a chave pública do projeto (`js/supabase-config.js`)
 são seguras de ficar no código: o acesso de verdade é controlado pelas
 regras (Row Level Security) configuradas no banco, não por essas duas
 informações ficarem "escondidas".
+
+## Perfis: admin e cliente
+
+Além de logar, cada pessoa tem um **perfil de acesso**, guardado na tabela
+`perfis` do Supabase:
+
+- **Admin** — vê e edita tudo, inclusive a aba **Configurações** (preços,
+  embarcações, avaliação, dias de saída, dados da empresa).
+- **Cliente** — só visualiza: Rotas, Informações, Mapa e Notícias. A aba
+  Configurações nem aparece no menu pra esse perfil, e mesmo tentando forçar
+  pelo navegador, o Supabase recusa qualquer tentativa de gravação (a regra
+  fica no banco, não só escondida na tela).
+
+Quem loga sem ter uma linha em `perfis` é tratado como **cliente** por
+padrão (mais seguro). Pra promover alguém a admin, é um INSERT manual no SQL
+Editor do Supabase — ver "Como configurar o Supabase", passo 7. Não existe
+essa opção dentro do próprio app de propósito: assim ninguém consegue virar
+admin sozinho, só quem tem acesso ao painel do Supabase.
+
+Uso típico: cadastre como admin quem realmente opera os preços/embarcações
+na empresa, e como cliente qualquer pessoa (cliente final, parceiro) que só
+precisa consultar rota, preço e embarcações disponíveis.
+
+## Dados da empresa (nome + logo)
+
+Em Configurações, o card **"Dados da empresa"** (só admin vê) deixa definir:
+- **Nome da empresa** — substitui "NAVLOG AMAZÔNIA" no cabeçalho, pra todo
+  mundo (admin e cliente).
+- **Logo** — uma URL de imagem (pode ser um link de uma imagem já hospedada,
+  por exemplo no Google Drive/Imgur, ou um link direto pro arquivo). Substitui
+  o pontinho decorativo do cabeçalho por essa imagem.
+Ambos ficam salvos no banco (tabela `config_empresa`) e aparecem pra toda a
+equipe, em qualquer aparelho, sem precisar publicar o site de novo.
 
 ## Publicação (Vercel)
 

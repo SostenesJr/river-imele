@@ -4,7 +4,73 @@
    ============================================================ */
 
 var cur = 'r';
-var CURRENT_USER = null; // { id, email } — usuário logado (Supabase Auth)
+var CURRENT_USER = null; // { id, email, role } — usuário logado (Supabase Auth); role: 'admin' | 'cliente'
+var CONFIG_EMPRESA = { nome_empresa: null, logo_url: null }; // nome/logo mostrados no cabeçalho pra todo mundo
+
+/* Perfil de acesso: 'admin' edita tudo (Configurações); 'cliente' só
+   visualiza (Rotas/Informações/Mapa/Notícias). Se o usuário logado ainda
+   não tiver uma linha em `perfis`, o padrão é 'cliente' (mais seguro) —
+   quem administra o Supabase precisa cadastrar o primeiro admin manualmente
+   (ver README, seção "Como configurar o Supabase"). */
+async function carregarPerfil() {
+  var res = await sb.from('perfis').select('role,nome').eq('user_id', CURRENT_USER.id);
+  if (res.error) { console.error('Erro ao carregar perfil:', res.error); CURRENT_USER.role = 'cliente'; return; }
+  var row = (res.data && res.data[0]) || null;
+  CURRENT_USER.role = (row && row.role) || 'cliente';
+}
+
+function souAdmin() { return !!(CURRENT_USER && CURRENT_USER.role === 'admin'); }
+
+/* Esconde a aba Configurações (desktop e mobile) pra quem não for admin,
+   e tira a pessoa de lá se por acaso estiver com essa aba selecionada. */
+function aplicarGateAdmin() {
+  var admin = souAdmin();
+  document.querySelectorAll('.htab[data-s="c"], #bt-c').forEach(function (el) {
+    el.style.display = admin ? '' : 'none';
+  });
+  if (!admin && cur === 'c') SS('r', null);
+}
+
+async function carregarConfigEmpresa() {
+  var res = await sb.from('config_empresa').select('nome_empresa,logo_url').eq('id', 1);
+  if (res.error) { console.error('Erro ao carregar config_empresa:', res.error); return; }
+  var row = (res.data && res.data[0]) || null;
+  CONFIG_EMPRESA = { nome_empresa: (row && row.nome_empresa) || null, logo_url: (row && row.logo_url) || null };
+  aplicarBranding();
+}
+
+function aplicarBranding() {
+  var lt = document.querySelector('#hdr .lt');
+  if (lt) lt.textContent = CONFIG_EMPRESA.nome_empresa || 'NAVLOG AMAZÔNIA';
+  var dotWrap = document.querySelector('#hdr .dot');
+  if (dotWrap) {
+    if (CONFIG_EMPRESA.logo_url) {
+      dotWrap.outerHTML = '<img class="hdr-logo" src="' + CONFIG_EMPRESA.logo_url.replace(/"/g, '&quot;') + '" alt="Logo">';
+    }
+  }
+}
+
+async function salvarConfigEmpresa() {
+  var nomeEl = document.getElementById('in-empresa-nome');
+  var logoEl = document.getElementById('in-empresa-logo');
+  if (!nomeEl || !logoEl) return;
+  var nome = nomeEl.value.trim();
+  var logo = logoEl.value.trim();
+  var btn = document.querySelector('.empresa-card .sh-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  var res = await sb.from('config_empresa').upsert({ id: 1, nome_empresa: nome || null, logo_url: logo || null }, { onConflict: 'id' });
+  if (res.error) {
+    alert('Não consegui salvar: ' + res.error.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Salvar dados da empresa'; }
+    return;
+  }
+  CONFIG_EMPRESA = { nome_empresa: nome || null, logo_url: logo || null };
+  aplicarBranding();
+  if (btn) {
+    btn.disabled = false; btn.textContent = '✓ Salvo!';
+    setTimeout(function () { if (btn) btn.textContent = '✓ Salvar dados da empresa'; }, 1500);
+  }
+}
 
 /* ── Login (contas individuais via Supabase Auth) ── */
 function sair() {
@@ -278,6 +344,25 @@ function principalEmb(lista) {
   return lista[0];
 }
 
+/* ── Avaliação (1-5 estrelas) e dias de saída por embarcação ── */
+var DIAS_SEMANA = [
+  { k: 'seg', l: 'S' }, { k: 'ter', l: 'T' }, { k: 'qua', l: 'Q' }, { k: 'qui', l: 'Q' },
+  { k: 'sex', l: 'S' }, { k: 'sab', l: 'S' }, { k: 'dom', l: 'D' }
+];
+function estrelasHTML(nota) {
+  var n = Number(nota) || 0;
+  var s = '';
+  for (var i = 1; i <= 5; i++) s += (i <= n) ? '★' : '☆';
+  return s;
+}
+function diasBadgeHTML(dias) {
+  dias = dias || [];
+  if (!dias.length) return '';
+  return '<div class="emb-dias-badges">' + DIAS_SEMANA.map(function (d) {
+    return '<span class="dia-badge' + (dias.indexOf(d.k) !== -1 ? ' on' : '') + '">' + d.l + '</span>';
+  }).join('') + '</div>';
+}
+
 /* Uma calha é "rodoviária" (ônibus/estrada) quando o nome ou a direção
    menciona isso — usado aqui, no cabeçalho do card, e no mapa (ícone
    do veículo animado na calha selecionada). */
@@ -425,8 +510,12 @@ function embListViewHTML(lista) {
   if (!lista || !lista.length) return '<div class="emb-empty">Nenhuma embarcação cadastrada.</div>';
   return lista.map(function (item) {
     return '<div class="sh-view-emb">'
+      + '<div class="sh-view-emb-top">'
       + '<span class="sh-view-emb-n">' + (item.n || '—') + '</span>'
       + ((item.tt !== null && item.tt !== undefined && item.tt !== '') ? '<span class="sh-view-emb-tt">' + item.tt + ' d</span>' : '')
+      + '</div>'
+      + (item.nota ? '<div class="sh-view-emb-stars">' + estrelasHTML(item.nota) + '</div>' : '')
+      + diasBadgeHTML(item.dias)
       + '</div>';
   }).join('');
 }
@@ -477,9 +566,26 @@ function renderInfoView() {
    e cheia) e as embarcações usadas em cada regime do rio.
    ============================================================ */
 
+function empresaPanelHTML() {
+  return '<div class="rcard open empresa-card">'
+    + '<div class="rhead rhead-static">'
+    + '<div class="rinfo"><div class="rnome">🏢 Dados da empresa</div>'
+    + '<div class="rsub">Nome e logo aparecem no cabeçalho pra todo mundo</div></div>'
+    + '</div>'
+    + '<div class="rbody"><div class="rbody-inner">'
+    + '<div class="sh-field"><label>Nome da empresa</label>'
+    + '<input type="text" id="in-empresa-nome" value="' + (CONFIG_EMPRESA.nome_empresa || '').replace(/"/g, '&quot;') + '" placeholder="Ex: Facil Express"></div>'
+    + '<div class="sh-field"><label>URL do logo (imagem)</label>'
+    + '<input type="text" id="in-empresa-logo" value="' + (CONFIG_EMPRESA.logo_url || '').replace(/"/g, '&quot;') + '" placeholder="https://..."></div>'
+    + '<button class="sh-btn sh-save" onclick="salvarConfigEmpresa()">✓ Salvar dados da empresa</button>'
+    + '</div></div>'
+    + '</div>';
+}
+
 function bCO() {
   var body = document.getElementById('cbdy'); if (!body) return;
-  body.innerHTML = ROTAS.map(function (r, ri) {
+  if (!souAdmin()) { body.innerHTML = '<div class="emb-empty" style="padding:20px;">Você não tem permissão pra ver Configurações.</div>'; return; }
+  body.innerHTML = empresaPanelHTML() + ROTAS.map(function (r, ri) {
     var mRows = r.municipios.map(function (m, i) {
       var info = getInfo(m.seq);
       var pEmb = principalEmb(info.emb);
@@ -529,6 +635,7 @@ function fC(q) {
 var editState = null; // { seq, info } — copia de trabalho antes de salvar
 
 function abrirConfig(seq) {
+  if (!souAdmin()) return; // defesa extra — a aba já fica escondida pra quem não é admin
   var hit = NODEIDX[seq]; if (!hit) return;
   editState = { seq: seq, info: getInfo(seq) };
   segAberto = true;
@@ -562,13 +669,44 @@ function segHTML(seq) {
 }
 
 function embRowHTML(idx, item) {
+  var nota = item.nota || 0;
+  var starsHTML = '';
+  for (var i = 1; i <= 5; i++) {
+    starsHTML += '<span class="star-pick' + (i <= nota ? ' on' : '') + '" onclick="setEmbNota(' + idx + ',' + i + ')">' + (i <= nota ? '★' : '☆') + '</span>';
+  }
+  var dias = item.dias || [];
+  var diasHTML = DIAS_SEMANA.map(function (d) {
+    var ativo = dias.indexOf(d.k) !== -1;
+    return '<button type="button" class="dia-chip' + (ativo ? ' on' : '') + '" title="' + d.k + '" onclick="toggleEmbDia(' + idx + ',\'' + d.k + '\')">' + d.l + '</button>';
+  }).join('');
+
   return '<div class="emb-row">'
+    + '<div class="emb-row-top">'
     + '<input class="emb-in emb-nome" type="text" value="' + (item.n || '').replace(/"/g, '&quot;') + '" placeholder="Nome da embarcação" '
     + 'oninput="editEmb(' + idx + ',\'n\',this.value)">'
     + '<input class="emb-in emb-tt" type="number" step="0.1" min="0" value="' + (item.tt === null || item.tt === undefined ? '' : item.tt) + '" placeholder="dias" '
     + 'oninput="editEmb(' + idx + ',\'tt\',this.value)">'
     + '<button class="emb-rm" onclick="removeEmb(' + idx + ')">✕</button>'
+    + '</div>'
+    + '<div class="emb-row-mid"><span class="emb-stars-label">Avaliação</span><span class="star-picker">' + starsHTML + '</span></div>'
+    + '<div class="emb-row-bot"><span class="emb-dias-label">Sai</span><span class="dia-chips">' + diasHTML + '</span></div>'
     + '</div>';
+}
+
+function setEmbNota(idx, valor) {
+  if (!editState) return;
+  var item = editState.info.emb[idx]; if (!item) return;
+  item.nota = (item.nota === valor) ? null : valor; // clicar na mesma nota de novo limpa
+  renderSheet();
+}
+
+function toggleEmbDia(idx, dia) {
+  if (!editState) return;
+  var item = editState.info.emb[idx]; if (!item) return;
+  if (!item.dias) item.dias = [];
+  var i = item.dias.indexOf(dia);
+  if (i === -1) item.dias.push(dia); else item.dias.splice(i, 1);
+  renderSheet();
 }
 
 function renderSheet() {
@@ -629,7 +767,7 @@ function removeEmb(idx) {
 
 function addEmb() {
   if (!editState) return;
-  editState.info.emb.push({ n: '', tt: null });
+  editState.info.emb.push({ n: '', tt: null, nota: null, dias: [] });
   renderSheet();
   var inputs = document.querySelectorAll('#emb-list .emb-nome');
   var last = inputs[inputs.length - 1]; if (last) last.focus();
@@ -1204,10 +1342,13 @@ async function initApp() {
   var badge = document.getElementById('user-badge');
   if (badge) badge.textContent = CURRENT_USER.email || '';
 
+  await carregarPerfil();
+  await carregarConfigEmpresa();
   await carregarMunicipiosInfo();
   await carregarObs();
   await carregarNivelRio();
 
+  aplicarGateAdmin();
   bRO();
   bINFO();
   bCO();
