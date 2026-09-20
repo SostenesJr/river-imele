@@ -7,7 +7,7 @@
    Muda o nome do cache (CACHE_NAME) sempre que fizer uma atualização
    visível no app, pra garantir que o service worker antigo seja
    substituído e o cache velho, limpo. */
-var CACHE_NAME = 'navlog-shell-v1';
+var CACHE_NAME = 'navlog-shell-v2';
 var SHELL_FILES = [
   '/index.html',
   '/login.html',

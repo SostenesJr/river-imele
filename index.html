@@ -26,6 +26,17 @@
   }).catch(function () { window.location.replace('/login.html'); });
 })();
 if ('serviceWorker' in navigator) {
+  // Quando uma versão nova do app é publicada, o service worker antigo é
+  // trocado pelo novo automaticamente — mas sem isso aqui, a aba já aberta
+  // continuava rodando o JS/CSS antigos (carregados em memória) até a
+  // pessoa fechar e abrir o app de novo. Com esse aviso, a página recarrega
+  // sozinha assim que o novo service worker assume, então a correção chega
+  // na hora. "sw-reloaded" evita entrar num loop de recarregamento.
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (sessionStorage.getItem('sw-reloaded')) return;
+    sessionStorage.setItem('sw-reloaded', '1');
+    window.location.reload();
+  });
   window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js'); });
 }
 </script>
