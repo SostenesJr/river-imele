@@ -331,83 +331,48 @@ html, body {
 .mcb:active { border-color: var(--ac); color: var(--ac); transform: scale(.9); }
 
 #map-wrap { flex: 1; position: relative; overflow: hidden; }
-#msvg { width: 100%; height: 100%; touch-action: none; background: #070c14; }
+#msvg { width: 100%; height: 100%; display: block; touch-action: none; background: #070c14; }
+#msvg #mg.mg-anim { transition: transform .35s cubic-bezier(.2,.8,.2,1); }
 
-/* mapa real (Leaflet + tiles escuros da CARTO) */
-.leaflet-container { background: #070c14; font-family: inherit; }
-.leaflet-control-attribution {
-  background: rgba(7,12,20,.75) !important; color: var(--mu) !important;
-  font-size: 9px !important; padding: 1px 6px !important; border-radius: 4px 0 0 0 !important;
-}
-.leaflet-control-attribution a { color: var(--mu) !important; }
-/* wrapper que o Leaflet cria pra todo divIcon — sem isso ele herda um
-   fundo/borda branca padrão de "marcador". O conteúdo real (badge, halo
-   etc.) é o filho, centralizado via transform. */
-.map-icon-wrap { background: transparent !important; border: none !important; }
+/* ── animações dos elementos do mapa ── */
+@keyframes nodeIn { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+.mnode { transform-box: fill-box; transform-origin: center; transform: scale(1); transition: transform .15s; }
+.mnode.mnode-in { animation: nodeIn .32s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i, 0) * 16ms); }
+.mnode[data-ativo="1"]:hover { transform: scale(1.16); }
+.mnode[data-ativo="0"] { pointer-events: none; }
 
-/* ── hub (Manaus) ── */
-.hub-badge { position: absolute; transform: translate(-50%,-50%); display: flex; align-items: center; white-space: nowrap; }
-.hub-dot { width: 8px; height: 8px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 6px 1px #14b8a6; flex-shrink: 0; }
-.hub-label { margin-left: 5px; font-size: 9px; font-weight: 900; color: #14b8a6; font-family: var(--font-mono); text-shadow: 0 1px 3px #000; }
-@keyframes hubPing { 0% { transform: translate(-50%,-50%) scale(.6); opacity: .8; } 100% { transform: translate(-50%,-50%) scale(2.8); opacity: 0; } }
-.hub-ring {
-  position: absolute; left: 4px; top: 50%; width: 8px; height: 8px; border-radius: 50%;
-  border: 1.5px solid #14b8a6; transform: translate(-50%,-50%);
-  animation: hubPing 2.4s cubic-bezier(.2,.6,.4,1) infinite;
-}
+@keyframes hubPing { 0% { transform: scale(.6); opacity: .8; } 100% { transform: scale(2.6); opacity: 0; } }
+.hub-ring { transform-box: fill-box; transform-origin: center; animation: hubPing 2.4s cubic-bezier(.2,.6,.4,1) infinite; }
 .hub-ring2 { animation-delay: 1.2s; }
 
-/* ── municípios (badge coloridos pela calha) ── */
-@keyframes nodeIn { from { opacity: 0; transform: translate(-50%,-50%) scale(.4); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
-.mnode-badge {
-  position: absolute; transform: translate(-50%,-50%);
-  min-width: 20px; height: 16px; padding: 0 4px; border-radius: 4px;
-  background: var(--rc); border: 1.5px solid var(--rc);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-mono); font-size: 8px; font-weight: 900; color: #fff;
-  box-shadow: 0 1px 5px rgba(0,0,0,.6);
-  cursor: pointer; transition: filter .15s;
-}
-.mnode-badge:hover { filter: brightness(1.25); }
-.mnode-badge.mnode-inactive { background: #1a1e26; color: var(--rc); opacity: .35; cursor: default; box-shadow: none; }
-.mnode-badge.mnode-inactive:hover { filter: none; }
-.mnode-badge.mnode-in { animation: nodeIn .32s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--i, 0) * 16ms); }
-.mnode-label { pointer-events: none; }
-.mnode-segdot {
-  position: absolute; top: -7px; right: -7px; width: 14px; height: 14px; border-radius: 50%;
-  background: var(--segcor); border: 1.5px solid #070c14; font-size: 8px;
-  display: flex; align-items: center; justify-content: center; pointer-events: none;
-}
-
-/* aura vermelha: pontos de atenção com algum tipo de fiscalização
-   (aduaneiro ou corredor de escoamento) — pulsa pra chamar atenção. */
-@keyframes alertPulse {
-  0% { box-shadow: 0 0 0 0 rgba(239,68,68,.6); }
-  70% { box-shadow: 0 0 0 9px rgba(239,68,68,0); }
-  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
-}
-.mnode-alert-ring { position: absolute; inset: -3px; border-radius: 6px; pointer-events: none; animation: alertPulse 1.7s infinite; }
-
 .mline { transition: opacity .3s; }
+
+@keyframes iconBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.route-anim-icon { pointer-events: none; }
+/* o "bob" anima o glifo interno, não o grupo — o grupo já é posicionado via
+   atributo transform (translate) pelo JS a cada frame, e um transform CSS no
+   mesmo elemento substituiria (não somaria) esse posicionamento. */
+.route-anim-icon .route-anim-glyph { transform-box: fill-box; transform-origin: center; animation: iconBob 1s ease-in-out infinite; }
 .mline-draw { animation: mlineDraw 1s cubic-bezier(.2,.7,.3,1) backwards; }
 @keyframes mlineDraw { from { stroke-dashoffset: var(--len, 0); } to { stroke-dashoffset: 0; } }
 
-/* ── embarcação/ônibus animado percorrendo a calha selecionada ── */
-.route-anim-icon { position: absolute; transform: translate(-50%,-50%); pointer-events: none; }
-.route-anim-halo {
-  position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; border-radius: 50%;
-  background: #070c14; border: 1.5px solid var(--rc); transform: translate(-50%,-50%); opacity: .92;
+/* aura vermelha: pontos de atenção com algum tipo de fiscalização
+   (aduaneiro ou corredor de escoamento) — pulsa pra chamar atenção,
+   por baixo do balão do município (mesmo truque de "fill-box" das
+   outras animações do mapa, pra acompanhar o zoom certinho). */
+@keyframes alertPulse {
+  0% { transform: scale(.75); opacity: .8; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
-.route-anim-glyph {
-  position: relative; display: block; width: 22px; height: 22px; line-height: 22px;
-  text-align: center; font-size: 14px; animation: iconBob 1s ease-in-out infinite;
+.mnode-alert-ring {
+  transform-box: fill-box; transform-origin: center;
+  fill: none; stroke: #ef4444; stroke-width: 1.6;
+  animation: alertPulse 1.7s ease-out infinite;
 }
-@keyframes iconBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .mnode-badge.mnode-in, .hub-ring, .mline-draw, .route-anim-glyph { animation: none !important; }
-  .mnode-alert-ring { animation: none !important; box-shadow: 0 0 0 3px rgba(239,68,68,.55) !important; }
-  .mnode-badge, .mline, .mfbtn, .mcb { transition: none !important; }
+  .mnode.mnode-in, .hub-ring, .mline-draw, .route-anim-icon .route-anim-glyph, .mnode-alert-ring { animation: none !important; }
+  .mnode, .mline, .mfbtn, .mcb { transition: none !important; }
 }
 
 #map-popup {

@@ -532,17 +532,10 @@ function resetSheetAtual() {
 /* ============================================================
    ABA 3 — MAPA
    ============================================================ */
+var T = { s: 1, x: 0, y: 0 };
 var rotaFiltrada = null;
 var tipoFiltrado = null; // null | 'aduaneiro' | 'corredor'
 var mapAnimateEntrance = true; // true = próxima renderMap() anima entrada dos nós/linhas
-
-/* Mapa real (Leaflet + tiles escuros da CARTO, sem chave de API) por baixo
-   das nossas calhas/municípios desenhados por cima. */
-var leafletMap = null;
-var mapDataLayer = null;         // L.layerGroup com tudo que renderMap() desenha, recriado a cada chamada
-var routeLineLayers = {};        // num da calha -> L.polyline atual (pra animar o veículo por cima)
-var HUB_LATLNG = [-3.119, -60.021]; // Manaus
-var MAP_BOUNDS = [[-10.6, -74.5], [2.7, -53.5]]; // [sudoeste, nordeste] aproximado do Amazonas
 
 function nodeAtivo(m, rNum) {
   if (tipoFiltrado) {
@@ -554,166 +547,258 @@ function nodeAtivo(m, rNum) {
 
 function mapLabel(rotaNum, idx) { return rotaNum + idx; }
 
-function initLeafletMap() {
-  if (leafletMap || typeof L === 'undefined') return;
-  var el = document.getElementById('msvg'); if (!el) return;
-
-  leafletMap = L.map(el, {
-    zoomControl: false,
-    attributionControl: true,
-    minZoom: 5,
-    maxZoom: 13,
-    maxBounds: L.latLngBounds(MAP_BOUNDS).pad(0.3),
-    maxBoundsViscosity: 0.6
-  });
-
-  // Tiles escuros gratuitos (CARTO, sem necessidade de chave de API) —
-  // dão o "mapa real" (rios, relevo, estradas) por baixo das nossas calhas.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>'
-  }).addTo(leafletMap);
-
-  // contorno do Amazonas, destacado por cima do mapa real
-  L.polygon(AM_BORDER, { color: '#26436b', weight: 2, fill: true, fillColor: '#14b8a6', fillOpacity: 0.03, interactive: false }).addTo(leafletMap);
-
-  leafletMap.fitBounds(L.latLngBounds(MAP_BOUNDS));
-  leafletMap.on('click', fecharPopupMapa);
-}
+/* "manchas" fixas de copa de floresta por cima do gradiente verde do fundo —
+   posições e raios fixos (não aleatórios a cada render) pra dar uma textura
+   orgânica ao "recorte" do estado, sem precisar carregar nenhuma imagem. */
+var FOREST_BLOBS = [
+  { x: 180, y: 160, r: 130, c: '#1f5f3f', o: .55 }, { x: 420, y: 120, r: 160, c: '#164a34', o: .5 },
+  { x: 650, y: 200, r: 140, c: '#1f5f3f', o: .45 }, { x: 300, y: 320, r: 180, c: '#0f3a28', o: .5 },
+  { x: 550, y: 380, r: 150, c: '#1f5f3f', o: .4 }, { x: 150, y: 420, r: 130, c: '#164a34', o: .5 },
+  { x: 720, y: 420, r: 120, c: '#0f3a28', o: .45 }, { x: 400, y: 480, r: 160, c: '#1a5238', o: .4 }
+];
 
 function renderMap() {
-  if (!leafletMap) initLeafletMap();
-  if (!leafletMap) return; // Leaflet ainda não carregou (ex.: sem conexão) — nada a desenhar por enquanto
+  var svg = document.getElementById('msvg'); if (!svg) return;
   var animarEntrada = mapAnimateEntrance;
   mapAnimateEntrance = false;
+  svg.innerHTML = '';
+  var NS = 'http://www.w3.org/2000/svg';
+  var W = 900, H = 600;
+  var LNG0 = -74.5, LNG1 = -53.5, LAT0 = -10.6, LAT1 = 2.7;
+  function merc(lat) { return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)); }
+  var m0 = merc(LAT0), m1 = merc(LAT1);
+  function proj(lat, lng) { return { x: (lng - LNG0) / (LNG1 - LNG0) * W, y: (m1 - merc(lat)) / (m1 - m0) * H }; }
 
-  if (mapDataLayer) leafletMap.removeLayer(mapDataLayer);
-  mapDataLayer = L.layerGroup().addTo(leafletMap);
-  routeLineLayers = {};
+  var bPts = AM_BORDER.map(function (c) { var p = proj(c[0], c[1]); return p.x + ',' + p.y; }).join(' ');
 
-  // HUB (Manaus)
-  var hubIcon = L.divIcon({
-    className: 'map-icon-wrap', iconSize: [1, 1],
-    html: '<div class="hub-badge"><span class="hub-ring"></span><span class="hub-ring hub-ring2"></span><span class="hub-dot"></span><span class="hub-label">MANAUS</span></div>'
+  var defs = document.createElementNS(NS, 'defs');
+  defs.innerHTML =
+    '<pattern id="gr" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0L0 0 0 30" fill="none" stroke="#0f172a" stroke-width=".4"/></pattern>'
+    + '<filter id="gw"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>'
+    + '<radialGradient id="forestGrad" cx="45%" cy="40%" r="75%"><stop offset="0%" stop-color="#1c4a32"/><stop offset="55%" stop-color="#123825"/><stop offset="100%" stop-color="#0b241a"/></radialGradient>'
+    + '<clipPath id="amClip"><polygon points="' + bPts + '"/></clipPath>';
+  svg.appendChild(defs);
+
+  var g = document.createElementNS(NS, 'g'); g.id = 'mg';
+  g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
+  svg.appendChild(g); // anexa já aqui: getTotalLength() (usado no desenho das linhas) exige o elemento renderizado
+
+  // fundo (fora do estado): "água"/espaço escuro, igual o resto do app
+  var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#070c14'); g.appendChild(bg);
+
+  // "imagem" ilustrada do Amazonas: gradiente + manchas de copa de floresta,
+  // recortados exatamente no contorno real do estado
+  var amGroup = document.createElementNS(NS, 'g'); amGroup.setAttribute('clip-path', 'url(#amClip)'); g.appendChild(amGroup);
+  var amBg = document.createElementNS(NS, 'rect'); amBg.setAttribute('width', W); amBg.setAttribute('height', H); amBg.setAttribute('fill', 'url(#forestGrad)'); amGroup.appendChild(amBg);
+  FOREST_BLOBS.forEach(function (b) {
+    var blob = document.createElementNS(NS, 'circle');
+    blob.setAttribute('cx', b.x); blob.setAttribute('cy', b.y); blob.setAttribute('r', b.r);
+    blob.setAttribute('fill', b.c); blob.setAttribute('opacity', b.o); blob.setAttribute('filter', 'url(#soft)');
+    amGroup.appendChild(blob);
   });
-  L.marker(HUB_LATLNG, { icon: hubIcon, interactive: false, keyboard: false }).addTo(mapDataLayer);
+  var grOverlay = document.createElementNS(NS, 'rect'); grOverlay.setAttribute('width', W); grOverlay.setAttribute('height', H); grOverlay.setAttribute('fill', 'url(#gr)'); grOverlay.setAttribute('opacity', '0.5'); amGroup.appendChild(grOverlay);
+  RIOS.forEach(function (rv) {
+    var pts = rv.coords.map(function (c) { var p = proj(c[0], c[1]); return p.x + ' ' + p.y; });
+    var path = document.createElementNS(NS, 'polyline');
+    path.setAttribute('points', pts.join(', ')); path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', '#2f9bd6'); path.setAttribute('stroke-width', rv.w);
+    path.setAttribute('opacity', '0.8'); path.setAttribute('stroke-linecap', 'round'); amGroup.appendChild(path);
+  });
 
-  // LINHAS das calhas (hub -> municípios, na ordem de passagem)
-  var ri = 0;
-  ROTAS.forEach(function (r) {
+  // contorno do estado, por cima de tudo, pra dar nitidez à silhueta
+  var border = document.createElementNS(NS, 'polygon');
+  border.setAttribute('points', bPts); border.setAttribute('fill', 'none'); border.setAttribute('stroke', '#3b82c4'); border.setAttribute('stroke-width', '2'); g.appendChild(border);
+
+  var hub = proj(-3.119, -60.021);
+  ['hub-ring', 'hub-ring hub-ring2'].forEach(function (cls) {
+    var ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('cx', hub.x); ring.setAttribute('cy', hub.y); ring.setAttribute('r', '8');
+    ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#14b8a6'); ring.setAttribute('stroke-width', '1.5');
+    ring.setAttribute('class', cls); g.appendChild(ring);
+  });
+  var hc = document.createElementNS(NS, 'circle');
+  hc.setAttribute('cx', hub.x); hc.setAttribute('cy', hub.y); hc.setAttribute('r', '8'); hc.setAttribute('fill', '#14b8a6'); hc.setAttribute('filter', 'url(#gw)'); g.appendChild(hc);
+  var hl = document.createElementNS(NS, 'text');
+  hl.setAttribute('x', hub.x + 11); hl.setAttribute('y', hub.y + 4); hl.setAttribute('font-size', '9');
+  hl.setAttribute('fill', '#14b8a6'); hl.setAttribute('font-weight', '900'); hl.setAttribute('font-family', 'monospace'); hl.textContent = 'MANAUS'; g.appendChild(hl);
+
+  var iz = 1 / T.s;
+  var routeLineEls = {}; // num da calha -> elemento <polyline> (pra animar a embarcação/ônibus por cima)
+
+  ROTAS.forEach(function (r, ri) {
     var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
-    var pts = r.municipios.map(function (m) { return LATLNG[m.seq] ? [LATLNG[m.seq].lat, LATLNG[m.seq].lng] : null; }).filter(Boolean);
+    var pts = r.municipios.map(function (m) { return LATLNG[m.seq] ? proj(LATLNG[m.seq].lat, LATLNG[m.seq].lng) : null; }).filter(Boolean);
     if (pts.length) {
-      var latlngs = [HUB_LATLNG].concat(pts);
-      var line = L.polyline(latlngs, {
-        color: r.cor,
-        weight: (algumAtivo && !tipoFiltrado) ? 2.6 : 1.2,
-        opacity: tipoFiltrado ? 0.12 : (algumAtivo ? 0.65 : 0.08),
-        className: 'mline',
-        interactive: false
-      }).addTo(mapDataLayer);
-      routeLineLayers[r.num] = line;
-      if (animarEntrada && line._path) {
-        var len = line._path.getTotalLength();
-        line._path.style.strokeDasharray = len;
-        line._path.style.setProperty('--len', len);
-        line._path.classList.add('mline-draw');
-        line._path.style.animationDelay = (ri * 60) + 'ms';
+      var lineCoords = [[hub.x, hub.y]].concat(pts.map(function (p) { return [p.x, p.y]; }));
+      var polyPts = lineCoords.map(function (p) { return p[0] + ' ' + p[1]; }).join(', ');
+      var line = document.createElementNS(NS, 'polyline');
+      line.setAttribute('points', polyPts); line.setAttribute('fill', 'none');
+      line.setAttribute('class', 'mline');
+      line.setAttribute('stroke', r.cor); line.setAttribute('stroke-width', (algumAtivo && !tipoFiltrado) ? '2.4' : '1');
+      line.setAttribute('opacity', tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06')); line.setAttribute('stroke-linecap', 'round'); g.appendChild(line);
+      routeLineEls[r.num] = line;
+      if (animarEntrada) {
+        var len = line.getTotalLength();
+        line.style.strokeDasharray = len;
+        line.style.setProperty('--len', len);
+        line.classList.add('mline-draw');
+        line.style.animationDelay = (ri * 60) + 'ms';
       }
-      ri++;
     }
   });
 
-  // NÓS dos municípios
   var nodeCounter = 0;
   ROTAS.forEach(function (r) {
     r.municipios.forEach(function (m, idx) {
       var ll = LATLNG[m.seq]; if (!ll) return;
       var ativo = nodeAtivo(m, r.num);
       var seg = SEGURANCA[m.seq];
+      var p = proj(ll.lat, ll.lng);
       var label = mapLabel(r.num, idx + 1);
+      var grp = document.createElementNS(NS, 'g');
+      grp.setAttribute('class', 'mnode' + (animarEntrada ? ' mnode-in' : ''));
+      grp.setAttribute('data-ativo', ativo ? '1' : '0');
+      if (animarEntrada) { grp.style.setProperty('--i', nodeCounter); nodeCounter++; }
+      grp.style.cursor = ativo ? 'pointer' : 'default';
+      grp.style.opacity = ativo ? '1' : '0.08';
+
+      var baseW = (label.length <= 2 ? 20 : label.length === 3 ? 24 : 28);
+      var labelW = baseW * iz;
+      var labelH = 15 * iz;
+
+      // aura vermelha: ponto de atenção (aduaneiro / corredor de escoamento) —
+      // fica atrás do balão, pulsando, pra chamar atenção mesmo antes de abrir.
+      if (seg) {
+        var alertRing = document.createElementNS(NS, 'rect');
+        alertRing.setAttribute('x', p.x - labelW / 2); alertRing.setAttribute('y', p.y - labelH / 2);
+        alertRing.setAttribute('width', String(labelW)); alertRing.setAttribute('height', String(labelH));
+        alertRing.setAttribute('rx', String(4 * iz));
+        alertRing.setAttribute('class', 'mnode-alert-ring');
+        var ringDelay = document.createElementNS(NS, 'title'); ringDelay.textContent = 'Ponto de atenção: ' + SEGURANCA_META[seg.tipo].label;
+        alertRing.appendChild(ringDelay);
+        grp.appendChild(alertRing);
+      }
+
+      var bb = document.createElementNS(NS, 'rect');
+      bb.setAttribute('x', p.x - labelW / 2); bb.setAttribute('y', p.y - labelH / 2);
+      bb.setAttribute('width', String(labelW)); bb.setAttribute('height', String(labelH));
+      bb.setAttribute('rx', String(3 * iz));
+      bb.setAttribute('fill', ativo ? r.cor : '#1a1e26');
       var segCor = seg ? SEGURANCA_META[seg.tipo].cor : r.cor;
+      bb.setAttribute('stroke', seg ? segCor : r.cor);
+      bb.setAttribute('stroke-width', String((seg ? 1.6 : (ativo ? 0 : 0.6)) * iz));
+      bb.setAttribute('stroke-dasharray', seg ? (2 * iz) + ',' + (1.4 * iz) : 'none');
+      bb.setAttribute('opacity', '0.92');
+      if (ativo) bb.setAttribute('filter', 'url(#gw)');
+      grp.appendChild(bb);
 
-      var badgeClass = 'mnode-badge' + (ativo ? '' : ' mnode-inactive') + (animarEntrada ? ' mnode-in' : '');
-      var delayStyle = animarEntrada ? ('--i:' + nodeCounter + ';') : '';
-      if (animarEntrada) nodeCounter++;
-      var html = '<div class="' + badgeClass + '" style="' + delayStyle + '--rc:' + r.cor + ';--segcor:' + segCor + '">'
-        + (seg ? '<span class="mnode-alert-ring" title="Ponto de atenção: ' + SEGURANCA_META[seg.tipo].label + '"></span>' : '')
-        + '<span class="mnode-label">' + label + '</span>'
-        + (seg ? '<span class="mnode-segdot">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '')
-        + '</div>';
+      var hitW = 30 * iz, hitH = 26 * iz;
+      var hitArea = document.createElementNS(NS, 'rect');
+      hitArea.setAttribute('x', p.x - hitW / 2); hitArea.setAttribute('y', p.y - hitH / 2);
+      hitArea.setAttribute('width', String(hitW)); hitArea.setAttribute('height', String(hitH));
+      hitArea.setAttribute('fill', 'transparent');
+      grp.appendChild(hitArea);
 
-      var icon = L.divIcon({ className: 'map-icon-wrap', html: html, iconSize: [1, 1] });
-      var marker = L.marker([ll.lat, ll.lng], { icon: icon, interactive: ativo, keyboard: false }).addTo(mapDataLayer);
+      var nt = document.createElementNS(NS, 'text');
+      nt.setAttribute('x', p.x); nt.setAttribute('y', p.y + 3 * iz);
+      nt.setAttribute('text-anchor', 'middle'); nt.setAttribute('font-size', String(8 * iz));
+      nt.setAttribute('font-weight', '900'); nt.setAttribute('fill', ativo ? '#fff' : r.cor);
+      nt.setAttribute('font-family', 'monospace');
+      nt.setAttribute('pointer-events', 'none');
+      nt.textContent = label; grp.appendChild(nt);
+
+      if (seg) {
+        var bx = p.x + labelW / 2, by = p.y - labelH / 2;
+        var bcirc = document.createElementNS(NS, 'circle');
+        bcirc.setAttribute('cx', bx); bcirc.setAttribute('cy', by); bcirc.setAttribute('r', String(5.5 * iz));
+        bcirc.setAttribute('fill', segCor);
+        bcirc.setAttribute('stroke', '#070c14'); bcirc.setAttribute('stroke-width', String(1.2 * iz));
+        bcirc.setAttribute('opacity', ativo ? '1' : '0.35');
+        grp.appendChild(bcirc);
+        var bicon = document.createElementNS(NS, 'text');
+        bicon.setAttribute('x', bx); bicon.setAttribute('y', by + 2.6 * iz);
+        bicon.setAttribute('text-anchor', 'middle'); bicon.setAttribute('font-size', String(6.5 * iz));
+        bicon.setAttribute('pointer-events', 'none'); bicon.setAttribute('opacity', ativo ? '1' : '0.35');
+        bicon.textContent = SEGURANCA_META[seg.tipo].icone;
+        grp.appendChild(bicon);
+      }
+
       if (ativo) {
-        marker.on('click', function (e) {
-          L.DomEvent.stopPropagation(e);
+        grp.addEventListener('click', function (e) {
+          e.stopPropagation();
           showMapPopup(NODEIDX[m.seq], label);
         });
       }
+      g.appendChild(grp);
     });
   });
 
   // Se tem uma calha específica selecionada (não "TODAS"), anima uma
   // embarcação (ou ônibus, pras calhas rodoviárias) percorrendo a rota.
-  if (rotaFiltrada && routeLineLayers[rotaFiltrada]) {
-    iniciarAnimacaoRota(rotaFiltrada, routeLineLayers[rotaFiltrada]);
+  if (rotaFiltrada && routeLineEls[rotaFiltrada]) {
+    iniciarAnimacaoRota(rotaFiltrada, routeLineEls[rotaFiltrada], iz);
   } else {
     pararAnimacaoRota();
   }
 }
 
-/* ── Ícone animado percorrendo a calha selecionada no mapa ──
-   Interpola em cima das coordenadas reais (lat/lng), não em pixels —
-   assim continua certinho mesmo se a pessoa arrastar ou der zoom no mapa
-   enquanto o ícone se move. */
-var routeAnim = { raf: null, num: null, marker: null };
+/* ── Ícone animado percorrendo a calha selecionada no mapa ── */
+var routeAnim = { raf: null, num: null };
 
 function pararAnimacaoRota() {
   if (routeAnim.raf) cancelAnimationFrame(routeAnim.raf);
   routeAnim.raf = null;
   routeAnim.num = null;
-  if (routeAnim.marker && leafletMap) leafletMap.removeLayer(routeAnim.marker);
-  routeAnim.marker = null;
+  var el = document.getElementById('route-anim-icon');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
-function iniciarAnimacaoRota(num, line) {
+function iniciarAnimacaoRota(num, line, iz) {
   pararAnimacaoRota();
-  if (!leafletMap) return;
-  var latlngs = line.getLatLngs(); if (!latlngs || latlngs.length < 2) return;
-
-  var acc = [0];
-  for (var i = 1; i < latlngs.length; i++) {
-    acc.push(acc[i - 1] + leafletMap.distance(latlngs[i - 1], latlngs[i]));
-  }
-  var total = acc[acc.length - 1]; if (!total) return;
+  var g = document.getElementById('mg'); if (!g || !line) return;
+  var len = line.getTotalLength(); if (!len) return;
 
   var r = ROTAS.filter(function (x) { return x.num === num; })[0]; if (!r) return;
   var rodoviaria = isRodoviaria(r);
+  var NS = 'http://www.w3.org/2000/svg';
 
-  var html = '<div class="route-anim-icon"><span class="route-anim-halo" style="--rc:' + r.cor + '"></span>'
-    + '<span class="route-anim-glyph">' + (rodoviaria ? '🚌' : '🚤') + '</span></div>';
-  var icon = L.divIcon({ className: 'map-icon-wrap', html: html, iconSize: [1, 1] });
-  var marker = L.marker(latlngs[0], { icon: icon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(leafletMap);
-  routeAnim.marker = marker;
+  // grupo com um halo escuro atrás (pra destacar em cima de qualquer cor de linha/fundo) + o emoji
+  var icon = document.createElementNS(NS, 'g');
+  icon.id = 'route-anim-icon';
+  icon.setAttribute('class', 'route-anim-icon');
+
+  var halo = document.createElementNS(NS, 'circle');
+  halo.setAttribute('r', String(11 * iz));
+  halo.setAttribute('fill', '#070c14');
+  halo.setAttribute('stroke', r.cor);
+  halo.setAttribute('stroke-width', String(1.2 * iz));
+  halo.setAttribute('opacity', '0.92');
+  icon.appendChild(halo);
+
+  var glyph = document.createElementNS(NS, 'text');
+  glyph.setAttribute('class', 'route-anim-glyph');
+  glyph.setAttribute('text-anchor', 'middle');
+  glyph.setAttribute('dominant-baseline', 'central');
+  glyph.setAttribute('y', String(1 * iz));
+  glyph.setAttribute('font-size', String(15 * iz));
+  glyph.setAttribute('font-family', "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif");
+  glyph.setAttribute('fill', '#fff'); // usado como cor só se a fonte não tiver o emoji colorido (fallback)
+  glyph.textContent = rodoviaria ? '🚌' : '🚤';
+  icon.appendChild(glyph);
+
+  g.appendChild(icon);
+
   routeAnim.num = num;
 
-  function pontoEm(dist) {
-    for (var i = 1; i < acc.length; i++) {
-      if (dist <= acc[i] || i === acc.length - 1) {
-        var segLen = acc[i] - acc[i - 1];
-        var f = segLen ? (dist - acc[i - 1]) / segLen : 0;
-        var a = latlngs[i - 1], b = latlngs[i];
-        return L.latLng(a.lat + (b.lat - a.lat) * f, a.lng + (b.lng - a.lng) * f);
-      }
-    }
-    return latlngs[latlngs.length - 1];
+  function posicionar(t) {
+    var pt = line.getPointAtLength(t * len);
+    icon.setAttribute('transform', 'translate(' + pt.x + ',' + pt.y + ')');
   }
 
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) {
-    marker.setLatLng(pontoEm(total * 0.5)); // sem movimento: só mostra o ícone parado no meio da rota
+    posicionar(0.5); // sem movimento: só mostra o ícone parado no meio da rota
     return;
   }
 
@@ -726,7 +811,7 @@ function iniciarAnimacaoRota(num, line) {
     if (!startTime) startTime = ts;
     var elapsed = (ts - startTime) % (duration + pausa);
     var t = Math.min(elapsed / duration, 1);
-    marker.setLatLng(pontoEm(t * total));
+    posicionar(t);
     routeAnim.raf = requestAnimationFrame(frame);
   }
   routeAnim.raf = requestAnimationFrame(frame);
@@ -830,20 +915,80 @@ function buildMapFilters() {
   });
 }
 
-/* Arrastar/beliscar pra dar zoom já é nativo do Leaflet (e funciona melhor
-   que o que a gente fazia na mão antes) — só garante que o mapa existe e
-   redesenha certinho se o tamanho do container mudou. */
-function initMapInteractions() {
-  if (!leafletMap) initLeafletMap();
-  if (leafletMap) leafletMap.invalidateSize();
+/* Arrastar (mouse/touch) e beliscar (pinça, 2 dedos) pra dar zoom/pan no
+   mapa — tudo manual em cima do transform do <g id="mg">, sem depender de
+   nenhuma lib externa. */
+var mapDrag = { active: false, x: 0, y: 0, moved: false };
+var mapPinch = { active: false, dist: 0, s0: 1 };
+var mapInteractionsBound = false;
+
+function applyMapTransform() {
+  T.s = Math.max(0.5, Math.min(8, T.s));
+  var g = document.getElementById('mg');
+  if (g) g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
 }
 
-function zI() { if (leafletMap) leafletMap.zoomIn(); }
-function zO() { if (leafletMap) leafletMap.zoomOut(); }
+function initMapInteractions() {
+  var svg = document.getElementById('msvg');
+  if (!svg || mapInteractionsBound) return;
+  mapInteractionsBound = true;
+
+  svg.addEventListener('mousedown', function (e) {
+    mapDrag.active = true; mapDrag.moved = false; mapDrag.x = e.clientX; mapDrag.y = e.clientY;
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!mapDrag.active) return;
+    var dx = e.clientX - mapDrag.x, dy = e.clientY - mapDrag.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) mapDrag.moved = true;
+    T.x += dx; T.y += dy; mapDrag.x = e.clientX; mapDrag.y = e.clientY;
+    applyMapTransform();
+  });
+  window.addEventListener('mouseup', function () { mapDrag.active = false; });
+
+  svg.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 1) {
+      mapDrag.active = true; mapDrag.moved = false;
+      mapDrag.x = e.touches[0].clientX; mapDrag.y = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      mapDrag.active = false;
+      mapPinch.active = true;
+      var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      mapPinch.dist = Math.hypot(dx, dy); mapPinch.s0 = T.s;
+    }
+  }, { passive: true });
+  svg.addEventListener('touchmove', function (e) {
+    if (mapPinch.active && e.touches.length === 2) {
+      var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
+      var d = Math.hypot(dx, dy);
+      T.s = mapPinch.s0 * (d / mapPinch.dist);
+      applyMapTransform();
+    } else if (mapDrag.active && e.touches.length === 1) {
+      var tdx = e.touches[0].clientX - mapDrag.x, tdy = e.touches[0].clientY - mapDrag.y;
+      if (Math.abs(tdx) > 2 || Math.abs(tdy) > 2) mapDrag.moved = true;
+      T.x += tdx; T.y += tdy;
+      mapDrag.x = e.touches[0].clientX; mapDrag.y = e.touches[0].clientY;
+      applyMapTransform();
+    }
+  }, { passive: true });
+  svg.addEventListener('touchend', function (e) {
+    mapDrag.active = false;
+    if (e.touches.length < 2) mapPinch.active = false;
+  });
+
+  svg.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var delta = e.deltaY < 0 ? 1.12 : (1 / 1.12);
+    T.s *= delta;
+    applyMapTransform();
+  }, { passive: false });
+}
+
+function zI() { T.s = Math.min(T.s * 1.3, 8); renderMap(); }
+function zO() { T.s = Math.max(T.s / 1.3, 0.5); renderMap(); }
 function zR() {
+  T = { s: 1, x: 0, y: 0 };
   rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa();
   mapAnimateEntrance = true;
-  if (leafletMap) leafletMap.fitBounds(L.latLngBounds(MAP_BOUNDS));
   renderMap();
 }
 
