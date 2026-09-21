@@ -50,6 +50,22 @@ function aplicarBranding() {
   }
 }
 
+/* ── Tema claro/escuro ──
+   Preferência de cada aparelho (não é dado da empresa, então fica só no
+   localStorage do navegador, não no Supabase). O index.html e o login.html
+   já aplicam o tema salvo ANTES de pintar a tela (script inline no <head>),
+   pra não dar aquele "flash" trocando de tema na hora de abrir. */
+function aplicarTema(tema) {
+  document.documentElement.setAttribute('data-theme', tema);
+  try { localStorage.setItem('navlog-theme', tema); } catch (e) { /* ignora: modo privado etc. */ }
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = tema === 'light' ? '🌙' : '☀️';
+}
+function alternarTema() {
+  var atual = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  aplicarTema(atual === 'light' ? 'dark' : 'light');
+}
+
 async function salvarConfigEmpresa() {
   var nomeEl = document.getElementById('in-empresa-nome');
   var logoEl = document.getElementById('in-empresa-logo');
@@ -207,19 +223,54 @@ var NIVEL_HIST = []; // [{data,nivel_m,variacao_cm,tendencia,fonte}], mais antig
 //     registro histórico (mínima de 12,70m em out/2023 — a pior seca em
 //     121 anos de medição). Por isso o lado de cheia é uma cota oficial e
 //     o de seca é uma aproximação — isso fica avisado no rodapé do medidor.
+// "critico:true" dispara o banner de alerta + o selinho pulsante nas abas
+// Notícias (ver nivelAlertaHTML() e atualizarAlertaAba() abaixo). Do lado
+// da seca não tem cota oficial de "emergência" (é decreto do prefeito,
+// caso a caso) — por isso o corte crítico aqui (abaixo de 15m) é só uma
+// referência aproximada da mínima histórica, não uma cota oficial.
 var NIVEL_ESCALA_MIN = 11, NIVEL_ESCALA_MAX = 30;
 var NIVEL_REGIMES = [
-  { ate: 19,   label: 'Seca',                classe: 'seca',       cor: '#f59e0b' },
-  { ate: 27,   label: 'Normal',               classe: 'normal',     cor: '#14b8a6' },
-  { ate: 27.5, label: 'Atenção',              classe: 'atencao',    cor: '#eab308' },
-  { ate: 29,   label: 'Alerta (cheia)',       classe: 'alerta',     cor: '#3b82c4' },
-  { ate: 99,   label: 'Emergência (cheia)',   classe: 'emergencia', cor: '#ef4444' }
+  { ate: 15,   label: 'Seca severa',         classe: 'seca-severa', cor: '#ea580c', critico: true  },
+  { ate: 19,   label: 'Seca',                classe: 'seca',        cor: '#f59e0b', critico: false },
+  { ate: 27,   label: 'Normal',               classe: 'normal',     cor: '#14b8a6', critico: false },
+  { ate: 27.5, label: 'Atenção',              classe: 'atencao',    cor: '#eab308', critico: true  },
+  { ate: 29,   label: 'Alerta (cheia)',       classe: 'alerta',     cor: '#3b82c4', critico: true  },
+  { ate: 99,   label: 'Emergência (cheia)',   classe: 'emergencia', cor: '#ef4444', critico: true  }
 ];
 function classificarNivel(nivel) {
   for (var i = 0; i < NIVEL_REGIMES.length; i++) {
     if (nivel <= NIVEL_REGIMES[i].ate) return NIVEL_REGIMES[i];
   }
   return NIVEL_REGIMES[NIVEL_REGIMES.length - 1];
+}
+
+var NIVEL_ALERTA_TEXTOS = {
+  'seca-severa': 'Rio numa faixa de seca severa, próxima da mínima histórica. Pode afetar a passagem de embarcações com mais calado em trechos rasos.',
+  'atencao':     'Rio na cota de atenção (Defesa Civil de Manaus/SGB). Ainda sem restrição, mas vale acompanhar de perto.',
+  'alerta':      'Rio na cota de alerta/inundação (Defesa Civil de Manaus/SGB). Pode afetar áreas mais baixas e o acesso a alguns portos/trapiches.',
+  'emergencia':  'Rio na cota de emergência (Defesa Civil de Manaus/SGB) — nível de inundação severa.'
+};
+/* Banner chamativo no topo da aba Notícias quando o nível entra numa faixa
+   crítica (ver campo "critico" em NIVEL_REGIMES) — o selo discreto ao lado
+   do valor já existia, isso aqui é só pra quem não repara no selo. */
+function nivelAlertaHTML(regime) {
+  if (!regime.critico) return '';
+  var texto = NIVEL_ALERTA_TEXTOS[regime.classe] || '';
+  return '<div class="niv-alert-banner ' + regime.classe + '">'
+    + '<span class="niv-alert-ic">⚠️</span>'
+    + '<div><div class="niv-alert-tt">Nível do rio em ' + regime.label + '</div>'
+    + '<div class="niv-alert-tx">' + texto + '</div></div>'
+    + '</div>';
+}
+/* Selinho vermelho pulsante nas abas Notícias (cabeçalho + menu mobile),
+   visível de qualquer aba, pra avisar sobre um nível crítico sem precisar
+   entrar na aba Notícias. */
+function atualizarAlertaAba(critico) {
+  document.querySelectorAll('.htab[data-s="n"], #bt-n').forEach(function (el) {
+    var existente = el.querySelector('.tab-alert-dot');
+    if (critico && !existente) el.insertAdjacentHTML('beforeend', '<span class="tab-alert-dot" title="Nível do rio em faixa crítica"></span>');
+    if (!critico && existente) existente.remove();
+  });
 }
 
 async function carregarNivelRio() {
@@ -299,6 +350,7 @@ function bNIVEL() {
 
   if (!NIVEL_HIST.length) {
     body.innerHTML = '<div class="niv-empty">Ainda não tem nenhuma leitura do nível do rio salva.<br>A coleta automática roda 1x por dia — volte mais tarde.</div>';
+    atualizarAlertaAba(false);
     return;
   }
 
@@ -349,7 +401,8 @@ function bNIVEL() {
         + '</div>';
     }).join('');
 
-  body.innerHTML = cardHTML + chartHTML + feedHTML;
+  body.innerHTML = nivelAlertaHTML(regime) + cardHTML + chartHTML + feedHTML;
+  atualizarAlertaAba(!!regime.critico);
 }
 
 /* ============================================================
@@ -1356,6 +1409,8 @@ function flashSeq(seq) {
 }
 
 async function initApp() {
+  aplicarTema(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+
   var sessionRes = await sb.auth.getSession();
   var session = sessionRes.data && sessionRes.data.session;
   if (!session) { window.location.replace('/login.html'); return; }
@@ -1396,7 +1451,12 @@ async function initApp() {
   // grava a leitura do dia, quem estiver com o app aberto vê na hora.
   sb.channel('nivel_rio_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'nivel_rio' }, function () {
-      carregarNivelRio().then(function () { if (cur === 'n') bNIVEL(); });
+      carregarNivelRio().then(function () {
+        // Atualiza o selinho de alerta mesmo se quem estiver olhando não
+        // estiver na aba Notícias agora — senão só reagia entrando lá.
+        if (NIVEL_HIST.length) atualizarAlertaAba(!!classificarNivel(NIVEL_HIST[NIVEL_HIST.length - 1].nivel_m).critico);
+        if (cur === 'n') bNIVEL();
+      });
     })
     .subscribe();
 

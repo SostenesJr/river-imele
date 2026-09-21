@@ -13,6 +13,18 @@
 <meta name="apple-mobile-web-app-title" content="NavLog">
 <link rel="stylesheet" href="css/style.css">
 <style>html:not(.authed) body { visibility: hidden; }</style>
+<script>
+(function () {
+  // Aplica o tema salvo (claro/escuro) ANTES da página pintar, senão dava
+  // pra ver um "flash" com o tema errado por uma fração de segundo assim
+  // que a página abre. Preferência de cada aparelho (localStorage), não é
+  // um dado da empresa — por isso não vem do Supabase.
+  try {
+    var t = localStorage.getItem('navlog-theme');
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  } catch (e) { /* modo privado etc. — segue no tema padrão */ }
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script>
@@ -58,6 +70,7 @@ if ('serviceWorker' in navigator) {
     </div>
     <span class="live-dot" id="live-dot" title="Conectando..."></span>
     <span class="user-badge" id="user-badge"></span>
+    <button class="theme-btn" id="theme-btn" onclick="alternarTema()" title="Trocar tema claro/escuro">☀️</button>
     <button class="logout-btn" onclick="sair()" title="Sair">⏻</button>
   </div>
 </div>

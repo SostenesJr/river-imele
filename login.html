@@ -13,6 +13,14 @@
 <meta name="apple-mobile-web-app-title" content="NavLog">
 <link rel="stylesheet" href="css/style.css">
 <script>
+(function () {
+  // Mesmo tema (claro/escuro) que o resto do app, salvo no aparelho —
+  // aplicado antes da página pintar pra não dar "flash" trocando de tema.
+  try {
+    var t = localStorage.getItem('navlog-theme');
+    if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  } catch (e) { /* modo privado etc. */ }
+})();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', function () {
     if (sessionStorage.getItem('sw-reloaded')) return;

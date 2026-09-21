@@ -52,12 +52,13 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
 5. **Notícias** — nível do Rio Negro em Manaus (referência: Porto de
    Manaus), atualizado automaticamente 1x por dia: valor atual em metros, se
    está enchendo ou vazando (com a variação do dia em cm), um **selo de
-   regime** (Seca / Normal / Atenção / Alerta / Emergência — ver "Regime do
-   rio" abaixo), medidor visual com essas mesmas faixas, gráfico com o
-   histórico e um feed tipo notícia com as leituras de cada dia. O app só
-   *lê* esses dados — a coleta é feita por uma função separada
-   (`api/cron/nivel-rio.js`, agendada pela Vercel via `vercel.json`), não
-   pelo navegador de quem usa o app.
+   regime** (Seca severa / Seca / Normal / Atenção / Alerta / Emergência —
+   ver "Regime do rio" abaixo) com um **banner de alerta** quando o nível
+   entra numa faixa crítica, medidor visual com essas mesmas faixas,
+   gráfico com o histórico e um feed tipo notícia com as leituras de cada
+   dia. O app só *lê* esses dados — a coleta é feita por uma função
+   separada (`api/cron/nivel-rio.js`, agendada pela Vercel via
+   `vercel.json`), não pelo navegador de quem usa o app.
 
 ## Visual
 
@@ -66,6 +67,13 @@ dourado nos realces), com uma foto real de rio cortando a mata amazônica
 aparecendo no cabeçalho, no banner de topo da aba Rotas e no fundo da tela
 de login (com efeito de vidro fosco no card de login). A URL da foto fica
 centralizada na variável `--hero-img`, no topo de `css/style.css`.
+
+**Tema claro/escuro**: botão ☀️/🌙 no cabeçalho alterna entre os dois —
+preferência de cada aparelho (fica salva no navegador, não no Supabase).
+Cabeçalho, banner da aba Rotas, fundo do login e o mapa (aba Mapa) mantêm o
+visual escuro nos dois temas de propósito (é onde a foto/o mapa aparece);
+o resto do app (cards, balões, listas, aba Notícias) troca de verdade entre
+claro e escuro.
 
 ## Login e perfis (admin/cliente)
 
@@ -100,13 +108,19 @@ externas sobre o Rio Negro em Manaus:
 - **Atenção (27,00m) · Alerta/cheia (27,50m) · Emergência/cheia (29,00m)** —
   cotas oficiais da Defesa Civil de Manaus e do SGB (Serviço Geológico do
   Brasil), divulgadas em reportagens de 2026.
-- **Seca (abaixo de 19,00m)** — não existe uma cota oficial de seca
-  equivalente; esse corte é uma referência informal, baseada no registro
-  histórico (mínima de 12,70m em outubro/2023, a pior seca em 121 anos de
-  medição).
+- **Seca (15,00m–19,00m) e Seca severa (abaixo de 15,00m)** — não existe
+  cota oficial de seca equivalente (o "estado de emergência" por seca em
+  Manaus é decreto do prefeito, caso a caso, sem cota fixa); esses cortes
+  são referência informal, baseada no registro histórico (mínima de
+  12,70m em outubro/2023, a pior seca em 121 anos de medição).
 - **Normal** — entre os dois extremos acima.
+
 O medidor visual e a nota ao lado dele (aba Notícias) deixam essa origem
-explícita. Os cortes ficam em `NIVEL_REGIMES`, no topo de `js/app.js`.
+explícita. Quando o nível cai em Seca severa, Atenção, Alerta ou
+Emergência, aparece também um **banner de alerta** no topo da aba
+Notícias e um selinho vermelho pulsante na aba Notícias (cabeçalho e menu
+inferior), visível mesmo em outra aba. Os cortes e os textos do alerta
+ficam em `NIVEL_REGIMES`/`NIVEL_ALERTA_TEXTOS`, no topo de `js/app.js`.
 
 ## Dados de origem
 
