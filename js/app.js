@@ -194,15 +194,33 @@ function salvarObsRemoto(seq) {
    ============================================================ */
 var NIVEL_HIST = []; // [{data,nivel_m,variacao_cm,tendencia,fonte}], mais antigo -> mais novo
 
-// Faixa de referência pro medidor visual (baixa/normal/cheia). É uma
-// aproximação pra dar noção visual de onde o nível está — não é uma cota
-// de alerta oficial da Marinha/Defesa Civil.
-var NIVEL_ESCALA_MIN = 12, NIVEL_ESCALA_MAX = 30;
-var NIVEL_ZONAS = [
-  { ate: 18, label: 'Seca', cor: '#f59e0b' },
-  { ate: 25, label: 'Normal', cor: '#14b8a6' },
-  { ate: 30, label: 'Cheia', cor: '#3b82c4' }
+// Faixa de referência pro medidor visual e pro selo de regime (Seca /
+// Normal / Atenção / Alerta / Emergência). O site-fonte (portodemanaus.com.br)
+// só informa o valor do dia e se subiu ou desceu — ele mesmo não classifica
+// se "está seco" ou "está cheio". Os cortes usados aqui vêm de referências
+// oficiais sobre o Rio Negro em Manaus:
+//   - Cota de atenção 27,00m / cota de alerta (inundação) 27,50m / cota de
+//     emergência 29,00m — Defesa Civil de Manaus e SGB (Serviço Geológico
+//     do Brasil), noticiado em 2026.
+//   - Não existe uma "cota de seca" oficial equivalente pro lado baixo; o
+//     corte de Seca usado aqui é uma referência informal, com base no
+//     registro histórico (mínima de 12,70m em out/2023 — a pior seca em
+//     121 anos de medição). Por isso o lado de cheia é uma cota oficial e
+//     o de seca é uma aproximação — isso fica avisado no rodapé do medidor.
+var NIVEL_ESCALA_MIN = 11, NIVEL_ESCALA_MAX = 30;
+var NIVEL_REGIMES = [
+  { ate: 19,   label: 'Seca',                classe: 'seca',       cor: '#f59e0b' },
+  { ate: 27,   label: 'Normal',               classe: 'normal',     cor: '#14b8a6' },
+  { ate: 27.5, label: 'Atenção',              classe: 'atencao',    cor: '#eab308' },
+  { ate: 29,   label: 'Alerta (cheia)',       classe: 'alerta',     cor: '#3b82c4' },
+  { ate: 99,   label: 'Emergência (cheia)',   classe: 'emergencia', cor: '#ef4444' }
 ];
+function classificarNivel(nivel) {
+  for (var i = 0; i < NIVEL_REGIMES.length; i++) {
+    if (nivel <= NIVEL_REGIMES[i].ate) return NIVEL_REGIMES[i];
+  }
+  return NIVEL_REGIMES[NIVEL_REGIMES.length - 1];
+}
 
 async function carregarNivelRio() {
   // Precisa dos 400 dias MAIS RECENTES (não os mais antigos) — por isso
@@ -243,15 +261,15 @@ function nivelGaugeHTML(nivel) {
   var min = NIVEL_ESCALA_MIN, max = NIVEL_ESCALA_MAX;
   var pct = Math.max(0, Math.min(100, (nivel - min) / (max - min) * 100));
   var zonasHTML = '', anterior = min;
-  NIVEL_ZONAS.forEach(function (z) {
+  NIVEL_REGIMES.forEach(function (z) {
     var largura = (Math.min(z.ate, max) - anterior) / (max - min) * 100;
-    zonasHTML += '<div class="niv-gauge-zone" style="width:' + largura + '%;background:' + z.cor + '"></div>';
+    if (largura > 0) zonasHTML += '<div class="niv-gauge-zone" style="width:' + largura + '%;background:' + z.cor + '"></div>';
     anterior = z.ate;
   });
   return '<div class="niv-gauge-wrap">'
     + '<div class="niv-gauge">' + zonasHTML + '<div class="niv-gauge-marker" style="left:' + pct + '%"></div></div>'
-    + '<div class="niv-gauge-labels"><span>Seca</span><span>Normal</span><span>Cheia</span></div>'
-    + '<div class="niv-gauge-note">Escala aproximada de referência (' + min + 'm–' + max + 'm), não é uma cota oficial de alerta.</div>'
+    + '<div class="niv-gauge-labels"><span>Seca</span><span>Normal</span><span>Atenção/Alerta/Emergência</span></div>'
+    + '<div class="niv-gauge-note">Lado da cheia usa as cotas oficiais da Defesa Civil de Manaus/SGB (atenção 27,00m · alerta 27,50m · emergência 29,00m). Não existe cota oficial de seca — o corte de 19,00m é uma referência informal, com base na mínima histórica (12,70m, a pior seca em 121 anos, out/2023).</div>'
     + '</div>';
 }
 
@@ -301,11 +319,15 @@ function bNIVEL() {
       + '</div>';
   }
 
+  var regime = classificarNivel(atual.nivel_m);
   var cardHTML = '<div class="niv-card">'
     + '<div class="niv-top"><span class="niv-label">🌊 Nível do Rio Negro</span><span class="niv-fonte">Fonte:<br>' + atual.fonte + '</span></div>'
     + '<div class="niv-value-row"><span class="niv-value">' + atual.nivel_m.toFixed(2).replace('.', ',') + '</span><span class="niv-unit">metros</span></div>'
+    + '<div class="niv-badges">'
+    + '<span class="niv-regime ' + regime.classe + '">' + regime.label + '</span>'
     + '<span class="niv-trend ' + atual.tendencia + '">' + niveTrendIcone(atual.tendencia) + ' ' + niveTrendTexto(atual.tendencia)
     + ' · ' + (atual.variacao_cm > 0 ? '+' : '') + atual.variacao_cm.toFixed(0) + ' cm hoje</span>'
+    + '</div>'
     + '<div class="niv-date">Atualizado em ' + fmtDataBR(atual.data) + '</div>'
     + nivelGaugeHTML(atual.nivel_m)
     + compHTML

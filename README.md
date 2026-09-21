@@ -51,11 +51,13 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    somente-leitura da aba Informações.
 5. **Notícias** — nível do Rio Negro em Manaus (referência: Porto de
    Manaus), atualizado automaticamente 1x por dia: valor atual em metros, se
-   está enchendo ou vazando (com a variação do dia em cm), medidor visual de
-   baixa/normal/cheia, gráfico com o histórico e um feed tipo notícia com as
-   leituras de cada dia. O app só *lê* esses dados — a coleta é feita por uma
-   função separada (`api/cron/nivel-rio.js`, agendada pela Vercel via
-   `vercel.json`), não pelo navegador de quem usa o app.
+   está enchendo ou vazando (com a variação do dia em cm), um **selo de
+   regime** (Seca / Normal / Atenção / Alerta / Emergência — ver "Regime do
+   rio" abaixo), medidor visual com essas mesmas faixas, gráfico com o
+   histórico e um feed tipo notícia com as leituras de cada dia. O app só
+   *lê* esses dados — a coleta é feita por uma função separada
+   (`api/cron/nivel-rio.js`, agendada pela Vercel via `vercel.json`), não
+   pelo navegador de quem usa o app.
 
 ## Visual
 
@@ -88,6 +90,23 @@ substitui "NAVLOG AMAZÔNIA" no cabeçalho e uma URL de logo que substitui o
 pontinho decorativo. Ambos ficam salvos no banco (tabela `config_empresa`)
 e aparecem pra toda a equipe, em qualquer aparelho, sem precisar publicar o
 site de novo.
+
+## Regime do rio (Seca / Normal / Atenção / Alerta / Emergência)
+
+A fonte da coleta diária (portodemanaus.com.br) informa só o valor do dia e
+se o rio subiu ou desceu — ela mesma não classifica se "está seco" ou "está
+cheio". O selo de regime mostrado na aba Notícias usa cortes de fontes
+externas sobre o Rio Negro em Manaus:
+- **Atenção (27,00m) · Alerta/cheia (27,50m) · Emergência/cheia (29,00m)** —
+  cotas oficiais da Defesa Civil de Manaus e do SGB (Serviço Geológico do
+  Brasil), divulgadas em reportagens de 2026.
+- **Seca (abaixo de 19,00m)** — não existe uma cota oficial de seca
+  equivalente; esse corte é uma referência informal, baseada no registro
+  histórico (mínima de 12,70m em outubro/2023, a pior seca em 121 anos de
+  medição).
+- **Normal** — entre os dois extremos acima.
+O medidor visual e a nota ao lado dele (aba Notícias) deixam essa origem
+explícita. Os cortes ficam em `NIVEL_REGIMES`, no topo de `js/app.js`.
 
 ## Dados de origem
 
@@ -132,8 +151,8 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
   pelo botão "Restaurar original")
 - `js/supabase-config.js` — URL do projeto e chave pública do Supabase
 - `js/app.js` — lógica das 5 abas, perfis (admin/cliente), dados da empresa,
-  leitura/escrita no Supabase (Configurações e Observações) e renderização
-  do mapa
+  leitura/escrita no Supabase (Configurações e Observações), renderização
+  do mapa e classificação de regime do rio (`NIVEL_REGIMES`, aba Notícias)
 - `supabase/schema.sql` — tabelas (`municipios_info`, `observacoes`,
   `perfis`, `config_empresa`) e regras de acesso (RLS), incluindo a função
   `is_admin()`

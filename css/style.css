@@ -378,10 +378,21 @@ html, body {
 .niv-value-row { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 2px; }
 .niv-value { font-family: var(--font-mono); font-size: 44px; font-weight: 900; line-height: 1; }
 .niv-unit { font-size: 15px; color: var(--mu); font-weight: 700; }
-.niv-trend { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 20px; margin-top: 6px; }
+.niv-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.niv-trend { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 20px; }
 .niv-trend.subindo { background: color-mix(in srgb, #3b82c4 18%, transparent); color: #6db8f2; }
 .niv-trend.descendo { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #fbbf24; }
 .niv-trend.estavel { background: color-mix(in srgb, var(--mu) 18%, transparent); color: var(--mu); }
+
+/* Selo de regime (Seca/Normal/Atenção/Alerta/Emergência) — lado da cheia
+   usa cotas oficiais (Defesa Civil de Manaus/SGB); lado da seca é uma
+   referência informal (ver nota no medidor). */
+.niv-regime { display: inline-flex; align-items: center; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 20px; }
+.niv-regime.seca { background: color-mix(in srgb, #f59e0b 20%, transparent); color: #fbbf24; }
+.niv-regime.normal { background: color-mix(in srgb, #14b8a6 20%, transparent); color: #2dd4bf; }
+.niv-regime.atencao { background: color-mix(in srgb, #eab308 22%, transparent); color: #facc15; }
+.niv-regime.alerta { background: color-mix(in srgb, #3b82c4 22%, transparent); color: #6db8f2; }
+.niv-regime.emergencia { background: color-mix(in srgb, #ef4444 24%, transparent); color: #f87171; }
 .niv-date { font-size: 11px; color: var(--mu); margin-top: 10px; }
 
 .niv-gauge-wrap { margin-top: 16px; }
