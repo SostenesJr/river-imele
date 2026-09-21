@@ -24,12 +24,23 @@ if ('serviceWorker' in navigator) {
 </script>
 <style>
   html, body { overflow: auto; }
-  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-  .login-box { width: 100%; max-width: 340px; padding: 28px; background: var(--s1); border: 1px solid var(--bd); border-radius: 16px; }
+  body {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px;
+    background:
+      linear-gradient(180deg, rgba(10,19,16,.55), rgba(10,19,16,.88) 70%, rgba(10,19,16,.97)),
+      var(--hero-img) center 40% / cover no-repeat fixed;
+  }
+  .login-box {
+    width: 100%; max-width: 340px; padding: 28px;
+    background: color-mix(in srgb, var(--s1) 82%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--bd); border-radius: 16px;
+    box-shadow: 0 20px 60px -15px rgba(0,0,0,.6);
+  }
   .login-logo { text-align: center; margin-bottom: 22px; }
   .login-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 8px var(--ac); margin: 0 auto 10px; }
   .login-title { font-size: 15px; font-weight: 800; letter-spacing: .08em; }
-  .login-sub { font-size: 10px; color: var(--ac); font-weight: 900; letter-spacing: .04em; margin-top: 3px; }
+  .login-sub { font-size: 10px; color: var(--gold); font-weight: 900; letter-spacing: .04em; margin-top: 3px; }
   .login-field { margin-top: 18px; }
   .login-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--mu); margin-bottom: 6px; }
   .login-field input { width: 100%; background: var(--bg); border: 1px solid var(--bd); border-radius: 8px; padding: 12px; color: var(--tx); font-size: 15px; outline: none; font-family: var(--font-sans); }

@@ -2,18 +2,26 @@
    NAVLOG AMAZÔNIA — VARIÁVEIS GLOBAIS E CORES DO SISTEMA
    ============================================================ */
 :root {
-  --bg: #0b0d11;
-  --s1: #12151b;
-  --s2: #1a1e26;
-  --bd: #232838;
-  --tx: #e8eaf0;
-  --mu: #737a8c;
-  --ac: #14b8a6;
+  /* Paleta "floresta ao anoitecer": preto com fundo verde em vez de
+     cinza-azulado neutro, pra combinar com o tema Amazônia. */
+  --bg: #0a1310;
+  --s1: #111d18;
+  --s2: #182720;
+  --bd: #24382f;
+  --tx: #edf2ee;
+  --mu: #83988c;
+  --ac: #10b981;
+  --ac-dk: #047857;
+  --gold: #f0b429;
   --re: #ef4444;
   --ok: #22c55e;
   --wa: #f59e0b;
   --seca: #f59e0b;
   --cheia: #0ea5e9;
+
+  /* Foto de fundo (rio cortando a floresta) — licença Unsplash, uso
+     livre sem atribuição. Trocar só esta variável pra usar outra foto. */
+  --hero-img: url('https://images.unsplash.com/photo-1610413341456-e283a1c6026f?auto=format&fit=crop&w=1600&q=75');
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Roboto Mono', monospace;
@@ -25,7 +33,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 html, body {
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse 1200px 600px at 15% -10%, rgba(31,206,147,.10), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 100% 0%, rgba(240,180,41,.06), transparent 55%),
+    var(--bg);
   color: var(--tx);
   font-family: var(--font-sans);
   font-size: 14px;
@@ -39,7 +50,10 @@ html, body {
   position: fixed; top: 0; left: 0; right: 0;
   height: calc(50px + var(--safe-top));
   padding-top: var(--safe-top);
-  background: var(--s1);
+  background:
+    linear-gradient(90deg, rgba(10,19,16,.94), rgba(10,19,16,.86) 60%, rgba(10,19,16,.7)),
+    var(--hero-img) center 30% / cover no-repeat,
+    var(--s1);
   border-bottom: 1px solid var(--bd);
   display: flex; align-items: center;
   padding-left: 14px; padding-right: 14px; gap: 10px;
@@ -47,8 +61,8 @@ html, body {
 }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 7px var(--ac); animation: bk 2s infinite; flex-shrink: 0; }
 @keyframes bk { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
-.lt { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; line-height: 1.3; }
-.lt2 { font-size: 9px; font-weight: 900; color: var(--ac); letter-spacing: .04em; }
+.lt { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; line-height: 1.3; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.lt2 { font-size: 9px; font-weight: 900; color: var(--gold); letter-spacing: .04em; }
 
 .hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
@@ -126,6 +140,19 @@ html, body {
   animation-delay: calc(var(--i, 0) * 45ms);
   transition: border-color .2s, box-shadow .2s;
 }
+.rcard:hover { box-shadow: 0 6px 24px -10px color-mix(in srgb, var(--rc, var(--ac)) 45%, transparent); }
+
+/* ── ROTAS: banner com foto no topo da lista ── */
+.hero-banner {
+  position: relative; margin: 10px 10px 4px; border-radius: 14px; overflow: hidden;
+  height: 108px; flex-shrink: 0;
+  background:
+    linear-gradient(100deg, rgba(10,19,16,.88) 0%, rgba(10,19,16,.55) 55%, rgba(10,19,16,.15) 100%),
+    var(--hero-img) center 35% / cover no-repeat;
+  display: flex; flex-direction: column; justify-content: center; padding: 0 18px;
+}
+.hero-banner-tt { font-size: 15px; font-weight: 800; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+.hero-banner-sb { font-size: 11px; color: var(--gold); font-weight: 700; margin-top: 3px; letter-spacing: .03em; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
 .rhead { display: flex; align-items: center; gap: 12px; padding: 14px; cursor: pointer; user-select: none; transition: background .15s; }
 .rhead-static { cursor: default; }
 .rhead:not(.rhead-static):hover { background: var(--s2); }
@@ -180,7 +207,7 @@ html, body {
 .mseq { font-family: var(--font-mono); font-size: 12px; font-weight: 800; flex-shrink: 0; min-width: 44px; }
 .mname { flex: 1; font-size: 13px; font-weight: 600; min-width: 0; }
 .mkm { font-family: var(--font-mono); font-size: 11px; color: var(--mu); flex-shrink: 0; }
-.mtt { font-size: 10px; color: var(--mu); background: #0b0d11; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
+.mtt { font-size: 10px; color: var(--mu); background: var(--bg); padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
 
 /* ── INFORMAÇÕES: linha clicável de município ── */
 .irow {
