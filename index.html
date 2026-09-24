@@ -67,6 +67,7 @@ if ('serviceWorker' in navigator) {
       <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
       <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
       <button class="htab" data-s="n" onclick="SS('n',this)"><span class="hti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
+      <button class="htab" data-s="w" onclick="SS('w',this)"><span class="hti">🌤️</span><span data-i18n="tab_clima">Clima</span></button>
       <button class="htab htab-icon" data-s="c" onclick="SS('c',this)" title="Configurações" data-i18n-title="tab_config"><span class="hti">⚙️</span></button>
     </div>
     <span class="live-dot" id="live-dot" title="Conectando..."></span>
@@ -87,6 +88,7 @@ if ('serviceWorker' in navigator) {
     <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
     <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
     <button class="btab" id="bt-n" onclick="SS('n',null)"><span class="bti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
+    <button class="btab" id="bt-w" onclick="SS('w',null)"><span class="bti">🌤️</span><span data-i18n="tab_clima">Clima</span></button>
     <button class="btab btab-icon" id="bt-c" onclick="SS('c',null)" title="Configurações" data-i18n-title="tab_config"><span class="bti">⚙️</span></button>
   </div>
 </div>
@@ -156,12 +158,16 @@ if ('serviceWorker' in navigator) {
       <div class="skel-card" style="height:210px"></div>
       <div class="skel-card" style="height:130px"></div>
     </div>
+  </div>
+
+  <!-- CLIMA: clima atual + qualidade do ar de todos os municípios (Open-Meteo) -->
+  <div class="scr h" id="sc-w">
     <div id="climabdy">
       <!-- skeleton: some sozinho assim que bCLIMA() roda (buscou o clima da Open-Meteo com sucesso ou deu erro) -->
       <div class="clima-grid">
-        <div class="skel-card" style="height:96px"></div><div class="skel-card" style="height:96px"></div>
-        <div class="skel-card" style="height:96px"></div><div class="skel-card" style="height:96px"></div>
-        <div class="skel-card" style="height:96px"></div><div class="skel-card" style="height:96px"></div>
+        <div class="skel-card" style="height:120px"></div><div class="skel-card" style="height:120px"></div>
+        <div class="skel-card" style="height:120px"></div><div class="skel-card" style="height:120px"></div>
+        <div class="skel-card" style="height:120px"></div><div class="skel-card" style="height:120px"></div>
       </div>
     </div>
   </div>
