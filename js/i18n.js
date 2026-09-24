@@ -97,6 +97,15 @@ var I18N = {
     alert_text_emergencia: 'Rio na cota de emergência (Defesa Civil de Manaus/SGB) — nível de inundação severa.',
     niv_alert_title_tpl: 'Nível do rio em {regime}',
 
+    clima_title: 'Clima nos municípios', clima_atualizado_tpl: 'atualizado às {hora}',
+    clima_sensacao_tpl: 'sensação {v}°', clima_chuva_title: 'Chuva agora', clima_vento_title: 'Vento agora',
+    clima_erro_html: 'Não foi possível carregar o clima agora. Verifique a internet e tente de novo.',
+    clima_tentar_de_novo: 'Tentar de novo',
+    clima_desc_limpo: 'Céu limpo', clima_desc_parcial: 'Parcialmente nublado', clima_desc_nublado: 'Nublado',
+    clima_desc_nevoa: 'Névoa/neblina', clima_desc_garoa: 'Garoa', clima_desc_chuva: 'Chuva',
+    clima_desc_pancada: 'Pancada de chuva', clima_desc_neve: 'Precipitação gelada', clima_desc_trovoada: 'Trovoada',
+    clima_desc_indef: 'Sem dados',
+
     map_filter_todas: 'TODAS', map_popup_inicio: 'Início', map_popup_fim: 'Fim',
     ver_detalhes: 'ver detalhes ›', min_abbr: 'mín', max_abbr: 'máx',
 
@@ -181,6 +190,15 @@ var I18N = {
     alert_text_alerta: 'The river is at the alert/flood stage (Manaus Civil Defense/SGB). May affect lower areas and access to some ports/docks.',
     alert_text_emergencia: 'The river is at the emergency stage (Manaus Civil Defense/SGB) — severe flood level.',
     niv_alert_title_tpl: 'River level: {regime}',
+
+    clima_title: 'Weather in the municipalities', clima_atualizado_tpl: 'updated at {hora}',
+    clima_sensacao_tpl: 'feels like {v}°', clima_chuva_title: 'Rain now', clima_vento_title: 'Wind now',
+    clima_erro_html: 'Could not load the weather right now. Check your connection and try again.',
+    clima_tentar_de_novo: 'Try again',
+    clima_desc_limpo: 'Clear sky', clima_desc_parcial: 'Partly cloudy', clima_desc_nublado: 'Cloudy',
+    clima_desc_nevoa: 'Fog/mist', clima_desc_garoa: 'Drizzle', clima_desc_chuva: 'Rain',
+    clima_desc_pancada: 'Rain showers', clima_desc_neve: 'Frozen precipitation', clima_desc_trovoada: 'Thunderstorm',
+    clima_desc_indef: 'No data',
 
     map_filter_todas: 'ALL', map_popup_inicio: 'Start', map_popup_fim: 'End',
     ver_detalhes: 'see details ›', min_abbr: 'min', max_abbr: 'max',
@@ -267,6 +285,15 @@ var I18N = {
     alert_text_emergencia: 'El río está en la cota de emergencia (Defensa Civil de Manaus/SGB) — nivel de inundación severa.',
     niv_alert_title_tpl: 'Nivel del río en {regime}',
 
+    clima_title: 'Clima en los municipios', clima_atualizado_tpl: 'actualizado a las {hora}',
+    clima_sensacao_tpl: 'sensación {v}°', clima_chuva_title: 'Lluvia ahora', clima_vento_title: 'Viento ahora',
+    clima_erro_html: 'No se pudo cargar el clima ahora. Verifique su conexión e intente de nuevo.',
+    clima_tentar_de_novo: 'Intentar de nuevo',
+    clima_desc_limpo: 'Cielo despejado', clima_desc_parcial: 'Parcialmente nublado', clima_desc_nublado: 'Nublado',
+    clima_desc_nevoa: 'Niebla/neblina', clima_desc_garoa: 'Llovizna', clima_desc_chuva: 'Lluvia',
+    clima_desc_pancada: 'Chubascos', clima_desc_neve: 'Precipitación helada', clima_desc_trovoada: 'Tormenta',
+    clima_desc_indef: 'Sin datos',
+
     map_filter_todas: 'TODAS', map_popup_inicio: 'Inicio', map_popup_fim: 'Fin',
     ver_detalhes: 'ver detalles ›', min_abbr: 'mín', max_abbr: 'máx',
 
@@ -351,6 +378,15 @@ var I18N = {
     alert_text_alerta: '河流处于警戒/洪水水位（马瑙斯民防局/SGB）。可能影响低洼地区及部分港口/码头的通行。',
     alert_text_emergencia: '河流处于紧急水位（马瑙斯民防局/SGB）— 严重洪水水平。',
     niv_alert_title_tpl: '河水位：{regime}',
+
+    clima_title: '各市镇天气', clima_atualizado_tpl: '{hora} 更新',
+    clima_sensacao_tpl: '体感 {v}°', clima_chuva_title: '当前降雨', clima_vento_title: '当前风速',
+    clima_erro_html: '暂时无法加载天气数据。请检查网络连接后重试。',
+    clima_tentar_de_novo: '重试',
+    clima_desc_limpo: '晴朗', clima_desc_parcial: '局部多云', clima_desc_nublado: '多云',
+    clima_desc_nevoa: '雾', clima_desc_garoa: '毛毛雨', clima_desc_chuva: '雨',
+    clima_desc_pancada: '阵雨', clima_desc_neve: '冰冻降水', clima_desc_trovoada: '雷暴',
+    clima_desc_indef: '无数据',
 
     map_filter_todas: '全部', map_popup_inicio: '起点', map_popup_fim: '终点',
     ver_detalhes: '查看详情 ›', min_abbr: '最低', max_abbr: '最高',

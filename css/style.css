@@ -593,6 +593,27 @@ html, body {
 .niv-feed-body { flex: 1; }
 .niv-feed-text { font-size: 13px; font-weight: 600; }
 .niv-feed-date { font-size: 10.5px; color: var(--mu); margin-top: 2px; }
+
+/* Clima nos municípios (Open-Meteo) — grade de cartõezinhos, um por
+   município, abaixo do card de nível do rio na mesma aba Notícias. */
+#climabdy { max-width: 900px; margin: 16px auto 0; width: 100%; box-sizing: border-box; }
+.clima-hdr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.clima-title { font-size: 12px; font-weight: 800; color: var(--mu); text-transform: uppercase; letter-spacing: .06em; }
+.clima-atualizado { font-size: 10.5px; color: var(--mu); }
+.clima-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
+.clima-card {
+  background: color-mix(in srgb, var(--s1) 82%, transparent); border: 1px solid var(--bd); border-radius: 12px;
+  padding: 10px; animation: searchEmptyIn .3s cubic-bezier(.2,.8,.2,1) backwards;
+}
+.clima-card-top { display: flex; justify-content: space-between; align-items: center; }
+.clima-seq { font-family: var(--font-mono); font-size: 11px; font-weight: 900; letter-spacing: .3px; }
+.clima-ic { font-size: 16px; line-height: 1; }
+.clima-nome { font-size: 10.5px; color: var(--mu); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clima-temp { font-family: var(--font-mono); font-size: 19px; font-weight: 800; margin-top: 2px; }
+.clima-sensacao { font-family: var(--font-sans); font-size: 9.5px; font-weight: 600; color: var(--mu); margin-left: 4px; }
+.clima-sub { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--mu); margin-top: 6px; }
+.clima-empty { text-align: center; color: var(--mu); font-size: 12px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+@media (prefers-reduced-motion: reduce) { .clima-card { animation: none !important; } }
 .niv-empty { text-align: center; color: var(--mu); font-size: 13px; padding: 40px 20px; }
 
 /* MAPA */

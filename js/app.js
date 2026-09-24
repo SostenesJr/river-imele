@@ -89,6 +89,7 @@ function aplicarIdioma(lang) {
   bINFO();
   if (souAdmin()) bCO();
   bNIVEL();
+  bCLIMA();
   if (cur === 'm') { buildMapFilters(); renderMap(); }
   if (viewSeq) renderInfoView();
   if (editState) renderSheet();
@@ -460,6 +461,129 @@ function bNIVEL() {
 
   body.innerHTML = nivelAlertaHTML(regime) + cardHTML + chartHTML + feedHTML;
   atualizarAlertaAba(!!regime.critico);
+}
+
+/* ============================================================
+   ABA "NOTÍCIAS" — clima atual nos municípios
+   Usa a Open-Meteo (api.open-meteo.com), um serviço público e gratuito
+   de previsão do tempo que não exige conta nem chave de API e aceita
+   vários pontos (lat/lng) numa única chamada — por isso dá pra buscar
+   os 57 municípios de uma vez só, em vez de 57 chamadas separadas.
+   Roda direto no navegador de quem está usando o app (não passa pelo
+   Supabase); por isso, se a pessoa estiver sem internet ou algum
+   bloqueio de rede impedir a chamada, a seção mostra um aviso com
+   botão de "tentar de novo" em vez de travar o resto da aba.
+   ============================================================ */
+var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo}
+var CLIMA_ATUALIZADO_EM = null; // epoch ms da última busca com sucesso
+var CLIMA_CARREGANDO = false;
+var CLIMA_ERRO = false;
+var CLIMA_INTERVALO_MS = 20 * 60 * 1000; // não busca de novo antes de 20min
+
+/* Códigos "WMO weather code" (padrão usado pela Open-Meteo) agrupados nas
+   categorias que fazem sentido pro clima amazônico — não precisa de um
+   caso pra cada um dos ~25 códigos possíveis. */
+function climaCategoria(codigo) {
+  if (codigo === 0) return { ic: '☀️', key: 'clima_desc_limpo' };
+  if (codigo === 1 || codigo === 2) return { ic: '🌤️', key: 'clima_desc_parcial' };
+  if (codigo === 3) return { ic: '☁️', key: 'clima_desc_nublado' };
+  if (codigo === 45 || codigo === 48) return { ic: '🌫️', key: 'clima_desc_nevoa' };
+  if (codigo >= 51 && codigo <= 57) return { ic: '🌦️', key: 'clima_desc_garoa' };
+  if (codigo >= 61 && codigo <= 67) return { ic: '🌧️', key: 'clima_desc_chuva' };
+  if (codigo >= 80 && codigo <= 82) return { ic: '🌧️', key: 'clima_desc_pancada' };
+  if ((codigo >= 71 && codigo <= 77) || codigo === 85 || codigo === 86) return { ic: '🌨️', key: 'clima_desc_neve' };
+  if (codigo >= 95) return { ic: '⛈️', key: 'clima_desc_trovoada' };
+  return { ic: '🌡️', key: 'clima_desc_indef' };
+}
+
+/* Lista estável de municípios com coordenada conhecida (LATLNG, em
+   data.js — as mesmas usadas pro mapa), na ordem em que aparecem nas
+   calhas — usada tanto pra montar a URL da API (lat/lng em lote, na
+   mesma ordem) quanto pra desenhar a grade depois. */
+function climaMunicipiosOrdenados() {
+  var lista = [];
+  ROTAS.forEach(function (r) {
+    r.municipios.forEach(function (m) {
+      var ll = LATLNG[m.seq];
+      if (ll) lista.push({ seq: m.seq, nome: m.nome, cor: r.cor, lat: ll.lat, lng: ll.lng });
+    });
+  });
+  return lista;
+}
+
+async function carregarClima() {
+  if (CLIMA_CARREGANDO) return;
+  CLIMA_CARREGANDO = true;
+  CLIMA_ERRO = false;
+  var lista = climaMunicipiosOrdenados();
+  if (!lista.length) { CLIMA_CARREGANDO = false; return; }
+  var lats = lista.map(function (m) { return m.lat; }).join(',');
+  var lngs = lista.map(function (m) { return m.lng; }).join(',');
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lats + '&longitude=' + lngs
+    + '&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m'
+    + '&timezone=America%2FManaus';
+  try {
+    var res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    // Com mais de uma coordenada na URL, a Open-Meteo devolve uma lista
+    // (um item por município, na mesma ordem que foi mandada); com uma
+    // só, devolve um objeto único — cobre os dois casos por garantia.
+    var itens = Array.isArray(data) ? data : [data];
+    var novo = {};
+    itens.forEach(function (item, i) {
+      var mun = lista[i];
+      if (!mun || !item || !item.current) return;
+      novo[mun.seq] = {
+        temp: item.current.temperature_2m,
+        sensacao: item.current.apparent_temperature,
+        chuva: item.current.precipitation,
+        vento: item.current.wind_speed_10m,
+        codigo: item.current.weather_code
+      };
+    });
+    CLIMA_POR_SEQ = novo;
+    CLIMA_ATUALIZADO_EM = Date.now();
+  } catch (e) {
+    console.error('Erro ao carregar clima:', e);
+    CLIMA_ERRO = true;
+  } finally {
+    CLIMA_CARREGANDO = false;
+    bCLIMA();
+  }
+}
+
+function climaCardHTML(mun) {
+  var d = CLIMA_POR_SEQ[mun.seq];
+  if (!d || d.temp === null || d.temp === undefined) return '';
+  var cat = climaCategoria(d.codigo);
+  return '<div class="clima-card" data-txt="' + normKey(mun.seq + ' ' + mun.nome) + '">'
+    + '<div class="clima-card-top">'
+    + '<span class="clima-seq" style="color:' + mun.cor + ';' + seqFS(mun.seq) + '">' + mun.seq + '</span>'
+    + '<span class="clima-ic" title="' + t(cat.key) + '">' + cat.ic + '</span>'
+    + '</div>'
+    + '<div class="clima-nome">' + mun.nome + '</div>'
+    + '<div class="clima-temp">' + Math.round(d.temp) + '°<span class="clima-sensacao">' + tf('clima_sensacao_tpl', { v: Math.round(d.sensacao) }) + '</span></div>'
+    + '<div class="clima-sub"><span title="' + t('clima_chuva_title') + '">💧 ' + (d.chuva || 0).toFixed(1) + 'mm</span>'
+    + '<span title="' + t('clima_vento_title') + '">💨 ' + Math.round(d.vento) + 'km/h</span></div>'
+    + '</div>';
+}
+
+function bCLIMA() {
+  var body = document.getElementById('climabdy'); if (!body) return;
+
+  if (CLIMA_ERRO && !CLIMA_ATUALIZADO_EM) {
+    body.innerHTML = '<div class="clima-hdr"><span class="clima-title">' + t('clima_title') + '</span></div>'
+      + '<div class="clima-empty">' + t('clima_erro_html') + '<button class="sh-btn" onclick="carregarClima()">' + t('clima_tentar_de_novo') + '</button></div>';
+    return;
+  }
+  if (!CLIMA_ATUALIZADO_EM) return; // ainda carregando — segue mostrando o esqueleto estático do HTML
+
+  var lista = climaMunicipiosOrdenados();
+  var horaFmt = new Date(CLIMA_ATUALIZADO_EM).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  body.innerHTML = '<div class="clima-hdr"><span class="clima-title">' + t('clima_title') + '</span>'
+    + '<span class="clima-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</span></div>'
+    + '<div class="clima-grid">' + lista.map(climaCardHTML).join('') + '</div>';
 }
 
 /* ============================================================
@@ -1782,7 +1906,14 @@ function SS(name, btn) {
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
   if (name === 'm') { mapAnimateEntrance = true; buildMapFilters(); renderMap(); initMapInteractions(); }
-  if (name === 'n') bNIVEL();
+  if (name === 'n') {
+    bNIVEL();
+    bCLIMA();
+    // busca de novo só se nunca buscou ou se já faz tempo — abrir/fechar
+    // a aba não deve disparar uma chamada nova toda vez
+    var stale = !CLIMA_ATUALIZADO_EM || (Date.now() - CLIMA_ATUALIZADO_EM > CLIMA_INTERVALO_MS);
+    if (stale && !CLIMA_CARREGANDO) carregarClima();
+  }
 }
 
 /* ============================================================
@@ -1836,6 +1967,7 @@ async function initApp() {
   bINFO();
   bCO();
   bNIVEL();
+  carregarClima(); // dispara em paralelo (não é await) — não deve atrasar o resto do app
 
   // Realtime: quando alguém edita Configurações em outro aparelho,
   // a tela de quem estiver olhando atualiza sozinha.

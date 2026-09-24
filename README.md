@@ -206,6 +206,31 @@ Notícias e um selinho vermelho pulsante na aba Notícias (cabeçalho e menu
 inferior), visível mesmo em outra aba. Os cortes e os textos do alerta
 ficam em `NIVEL_REGIMES`/`NIVEL_ALERTA_TEXTOS`, no topo de `js/app.js`.
 
+## Clima nos municípios
+
+Além do nível do rio, a aba Notícias mostra uma grade com o **clima atual**
+de todos os municípios (temperatura, sensação térmica, chuva e vento no
+momento), um cartão por município, agrupados na mesma ordem das calhas.
+
+- **Fonte**: [Open-Meteo](https://open-meteo.com/) — serviço público e
+  gratuito de previsão do tempo, sem necessidade de conta nem chave de API.
+  A chamada roda **direto no navegador de quem está usando o app**, não
+  passa pelo Supabase nem por nenhum servidor próprio.
+- **Uma chamada só pra todos os municípios**: a Open-Meteo aceita várias
+  coordenadas (lat/lng) numa única requisição e devolve uma lista de
+  resultados na mesma ordem — em vez de fazer 57 chamadas separadas, o app
+  manda a latitude/longitude de todos os municípios (as mesmas usadas no
+  mapa, em `LATLNG`, `js/data.js`) de uma vez.
+- **Cache simples**: a busca só é refeita se ainda não tiver nenhum dado ou
+  se já fizer mais de 20 minutos da última — abrir e fechar a aba Notícias
+  repetidas vezes não dispara uma chamada nova a cada vez.
+- **Se a chamada falhar** (sem internet, bloqueio de rede, API fora do ar),
+  a seção mostra um aviso com botão "Tentar de novo" em vez de travar o
+  resto da aba — o card de nível do rio (que já vem do Supabase, sem
+  depender dessa chamada externa) continua funcionando normalmente.
+- Implementado em `carregarClima()`/`bCLIMA()`/`climaCategoria()`
+  (`js/app.js`) e no elemento `#climabdy` (`index.html`).
+
 ## Códigos dos municípios (sigla)
 
 Cada município tem um código curto (`seq`) usado como identificador interno
