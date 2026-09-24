@@ -122,6 +122,22 @@ Notícias e um selinho vermelho pulsante na aba Notícias (cabeçalho e menu
 inferior), visível mesmo em outra aba. Os cortes e os textos do alerta
 ficam em `NIVEL_REGIMES`/`NIVEL_ALERTA_TEXTOS`, no topo de `js/app.js`.
 
+## Códigos dos municípios (sigla)
+
+Cada município tem um código curto (`seq`) usado como identificador interno
+(balões, busca, chave no banco). Desde 24/09/2026 esse código é a **sigla
+oficial de 3 letras** de cada município (ex.: Manaus → MAO, Tefé → TEF,
+Tabatinga → TBT), no lugar do código antigo tipo "RAU9". Duas exceções, por
+não serem município oficial (são vila/distrito dentro de outro município):
+Balbina usa `PFI/BALBINA` (distrito de Presidente Figueiredo) e Novo Remanso
+usa `ITA/NOVO REMANSO` (distrito de Itacoatiara) — por isso aparecem com
+fonte reduzida nos balões, já que são mais longos que os demais.
+
+Quem já tinha o Supabase configurado antes dessa data precisa rodar
+`supabase/migracao-sigla-node.sql` uma vez (ver `## Arquivos` abaixo) pra
+atualizar os códigos salvos sem perder preços/embarcações/observações já
+cadastrados.
+
 ## Dados de origem
 
 `MUNINFO`/o seed inicial foi gerado a partir da planilha
@@ -176,6 +192,9 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `supabase/migracao-perfis-empresa.sql` — migração histórica: cria as
   tabelas `perfis`/`config_empresa` e restringe edição de Configurações a
   quem for admin
+- `supabase/migracao-sigla-node.sql` — migração histórica: troca o código
+  antigo do município (`seq`) pela sigla oficial de 3 letras, preservando
+  preços/embarcações/observações já cadastrados
 - `manifest.json` — metadados do PWA (nome, ícone, cor, modo "standalone")
 - `sw.js` — service worker: guarda o "esqueleto" do app em cache local pra
   abrir instantâneo; nunca guarda dados do Supabase, que continuam sempre

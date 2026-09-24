@@ -267,7 +267,7 @@ html, body {
   content: ''; position: absolute; left: 50%; top: 100%; width: 2px; height: 22px;
   transform: translateX(-50%); background: color-mix(in srgb, var(--tl) 45%, transparent);
 }
-.mseq { font-family: var(--font-mono); font-size: 12px; font-weight: 800; flex-shrink: 0; min-width: 44px; }
+.mseq { font-family: var(--font-mono); font-size: 12px; font-weight: 800; flex-shrink: 0; min-width: 44px; max-width: 78px; overflow-wrap: break-word; }
 .mname { flex: 1; font-size: 13px; font-weight: 600; min-width: 0; }
 .mkm { font-family: var(--font-mono); font-size: 11px; color: var(--mu); flex-shrink: 0; }
 .mtt { font-size: 10px; color: var(--mu); background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
@@ -309,7 +309,7 @@ html, body {
   transition: transform .1s;
 }
 .chip:active { transform: scale(.94); }
-.chip-seq { font-family: var(--font-mono); font-size: 13px; font-weight: 900; letter-spacing: .3px; }
+.chip-seq { font-family: var(--font-mono); font-size: 13px; font-weight: 900; letter-spacing: .3px; text-align: center; overflow-wrap: break-word; padding: 0 4px; }
 .chip-segdot {
   position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 9px;
@@ -359,7 +359,7 @@ html, body {
 .shdl { width: 36px; height: 4px; background: var(--bd); border-radius: 2px; margin: 4px auto 12px; }
 
 .sh-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.sh-seq { font-family: var(--font-mono); font-size: 30px; font-weight: 900; letter-spacing: 1px; }
+.sh-seq { font-family: var(--font-mono); font-size: 30px; font-weight: 900; letter-spacing: 1px; max-width: 140px; overflow-wrap: break-word; line-height: 1.05; }
 .sh-nome { font-size: 18px; font-weight: 800; }
 .sh-badge { display: inline-block; margin-top: 4px; padding: 2px 9px; border-radius: 5px; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .5px; }
 

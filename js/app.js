@@ -413,6 +413,19 @@ function bNIVEL() {
 
 function fmtSaca(v) { return (v === null || v === undefined || v === '') ? '—' : ('R$ ' + Number(v).toFixed(2).replace('.', ',')); }
 function fmtTA(v) { return (v === null || v === undefined || v === '') ? '—' : (v + ' d'); }
+
+/* A maioria dos códigos de município é uma sigla curta (3-4 letras: AUT,
+   COA, ITA...), mas Balbina e Novo Remanso não são município oficial —
+   entram como "PFI/BALBINA" e "ITA/NOVO REMANSO" (sigla do município-sede
+   + nome da localidade), bem mais compridos. Essa função encolhe a fonte
+   nos rótulos (chip, selo do balão, linha da rota) só nesses casos, pra
+   não estourar o layout pensado pra códigos de 3-4 letras. */
+function seqFS(seq) {
+  if (!seq) return '';
+  if (seq.length > 8) return 'font-size:.5em;letter-spacing:0;line-height:1.05;';
+  if (seq.length > 5) return 'font-size:.7em;letter-spacing:0;';
+  return '';
+}
 function principalEmb(lista) {
   // as listas ja vem ordenadas da mais usada pra menos usada (fonte: planilha)
   if (!lista || !lista.length) return null;
@@ -483,7 +496,7 @@ function bRO() {
     var mRows = r.municipios.map(function (m, i) {
       return '<div class="mrow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '">'
         + '<span class="mpos">' + (i + 1) + '</span>'
-        + '<span class="mseq" style="color:' + r.cor + '">' + m.seq + '</span>'
+        + '<span class="mseq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
         + '<span class="mname">' + m.nome + '</span>'
         + '<span class="mkm">' + m.km + ' km</span>'
         + '<span class="mtt">' + m.tt + '</span>'
@@ -539,7 +552,7 @@ function bINFO() {
       var dot = seg ? '<span class="chip-segdot" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
       var obsDot = getObs(m.seq) ? '<span class="chip-obsdot" title="Tem observação salva"></span>' : '';
       return '<button class="chip" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" style="border-color:' + r.cor + '" onclick="abrirInfoView(\'' + m.seq + '\')">'
-        + '<span class="chip-seq" style="color:' + r.cor + '">' + m.seq + '</span>'
+        + '<span class="chip-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
         + dot + obsDot
         + '</button>';
     }).join('');
@@ -602,7 +615,7 @@ function renderInfoView() {
 
   var html =
     '<div class="sh-hdr">'
-    + '<div class="sh-seq" style="color:' + r.cor + '">' + m.seq + '</div>'
+    + '<div class="sh-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
     + '<div><div class="sh-nome">' + m.nome + '</div>'
     + '<div class="sh-badge" style="background:' + r.cor + '">CALHA ' + r.nome.toUpperCase() + '</div></div>'
     + '</div>'
@@ -667,7 +680,7 @@ function bCO() {
       var seg = SEGURANCA[m.seq];
       var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
       return '<div class="irow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
-        + '<span class="mseq" style="color:' + r.cor + '">' + m.seq + '</span>'
+        + '<span class="mseq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
         + '<div class="iinfo">'
         + '<div class="iname">' + m.nome + segIc + '</div>'
         + '<div class="isub">'
@@ -794,7 +807,7 @@ function renderSheet() {
 
   var html =
     '<div class="sh-hdr">'
-    + '<div class="sh-seq" style="color:' + r.cor + '">' + m.seq + '</div>'
+    + '<div class="sh-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
     + '<div><div class="sh-nome">' + m.nome + '</div>'
     + '<div class="sh-badge" style="background:' + r.cor + '">CALHA ' + r.nome.toUpperCase() + '</div></div>'
     + '</div>'
