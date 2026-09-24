@@ -52,6 +52,13 @@ const RIOS=[{name:'Amazonas/Solimoes',w:4,op:0.4,coords:[[-2.05,-54.0],[-2.33,-5
 
 // Calhas organizadas por Letras e Nomenclatura Amazon.
 // Ordem dos municipios dentro de cada rota = ordem de passagem/escala.
+// Campo opcional `de` num município = de onde a carga sai pra chegar nele
+// (seq de outro município da mesma rota, ou 'HUB' pra Manaus). Sem esse
+// campo, o padrão é sair do município anterior na lista (ou do hub, se for
+// o primeiro) — é assim que toda rota funciona, exceto a I: em Humaita a
+// carga chega direto do hub e de lá se reparte pras duas pontas (Apui e
+// Labrea), por isso Humaita vem primeiro na lista e os outros dois usam
+// de:'HUM'.
 const ROTAS=[
 {num:'A',nome:'Baixo Amazonas',cor:'#0ea5e9',dir:'Manaus -> leste',municipios:[
 {seq:'AUT', nome:'Autazes',km:100, tt:'2d'},
@@ -113,9 +120,9 @@ const ROTAS=[
 {seq:'ITP',nome:'Itapiranga',km:255, tt:'2d'},
 {seq:'CRR',nome:'Careiro Castanho',km:90,  tt:'1d'}]},
 {num:'I',nome:'Sul do Amazonas',cor:'#84cc16',dir:'Rodoviario sul - BR-319 / BR-230',municipios:[
-{seq:'APU',nome:'Apui',km:454, tt:'4d'},
 {seq:'HUM',nome:'Humaita',km:590, tt:'5d'},
-{seq:'LAB',nome:'Labrea',km:874, tt:'6d'}]},
+{seq:'APU',nome:'Apui',km:454, tt:'4d', de:'HUM'},
+{seq:'LAB',nome:'Labrea',km:874, tt:'6d', de:'HUM'}]},
 {num:'J',nome:'Rio Jurua',cor:'#ec4899',dir:'Alto Jurua',municipios:[
 {seq:'CAR',nome:'Carauari',km:800, tt:'15d'},
 {seq:'JUR',nome:'Jurua',km:820, tt:'15d'},

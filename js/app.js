@@ -1017,7 +1017,8 @@ function renderMap() {
   var border = document.createElementNS(NS, 'polygon');
   border.setAttribute('points', bPts); border.setAttribute('fill', 'none'); border.setAttribute('stroke', '#3b82c4'); border.setAttribute('stroke-width', '2'); g.appendChild(border);
 
-  var hub = proj(-3.119, -60.021);
+  var hubLL = { lat: -3.119, lng: -60.021 };
+  var hub = proj(hubLL.lat, hubLL.lng);
   ['hub-ring', 'hub-ring hub-ring2'].forEach(function (cls) {
     var ring = document.createElementNS(NS, 'circle');
     ring.setAttribute('cx', hub.x); ring.setAttribute('cy', hub.y); ring.setAttribute('r', '8');
@@ -1035,9 +1036,9 @@ function renderMap() {
 
   /* Catmull-Rom -> Bézier: pontos de controle do trecho p1->p2 levando em
      conta os vizinhos p0/p3, pra linha curvar suave em vez de quebrar reto
-     em cada município — mais parecido com o traçado natural de um rio.
-     ("tensao" é o divisor padrão de Catmull-Rom, controla o quanto a
-     curva "estica" — 6 é o valor usual, mais suave sem exagerar.) */
+     em cada município — usado só nas rotas rodoviárias (H/I), que não têm
+     rio pra seguir. ("tensao" é o divisor padrão de Catmull-Rom, controla
+     o quanto a curva "estica" — 6 é o valor usual, mais suave sem exagerar.) */
   function crControlPoints(p0, p1, p2, p3) {
     var tensao = 6;
     return {
@@ -1046,34 +1047,84 @@ function renderMap() {
     };
   }
 
+  /* Rotas fluviais: em vez de traçar reto (ou uma curva "solta") entre os
+     municípios, a linha da rota acompanha o próprio traçado do rio (o fio
+     azul já desenhado acima), andando pelos pontos do rio mais perto de
+     cada município. Mapeamento calha -> rio; H e I ficam de fora (são
+     rodoviárias, não têm rio pra seguir) e usam o traçado por Bézier acima. */
+  var RIOS_POR_NOME = {}; RIOS.forEach(function (rv) { RIOS_POR_NOME[rv.name] = rv; });
+  var RIO_TRONCO = RIOS_POR_NOME['Amazonas/Solimoes'];
+  var ROTA_RIO = { A: 'Amazonas/Solimoes', B: 'Amazonas/Solimoes', C: 'Madeira', D: 'Amazonas/Solimoes', E: 'Amazonas/Solimoes', F: 'Rio Negro', G: 'Purus', J: 'Jurua' };
+  // Madeira/Purus/Jurua nascem longe de Manaus: pra chegar neles a rota
+  // primeiro desce/sobe o tronco (Solimões/Amazonas) até a foz do afluente,
+  // só depois entra no afluente propriamente. Rio Negro já passa perto o
+  // bastante do hub (a foz dele é o próprio encontro das águas em Manaus).
+  var RIO_AFLUENTE_TRONCO = { Madeira: true, Purus: true, Jurua: true };
+  // acima disso (em graus) o município é considerado fora da beira do rio —
+  // a "entrada" dele é por um igarapé/afluente que o mapa não tem desenhado,
+  // então a linha da rota vai só até o ponto do rio mais próximo, e um fio
+  // fino à parte liga esse ponto até o município (ver "fio d'água" abaixo).
+  var LIMITE_BEIRA_RIO = 0.15;
+
+  function idxMaisPerto(river, lat, lng) {
+    var bestI = 0, bestD = Infinity;
+    for (var i = 0; i < river.coords.length; i++) {
+      var c = river.coords[i];
+      var d = Math.hypot(c[0] - lat, c[1] - lng);
+      if (d < bestD) { bestD = d; bestI = i; }
+    }
+    return { idx: bestI, dist: bestD };
+  }
+  function trechoRio(river, iA, iB) {
+    var pts = [];
+    if (iA <= iB) { for (var i = iA; i <= iB; i++) pts.push(river.coords[i]); }
+    else { for (var i = iA; i >= iB; i--) pts.push(river.coords[i]); }
+    return pts;
+  }
+
   ROTAS.forEach(function (r, ri) {
     var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
-    var pares = r.municipios.map(function (m) {
-      var ll = LATLNG[m.seq]; return ll ? { m: m, p: proj(ll.lat, ll.lng) } : null;
-    }).filter(Boolean);
-    if (!pares.length) return;
-
-    var linePts = [{ m: null, p: hub }].concat(pares); // ponto 0 = hub (Manaus)
     var largura = (algumAtivo && !tipoFiltrado) ? '1.6' : '0.7';
     var opacidade = tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06');
-    var dCompleto = 'M ' + linePts[0].p.x + ',' + linePts[0].p.y; // curva inteira, só pra medir (animação do barco/ônibus)
+    var nomeRio = ROTA_RIO[r.num];
+    var dCompleto = '';
+    var trechoIdx = 0; // conta trechos desenhados nesta rota, só pro atraso da animação de entrada
 
-    for (var k = 0; k < linePts.length - 1; k++) {
-      var p0 = (linePts[k - 1] || linePts[k]).p;
-      var p1 = linePts[k].p;
-      var p2 = linePts[k + 1].p;
-      var p3 = (linePts[k + 2] || linePts[k + 1]).p;
-      var cp = crControlPoints(p0, p1, p2, p3);
-      var dTrecho = 'M ' + p1.x + ',' + p1.y + ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
-      dCompleto += ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
+    function desenharTrecho(pontosLL, destinoM) {
+      if (!pontosLL || pontosLL.length < 2) return;
+      var pts = pontosLL.map(function (c) { return proj(c[0], c[1]); });
+      var d = 'M ' + pts[0].x + ',' + pts[0].y;
+      for (var i = 1; i < pts.length; i++) d += ' L ' + pts[i].x + ',' + pts[i].y;
+      dCompleto += (dCompleto ? ' ' : '') + d; // path com vários subpaths M ainda soma certo no getTotalLength/getPointAtLength
 
-      // trecho tracejado onde o MUNICÍPIO DE CHEGADA é aduaneiro ou
-      // corredor de escoamento (ponto de fiscalização/atenção).
-      var destino = linePts[k + 1].m;
-      var seg = destino ? SEGURANCA[destino.seq] : null;
-
+      var seg = destinoM ? SEGURANCA[destinoM.seq] : null;
       var trecho = document.createElementNS(NS, 'path');
-      trecho.setAttribute('d', dTrecho); trecho.setAttribute('fill', 'none');
+      trecho.setAttribute('d', d); trecho.setAttribute('fill', 'none');
+      trecho.setAttribute('class', 'mline');
+      trecho.setAttribute('stroke', r.cor); trecho.setAttribute('stroke-width', largura);
+      trecho.setAttribute('opacity', opacidade); trecho.setAttribute('stroke-linecap', 'round');
+      trecho.setAttribute('stroke-linejoin', 'round');
+      if (seg) trecho.setAttribute('stroke-dasharray', '6,5');
+      g.appendChild(trecho);
+
+      if (animarEntrada) {
+        var len = trecho.getTotalLength();
+        trecho.style.setProperty('--len', len);
+        trecho.style.strokeDasharray = seg ? '6,5' : String(len);
+        trecho.classList.add('mline-draw');
+        trecho.style.animationDelay = ((ri * 9 + trechoIdx) * 35) + 'ms';
+        trechoIdx++;
+      }
+    }
+
+    function desenharTrechoBezier(p0, p1, p2, p3, destinoM, idxAnim) {
+      var cp = crControlPoints(p0, p1, p2, p3);
+      var d = 'M ' + p1.x + ',' + p1.y + ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
+      dCompleto += (dCompleto ? ' ' : '') + d;
+
+      var seg = destinoM ? SEGURANCA[destinoM.seq] : null;
+      var trecho = document.createElementNS(NS, 'path');
+      trecho.setAttribute('d', d); trecho.setAttribute('fill', 'none');
       trecho.setAttribute('class', 'mline');
       trecho.setAttribute('stroke', r.cor); trecho.setAttribute('stroke-width', largura);
       trecho.setAttribute('opacity', opacidade); trecho.setAttribute('stroke-linecap', 'round');
@@ -1085,11 +1136,85 @@ function renderMap() {
         trecho.style.setProperty('--len', len);
         trecho.style.strokeDasharray = seg ? '6,5' : String(len);
         trecho.classList.add('mline-draw');
-        trecho.style.animationDelay = ((ri * 9 + k) * 35) + 'ms';
+        trecho.style.animationDelay = ((ri * 9 + idxAnim) * 35) + 'ms';
       }
     }
 
-    // path invisível com a rota inteira (hub -> último município), só pra
+    if (nomeRio) {
+      // ---- rota fluvial: a linha segue o traçado do rio (o fio azul) ----
+      var river = RIOS_POR_NOME[nomeRio];
+      var afluente = !!RIO_AFLUENTE_TRONCO[nomeRio];
+      var idxAtual, pontoAtual;
+
+      if (afluente) {
+        var hubNoTronco = idxMaisPerto(RIO_TRONCO, hubLL.lat, hubLL.lng);
+        var bocaIdx = river.coords.length - 1; // foz do afluente no tronco (sempre o último ponto, nesses 3 rios)
+        var bocaLL = river.coords[bocaIdx];
+        var troncoNaBoca = idxMaisPerto(RIO_TRONCO, bocaLL[0], bocaLL[1]);
+        desenharTrecho([[hubLL.lat, hubLL.lng]].concat(trechoRio(RIO_TRONCO, hubNoTronco.idx, troncoNaBoca.idx)), null);
+        idxAtual = bocaIdx;
+        pontoAtual = river.coords[bocaIdx];
+      } else {
+        var hubNoRio = idxMaisPerto(river, hubLL.lat, hubLL.lng);
+        desenharTrecho([[hubLL.lat, hubLL.lng], river.coords[hubNoRio.idx]], null);
+        idxAtual = hubNoRio.idx;
+        pontoAtual = river.coords[hubNoRio.idx];
+      }
+
+      r.municipios.forEach(function (m) {
+        var ll = LATLNG[m.seq]; if (!ll) return;
+        var dock = idxMaisPerto(river, ll.lat, ll.lng);
+        // o traçado do rio é uma poligonal simplificada — em trechos onde
+        // vários municípios vizinhos caem no mesmo ponto mais próximo dela
+        // (pouca resolução ali), liga direto o ponto anterior até este,
+        // em vez de deixar a linha "sumir" (comprimento zero).
+        var pontosLL = (dock.idx === idxAtual) ? [pontoAtual, [ll.lat, ll.lng]] : trechoRio(river, idxAtual, dock.idx);
+        desenharTrecho(pontosLL, m);
+        idxAtual = dock.idx;
+        pontoAtual = pontosLL[pontosLL.length - 1];
+
+        // "fio d'água": município fora da beira do rio (entrada por
+        // igarapé/afluente) — liga o ponto do rio mais próximo até ele.
+        if (dock.dist > LIMITE_BEIRA_RIO) {
+          var pReal = proj(ll.lat, ll.lng);
+          var pDock = proj(river.coords[dock.idx][0], river.coords[dock.idx][1]);
+          var fio = document.createElementNS(NS, 'path');
+          fio.setAttribute('d', 'M ' + pReal.x + ',' + pReal.y + ' L ' + pDock.x + ',' + pDock.y);
+          fio.setAttribute('fill', 'none'); fio.setAttribute('stroke', '#2f9bd6');
+          fio.setAttribute('stroke-width', '0.6'); fio.setAttribute('stroke-dasharray', '1.5,2.5');
+          fio.setAttribute('stroke-linecap', 'round'); fio.setAttribute('opacity', opacidade);
+          g.appendChild(fio);
+        }
+      });
+    } else {
+      // ---- rota rodoviária (H/I), sem rio pra seguir: Bézier suave entre
+      // os pontos, respeitando ramificação (campo `de`, ex. Humaitá na I) ----
+      var pares = r.municipios.map(function (m) {
+        var ll = LATLNG[m.seq]; return ll ? { m: m, p: proj(ll.lat, ll.lng) } : null;
+      }).filter(Boolean);
+      if (pares.length) {
+        var porSeq = {}; pares.forEach(function (it) { porSeq[it.m.seq] = it; });
+        var hubItem = { m: null, p: hub };
+        function paiDe(it, idx) {
+          if (it.m.de) return porSeq[it.m.de] || hubItem;
+          return idx === 0 ? hubItem : pares[idx - 1];
+        }
+        function filhoUnicoDe(it) {
+          var filhos = pares.filter(function (o, i) { return paiDe(o, i) === it; });
+          return filhos.length === 1 ? filhos[0] : null;
+        }
+
+        pares.forEach(function (it, idx) {
+          var pai = paiDe(it, idx);
+          var avo = pai === hubItem ? hubItem : paiDe(pai, pares.indexOf(pai));
+          var filho = filhoUnicoDe(it);
+          var p0 = avo.p, p1 = pai.p, p2 = it.p, p3 = filho ? filho.p : it.p;
+          desenharTrechoBezier(p0, p1, p2, p3, it.m, idx);
+        });
+      }
+    }
+
+    // path invisível com a rota inteira (hub -> últimos municípios), só pra
     // medir posição/distância — usado pra animar o barco/ônibus por cima.
     var medida = document.createElementNS(NS, 'path');
     medida.setAttribute('d', dCompleto); medida.setAttribute('fill', 'none'); medida.setAttribute('stroke', 'none');
