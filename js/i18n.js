@@ -107,6 +107,7 @@ var I18N = {
     clima_desc_indef: 'Sem dados',
     clima_aqi_title_tpl: 'Qualidade do ar (índice europeu) · PM2,5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
     clima_aqi_indef: 'Ar: sem dados',
+    clima_aqi_section_title: 'Qualidade do ar',
     aqi_bom: 'Ar bom', aqi_razoavel: 'Ar razoável', aqi_moderado: 'Ar moderado',
     aqi_ruim: 'Ar ruim', aqi_muito_ruim: 'Ar muito ruim', aqi_extremo: 'Ar extremamente ruim',
 
@@ -205,6 +206,7 @@ var I18N = {
     clima_desc_indef: 'No data',
     clima_aqi_title_tpl: 'Air quality (European index) · PM2.5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
     clima_aqi_indef: 'Air: no data',
+    clima_aqi_section_title: 'Air quality',
     aqi_bom: 'Good air', aqi_razoavel: 'Fair air', aqi_moderado: 'Moderate air',
     aqi_ruim: 'Poor air', aqi_muito_ruim: 'Very poor air', aqi_extremo: 'Extremely poor air',
 
@@ -303,6 +305,7 @@ var I18N = {
     clima_desc_indef: 'Sin datos',
     clima_aqi_title_tpl: 'Calidad del aire (índice europeo) · PM2,5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
     clima_aqi_indef: 'Aire: sin datos',
+    clima_aqi_section_title: 'Calidad del aire',
     aqi_bom: 'Aire bueno', aqi_razoavel: 'Aire razonable', aqi_moderado: 'Aire moderado',
     aqi_ruim: 'Aire malo', aqi_muito_ruim: 'Aire muy malo', aqi_extremo: 'Aire extremadamente malo',
 
@@ -401,6 +404,7 @@ var I18N = {
     clima_desc_indef: '无数据',
     clima_aqi_title_tpl: '空气质量（欧洲指数）· PM2.5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
     clima_aqi_indef: '空气：无数据',
+    clima_aqi_section_title: '空气质量',
     aqi_bom: '空气优', aqi_razoavel: '空气良', aqi_moderado: '空气中等',
     aqi_ruim: '空气差', aqi_muito_ruim: '空气很差', aqi_extremo: '空气极差',
 

@@ -93,6 +93,7 @@ function aplicarIdioma(lang) {
   if (cur === 'm') { buildMapFilters(); renderMap(); }
   if (viewSeq) renderInfoView();
   if (editState) renderSheet();
+  if (climaViewSeq) renderClimaView();
 }
 function alternarIdioma() {
   var i = LANGS.indexOf(LANG);
@@ -579,6 +580,7 @@ async function carregarClima() {
   } finally {
     CLIMA_CARREGANDO = false;
     bCLIMA();
+    if (climaViewSeq) renderClimaView(); // balão de clima aberto — atualiza com o dado novo
   }
 }
 
@@ -591,7 +593,7 @@ function climaCardHTML(mun) {
     ? '<div class="clima-aqi" style="--aqi-cor:' + aqiCat.cor + '" title="' + tf('clima_aqi_title_tpl', { pm25: (d.pm25 != null ? d.pm25.toFixed(0) : '—'), pm10: (d.pm10 != null ? d.pm10.toFixed(0) : '—') }) + '">'
       + '<span class="clima-aqi-dot"></span>' + t(aqiCat.key) + ' · ' + Math.round(d.aqi) + '</div>'
     : '<div class="clima-aqi clima-aqi-indef">' + t('clima_aqi_indef') + '</div>';
-  return '<div class="clima-card" data-txt="' + normKey(mun.seq + ' ' + mun.nome) + '">'
+  return '<div class="clima-card" data-txt="' + normKey(mun.seq + ' ' + mun.nome) + '" onclick="abrirClimaView(\'' + mun.seq + '\')">'
     + '<div class="clima-card-top">'
     + '<span class="clima-seq" style="color:' + mun.cor + ';' + seqFS(mun.seq) + '">' + mun.seq + '</span>'
     + '<span class="clima-ic" title="' + t(cat.key) + '">' + cat.ic + '</span>'
@@ -619,6 +621,68 @@ function bCLIMA() {
   body.innerHTML = '<div class="clima-hdr"><span class="clima-title">' + t('clima_title') + '</span>'
     + '<span class="clima-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</span></div>'
     + '<div class="clima-grid">' + lista.map(climaCardHTML).join('') + '</div>';
+}
+
+/* ── BALÃO DO CLIMA (clicar num cartão da aba Clima abre o detalhe,
+   grande e centralizado — mesmo balão/bottom-sheet já usado nas abas
+   Informações/Configurações, que já é responsivo: desliza de baixo no
+   celular e fica centralizado com cantos arredondados no computador). ── */
+var climaViewSeq = null; // seq do município aberto no balão de clima
+
+function abrirClimaView(seq) {
+  if (!CLIMA_POR_SEQ[seq]) return; // ainda sem dado desse município — não abre balão vazio
+  climaViewSeq = seq;
+  renderClimaView();
+  document.getElementById('sheet-overlay').classList.add('on');
+}
+
+function renderClimaView() {
+  if (!climaViewSeq) return;
+  var seq = climaViewSeq;
+  var hit = NODEIDX[seq]; if (!hit) return;
+  var r = hit.rota, m = hit.mun;
+  var d = CLIMA_POR_SEQ[seq];
+  var horaFmt = CLIMA_ATUALIZADO_EM ? new Date(CLIMA_ATUALIZADO_EM).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  var html = '<div class="sh-hdr">'
+    + '<div class="sh-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
+    + '<div><div class="sh-nome">' + m.nome + '</div>'
+    + '<div class="sh-badge" style="background:' + r.cor + '">' + t('calha_word').toUpperCase() + ' ' + r.nome.toUpperCase() + '</div></div>'
+    + '</div>';
+
+  if (!d) {
+    html += '<div class="clima-empty">' + t('clima_erro_html') + '</div>';
+    document.getElementById('sheet-body').innerHTML = html;
+    return;
+  }
+
+  var cat = climaCategoria(d.codigo);
+  var aqiCat = aqiCategoria(d.aqi);
+  var aqiBlocoHTML = aqiCat
+    ? '<div class="clima-view-aqi" style="--aqi-cor:' + aqiCat.cor + '"><span class="clima-aqi-dot"></span>' + t(aqiCat.key) + ' · ' + Math.round(d.aqi) + '</div>'
+      + '<div class="clima-view-aqi-sub"><span>PM2,5: ' + (d.pm25 != null ? d.pm25.toFixed(0) : '—') + ' µg/m³</span><span>PM10: ' + (d.pm10 != null ? d.pm10.toFixed(0) : '—') + ' µg/m³</span></div>'
+    : '<div class="clima-aqi-indef">' + t('clima_aqi_indef') + '</div>';
+
+  html += '<div class="clima-view-hero">'
+    + '<div class="clima-view-ic">' + cat.ic + '</div>'
+    + '<div class="clima-view-temp">' + Math.round(d.temp) + '°</div>'
+    + '<div class="clima-view-desc">' + t(cat.key) + '</div>'
+    + '<div class="clima-view-sensacao">' + tf('clima_sensacao_tpl', { v: Math.round(d.sensacao) }) + '</div>'
+    + '</div>'
+
+    + '<div class="sh-view-grid" style="grid-template-columns:repeat(2,1fr)">'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('clima_chuva_title') + '</div><div class="sh-view-kv">💧 ' + (d.chuva || 0).toFixed(1) + 'mm</div></div>'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('clima_vento_title') + '</div><div class="sh-view-kv">💨 ' + Math.round(d.vento) + 'km/h</div></div>'
+    + '</div>'
+
+    + '<div class="sh-season">'
+    + '<div class="sh-season-hdr">' + t('clima_aqi_section_title') + '</div>'
+    + aqiBlocoHTML
+    + '</div>'
+
+    + (horaFmt ? '<div class="clima-view-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</div>' : '');
+
+  document.getElementById('sheet-body').innerHTML = html;
 }
 
 /* ============================================================
@@ -989,6 +1053,7 @@ function fecharSheet(e) {
   document.getElementById('sheet-overlay').classList.remove('on');
   editState = null;
   viewSeq = null;
+  climaViewSeq = null;
 }
 
 /* ── Classificação de segurança (Aduaneiro / Corredor de Escoamento) ── */

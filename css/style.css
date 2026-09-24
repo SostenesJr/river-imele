@@ -604,7 +604,10 @@ html, body {
 .clima-card {
   background: color-mix(in srgb, var(--s1) 82%, transparent); border: 1px solid var(--bd); border-radius: 12px;
   padding: 10px; animation: searchEmptyIn .3s cubic-bezier(.2,.8,.2,1) backwards;
+  cursor: pointer; transition: transform .12s, border-color .12s; -webkit-tap-highlight-color: transparent;
 }
+.clima-card:hover { border-color: color-mix(in srgb, var(--ac) 45%, var(--bd)); }
+.clima-card:active { transform: scale(.96); }
 .clima-card-top { display: flex; justify-content: space-between; align-items: center; }
 .clima-seq { font-family: var(--font-mono); font-size: 11px; font-weight: 900; letter-spacing: .3px; }
 .clima-ic { font-size: 16px; line-height: 1; }
@@ -621,6 +624,19 @@ html, body {
 .clima-aqi-indef { color: var(--mu); font-weight: 600; }
 .clima-empty { text-align: center; color: var(--mu); font-size: 12px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 @media (prefers-reduced-motion: reduce) { .clima-card { animation: none !important; } }
+
+/* Balão de detalhe do clima (clicar num cartão da aba Clima) — reaproveita
+   o mesmo #sheet-overlay/#sheet dos balões de Informações/Configurações
+   (já responsivo: bottom-sheet no celular, centralizado no computador). */
+.clima-view-hero { text-align: center; padding: 6px 0 18px; }
+.clima-view-ic { font-size: 46px; line-height: 1; }
+.clima-view-temp { font-family: var(--font-mono); font-size: 48px; font-weight: 900; line-height: 1; margin-top: 4px; }
+.clima-view-desc { font-size: 13px; font-weight: 700; color: var(--tx); margin-top: 4px; }
+.clima-view-sensacao { font-size: 12px; color: var(--mu); margin-top: 2px; }
+.clima-view-aqi { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 800; color: color-mix(in srgb, var(--aqi-cor, var(--mu)) 85%, var(--tx)); }
+.clima-view-aqi .clima-aqi-dot { width: 10px; height: 10px; }
+.clima-view-aqi-sub { display: flex; gap: 14px; font-size: 11px; color: var(--mu); margin-top: 8px; }
+.clima-view-atualizado { font-size: 10.5px; color: var(--mu); text-align: center; margin-top: 4px; }
 .niv-empty { text-align: center; color: var(--mu); font-size: 13px; padding: 40px 20px; }
 
 /* MAPA */

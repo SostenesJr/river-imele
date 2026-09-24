@@ -245,9 +245,17 @@ atuais, e um selo de qualidade do ar.
   resto do app — o card de nível do rio, na aba Notícias (que já vem do
   Supabase, sem depender dessas chamadas externas), continua funcionando
   normalmente.
+- **Cartão clicável**: tocar/clicar num cartão abre o detalhe daquele
+  município — ícone e descrição do tempo maiores, temperatura, sensação
+  térmica, chuva, vento e o bloco de qualidade do ar (categoria, índice,
+  PM2,5 e PM10) — no mesmo balão (bottom sheet) já usado nos balões de
+  Informações/Configurações: desliza de baixo pra cima e ocupa a largura
+  toda no celular (Android e iPhone), e aparece centralizado, com cantos
+  arredondados e largura máxima de 600px, no computador. Fecha tocando
+  fora do balão ou arrastando pra baixo.
 - Implementado em `carregarClima()`/`bCLIMA()`/`climaCategoria()`/
-  `aqiCategoria()` (`js/app.js`) e no elemento `#climabdy`, dentro da aba
-  `#sc-w` (`index.html`).
+  `aqiCategoria()`/`abrirClimaView()`/`renderClimaView()` (`js/app.js`) e
+  no elemento `#climabdy`, dentro da aba `#sc-w` (`index.html`).
 
 ## Códigos dos municípios (sigla)
 
