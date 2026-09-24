@@ -446,6 +446,19 @@ html, body {
   border: 1px solid var(--bd); border-radius: 16px;
   padding: 18px; margin-bottom: 16px;
 }
+/* nível em faixa crítica (--niv-glow = cor do regime, setado inline):
+   o cartão "respira" bem devagar, um brilho que cresce e some, só pra
+   reforçar visualmente a atenção sem precisar ficar olhando o selo. */
+.niv-card.niv-critico { animation: nivBreathe 3s ease-in-out infinite; }
+@keyframes nivBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--niv-glow, #ef4444) 0%, transparent); }
+  50% { box-shadow: 0 0 24px 3px color-mix(in srgb, var(--niv-glow, #ef4444) 45%, transparent); }
+}
+.niv-critico .niv-gauge-marker { animation: nivMarkerBreathe 3s ease-in-out infinite; }
+@keyframes nivMarkerBreathe {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,255,255,.8); }
+  50% { box-shadow: 0 0 6px rgba(255,255,255,.8), 0 0 14px 3px color-mix(in srgb, var(--niv-glow, #ef4444) 70%, transparent); }
+}
 .niv-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
 .niv-label { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--mu); }
 .niv-fonte { font-size: 10px; color: var(--mu); text-align: right; }
@@ -606,9 +619,40 @@ html, body {
   animation: alertPulse 1.7s ease-out infinite;
 }
 
+/* correnteza: tracinhos claros "correndo" por cima de cada rio, decoração
+   bem sutil (baixa opacidade) pra não brigar com a leitura do traçado. */
+.river-flow { stroke-dasharray: 1.6 13; opacity: .5; animation: riverFlow 2.6s linear infinite; }
+@keyframes riverFlow { to { stroke-dashoffset: -14.6; } }
+
+/* fio d'água: mesmo truque de tracinho "correndo", só que no fio fino que
+   liga um município fora da beira até o rio — reforça que ali também é
+   acesso por água (igarapé/afluente menor, não desenhado no mapa). */
+.fio-agua { animation: fioFlow 1.5s linear infinite; }
+@keyframes fioFlow { to { stroke-dashoffset: -8; } }
+
+/* rastro atrás do ícone animado (barco/ônibus) — só pontos estáticos por
+   frame (posicionados via JS), sem precisar de animação CSS própria. */
+.route-anim-trail { pointer-events: none; }
+
+/* "ping" no pino do município quando a animação passa por ele: um anel que
+   nasce colado no balão e se expande sumindo, uma vez só (não fica em loop
+   como o alertPulse). Na rota I, o ping de Humaitá (mnode-ping-split) é um
+   pouco maior/mais grosso e ganha um segundo anel atrasado (ver JS), pra
+   marcar visualmente o instante em que a carga se reparte pras duas pontas. */
+@keyframes mnodePing {
+  0% { transform: scale(.5); opacity: .95; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.mnode-ping {
+  transform-box: fill-box; transform-origin: center;
+  pointer-events: none; animation: mnodePing .6s ease-out forwards;
+}
+.mnode-ping-split { animation-duration: .85s; }
+
 @media (prefers-reduced-motion: reduce) {
   .mnode.mnode-in, .hub-ring, .mline-draw, .route-anim-icon .route-anim-glyph, .mnode-alert-ring { animation: none !important; }
   .mnode, .mline, .mfbtn, .mcb { transition: none !important; }
+  .river-flow, .fio-agua, .mnode-ping, .niv-critico { animation: none !important; }
 }
 
 #map-popup {

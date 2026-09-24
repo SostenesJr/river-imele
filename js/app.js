@@ -404,7 +404,7 @@ function bNIVEL() {
   }
 
   var regime = classificarNivel(atual.nivel_m);
-  var cardHTML = '<div class="niv-card">'
+  var cardHTML = '<div class="niv-card' + (regime.critico ? ' niv-critico' : '') + '"' + (regime.critico ? ' style="--niv-glow:' + regime.cor + '"' : '') + '>'
     + '<div class="niv-top"><span class="niv-label">' + t('niv_label') + '</span><span class="niv-fonte">' + t('niv_fonte_label') + '<br>' + atual.fonte + '</span></div>'
     + '<div class="niv-value-row"><span class="niv-value">' + atual.nivel_m.toFixed(2).replace('.', ',') + '</span><span class="niv-unit">' + t('niv_unit') + '</span></div>'
     + '<div class="niv-badges">'
@@ -1011,6 +1011,15 @@ function renderMap() {
     path.setAttribute('points', pts.join(', ')); path.setAttribute('fill', 'none');
     path.setAttribute('stroke', '#2f9bd6'); path.setAttribute('stroke-width', rv.w);
     path.setAttribute('opacity', '0.8'); path.setAttribute('stroke-linecap', 'round'); amGroup.appendChild(path);
+
+    // "correnteza": uma segunda linha por cima, com tracinhos claros que
+    // correm ao longo do próprio rio — só decoração, bem sutil, não
+    // atrapalha a leitura do traçado nem das rotas desenhadas por cima.
+    var fluxo = document.createElementNS(NS, 'polyline');
+    fluxo.setAttribute('points', pts.join(', ')); fluxo.setAttribute('fill', 'none');
+    fluxo.setAttribute('stroke', '#bfe6ff'); fluxo.setAttribute('stroke-width', String(Math.max(1, rv.w * 0.4)));
+    fluxo.setAttribute('stroke-linecap', 'round'); fluxo.setAttribute('class', 'river-flow');
+    amGroup.appendChild(fluxo);
   });
 
   // contorno do estado, por cima de tudo, pra dar nitidez à silhueta
@@ -1033,6 +1042,7 @@ function renderMap() {
 
   var iz = 1 / T.s;
   var routeLineEls = {}; // num da calha -> path "de medida" (pra animar a embarcação/ônibus por cima)
+  var routeMarcosEls = {}; // num da calha -> [{seq, len}] (pra "pingar" o pino de cada município quando a animação passa por ele)
 
   /* Catmull-Rom -> Bézier: pontos de controle do trecho p1->p2 levando em
      conta os vizinhos p0/p3, pra linha curvar suave em vez de quebrar reto
@@ -1089,6 +1099,13 @@ function renderMap() {
     var nomeRio = ROTA_RIO[r.num];
     var dCompleto = '';
     var trechoIdx = 0; // conta trechos desenhados nesta rota, só pro atraso da animação de entrada
+    var marcos = []; // [{seq, len}] em ordem: comprimento acumulado da curva até cada município, pra "pingar" o pino quando a animação (barco/ônibus) passa por ele
+
+    function registrarMarco(destinoM) {
+      if (!destinoM) return;
+      var tmp = document.createElementNS(NS, 'path'); tmp.setAttribute('d', dCompleto);
+      marcos.push({ seq: destinoM.seq, len: tmp.getTotalLength() });
+    }
 
     function desenharTrecho(pontosLL, destinoM) {
       if (!pontosLL || pontosLL.length < 2) return;
@@ -1096,6 +1113,7 @@ function renderMap() {
       var d = 'M ' + pts[0].x + ',' + pts[0].y;
       for (var i = 1; i < pts.length; i++) d += ' L ' + pts[i].x + ',' + pts[i].y;
       dCompleto += (dCompleto ? ' ' : '') + d; // path com vários subpaths M ainda soma certo no getTotalLength/getPointAtLength
+      registrarMarco(destinoM);
 
       var seg = destinoM ? SEGURANCA[destinoM.seq] : null;
       var trecho = document.createElementNS(NS, 'path');
@@ -1121,6 +1139,7 @@ function renderMap() {
       var cp = crControlPoints(p0, p1, p2, p3);
       var d = 'M ' + p1.x + ',' + p1.y + ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
       dCompleto += (dCompleto ? ' ' : '') + d;
+      registrarMarco(destinoM);
 
       var seg = destinoM ? SEGURANCA[destinoM.seq] : null;
       var trecho = document.createElementNS(NS, 'path');
@@ -1183,6 +1202,7 @@ function renderMap() {
           fio.setAttribute('fill', 'none'); fio.setAttribute('stroke', '#2f9bd6');
           fio.setAttribute('stroke-width', '0.6'); fio.setAttribute('stroke-dasharray', '1.5,2.5');
           fio.setAttribute('stroke-linecap', 'round'); fio.setAttribute('opacity', opacidade);
+          fio.setAttribute('class', 'fio-agua'); // gotejamento animado (ver CSS) — mostra que a "entrada" ali também é água
           g.appendChild(fio);
         }
       });
@@ -1220,6 +1240,7 @@ function renderMap() {
     medida.setAttribute('d', dCompleto); medida.setAttribute('fill', 'none'); medida.setAttribute('stroke', 'none');
     g.appendChild(medida);
     routeLineEls[r.num] = medida;
+    routeMarcosEls[r.num] = marcos;
   });
 
   var nodeCounter = 0;
@@ -1233,6 +1254,8 @@ function renderMap() {
       var grp = document.createElementNS(NS, 'g');
       grp.setAttribute('class', 'mnode' + (animarEntrada ? ' mnode-in' : ''));
       grp.setAttribute('data-ativo', ativo ? '1' : '0');
+      grp.setAttribute('data-mnode-seq', m.seq);
+      grp.setAttribute('data-px', p.x); grp.setAttribute('data-py', p.y);
       if (animarEntrada) { grp.style.setProperty('--i', nodeCounter); nodeCounter++; }
       grp.style.cursor = ativo ? 'pointer' : 'default';
       grp.style.opacity = ativo ? '1' : '0.08';
@@ -1311,7 +1334,7 @@ function renderMap() {
   // Se tem uma calha específica selecionada (não "TODAS"), anima uma
   // embarcação (ou ônibus, pras calhas rodoviárias) percorrendo a rota.
   if (rotaFiltrada && routeLineEls[rotaFiltrada]) {
-    iniciarAnimacaoRota(rotaFiltrada, routeLineEls[rotaFiltrada], iz);
+    iniciarAnimacaoRota(rotaFiltrada, routeLineEls[rotaFiltrada], iz, routeMarcosEls[rotaFiltrada]);
   } else {
     pararAnimacaoRota();
   }
@@ -1328,7 +1351,7 @@ function pararAnimacaoRota() {
   if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
-function iniciarAnimacaoRota(num, line, iz) {
+function iniciarAnimacaoRota(num, line, iz, marcos) {
   pararAnimacaoRota();
   var g = document.getElementById('mg'); if (!g || !line) return;
   var len = line.getTotalLength(); if (!len) return;
@@ -1337,9 +1360,27 @@ function iniciarAnimacaoRota(num, line, iz) {
   var rodoviaria = isRodoviaria(r);
   var NS = 'http://www.w3.org/2000/svg';
 
+  // grupo "pai": embrulha o rastro (atrás) + o ícone (na frente), assim um
+  // único #route-anim-icon dá conta de remover tudo de uma vez (ver
+  // pararAnimacaoRota()).
+  var wrap = document.createElementNS(NS, 'g');
+  wrap.id = 'route-anim-icon';
+
+  // rastro: alguns pontinhos "puxando" o ícone, encolhendo e sumindo —
+  // dá sensação de movimento/esteira na água (ou poeira, no caso do ônibus).
+  var TRAIL_N = 6, TRAIL_STEP = 0.016;
+  var trailEls = [];
+  for (var ti = 1; ti <= TRAIL_N; ti++) {
+    var td = document.createElementNS(NS, 'circle');
+    td.setAttribute('r', String(Math.max(0.6, 3.2 - ti * 0.42) * iz));
+    td.setAttribute('fill', r.cor);
+    td.setAttribute('opacity', String(Math.max(0, 0.5 - ti * 0.075)));
+    wrap.appendChild(td);
+    trailEls.push(td);
+  }
+
   // grupo com um halo escuro atrás (pra destacar em cima de qualquer cor de linha/fundo) + o emoji
   var icon = document.createElementNS(NS, 'g');
-  icon.id = 'route-anim-icon';
   icon.setAttribute('class', 'route-anim-icon');
 
   var halo = document.createElementNS(NS, 'circle');
@@ -1361,13 +1402,53 @@ function iniciarAnimacaoRota(num, line, iz) {
   glyph.textContent = rodoviaria ? '🚌' : '🚤';
   icon.appendChild(glyph);
 
-  g.appendChild(icon);
+  wrap.appendChild(icon);
+  g.appendChild(wrap);
 
   routeAnim.num = num;
+
+  // "ping" no pino do município quando a animação passa por ele — e, na
+  // rota I (única com bifurcação, ver campo `de` em data.js), um destaque
+  // diferente em Humaitá no instante em que a carga se reparte pras duas
+  // pontas (Apuí/Lábrea).
+  var marcosEstado = (marcos || []).map(function (mk) { return { seq: mk.seq, len: mk.len, feito: false }; });
+  function pingMunicipio(seq) {
+    var alvo = document.querySelector('[data-mnode-seq="' + seq + '"]');
+    if (!alvo) return;
+    var px = alvo.getAttribute('data-px'), py = alvo.getAttribute('data-py');
+    if (px == null || py == null) return;
+    var bifurcacao = (num === 'I' && seq === 'HUM');
+    var ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('cx', px); ring.setAttribute('cy', py);
+    ring.setAttribute('r', String((bifurcacao ? 7 : 9) * iz));
+    ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', r.cor);
+    ring.setAttribute('stroke-width', String((bifurcacao ? 2.2 : 1.6) * iz));
+    ring.setAttribute('class', bifurcacao ? 'mnode-ping mnode-ping-split' : 'mnode-ping');
+    g.appendChild(ring);
+    setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, bifurcacao ? 900 : 650);
+    if (bifurcacao) {
+      // segundo anel, um pouco atrasado, pra reforçar a ideia de "duas frentes"
+      var ring2 = ring.cloneNode();
+      ring2.style.animationDelay = '140ms';
+      g.appendChild(ring2);
+      setTimeout(function () { if (ring2.parentNode) ring2.parentNode.removeChild(ring2); }, 1050);
+    }
+  }
+  function verificarMarcos(lenAtual) {
+    marcosEstado.forEach(function (mk) {
+      if (!mk.feito && lenAtual >= mk.len - 0.5) { mk.feito = true; pingMunicipio(mk.seq); }
+    });
+  }
+  function resetarMarcos() { marcosEstado.forEach(function (mk) { mk.feito = false; }); }
 
   function posicionar(t) {
     var pt = line.getPointAtLength(t * len);
     icon.setAttribute('transform', 'translate(' + pt.x + ',' + pt.y + ')');
+    trailEls.forEach(function (td, i) {
+      var tt = Math.max(0, t - TRAIL_STEP * (i + 1));
+      var p2 = line.getPointAtLength(tt * len);
+      td.setAttribute('cx', p2.x); td.setAttribute('cy', p2.y);
+    });
   }
 
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1378,14 +1459,17 @@ function iniciarAnimacaoRota(num, line, iz) {
 
   var duration = 4200; // ms pra ir do porto/garagem até o fim da calha
   var pausa = 900;     // ms parado no fim antes de reiniciar o percurso
-  var startTime = null;
+  var startTime = null, elapsedAnterior = 0;
 
   function frame(ts) {
     if (routeAnim.num !== num) return; // outra rota foi selecionada / animação foi parada
     if (!startTime) startTime = ts;
     var elapsed = (ts - startTime) % (duration + pausa);
+    if (elapsed < elapsedAnterior) resetarMarcos(); // voltou pro começo: reseta os pings pra próxima volta
+    elapsedAnterior = elapsed;
     var t = Math.min(elapsed / duration, 1);
     posicionar(t);
+    verificarMarcos(t * len);
     routeAnim.raf = requestAnimationFrame(frame);
   }
   routeAnim.raf = requestAnimationFrame(frame);

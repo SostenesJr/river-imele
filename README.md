@@ -60,21 +60,29 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    traçado antigo em fila única. Em todas as linhas o traço ficou mais fino
    do que a versão original, e o trecho que chega a um município classificado
    como **Aduaneiro** ou **Corredor de Escoamento** (posto de fiscalização/
-   polícia) é desenhado tracejado. Ao selecionar uma calha específica, uma
-   embarcação (🚤) ou ônibus (🚌, nas calhas rodoviárias) anima percorrendo a
-   rota do hub (Manaus) até os municípios, seguindo a mesma linha. Municípios
-   classificados como **Aduaneiro** ou **Corredor de Escoamento** ganham
-   ainda um selo diferenciado, uma aura vermelha pulsante (ponto de atenção/
-   fiscalização), filtro próprio e um link "ver detalhes" que abre o balão
-   somente-leitura da aba Informações.
+   polícia) é desenhado tracejado. Os rios (e os fios finos que ligam um
+   município fora da beira até o rio) têm uma leve animação de correnteza —
+   tracinhos claros correndo bem devagar por cima do traçado, decorativo e
+   discreto. Ao selecionar uma calha específica, uma embarcação (🚤) ou
+   ônibus (🚌, nas calhas rodoviárias) anima percorrendo a rota do hub
+   (Manaus) até os municípios, seguindo a mesma linha, com um rastro que vai
+   sumindo atrás do ícone; cada município ganha um "ping" (anel que se
+   expande e some) no instante em que o ícone passa por ele, e em Humaitá
+   (rota I) esse ping é maior/duplo, marcando o momento em que a carga se
+   reparte pras duas pontas. Municípios classificados como **Aduaneiro** ou
+   **Corredor de Escoamento** ganham ainda um selo diferenciado, uma aura
+   vermelha pulsante (ponto de atenção/fiscalização), filtro próprio e um
+   link "ver detalhes" que abre o balão somente-leitura da aba Informações.
 5. **Notícias** — nível do Rio Negro em Manaus (referência: Porto de
    Manaus), atualizado automaticamente 1x por dia: valor atual em metros, se
    está enchendo ou vazando (com a variação do dia em cm), um **selo de
    regime** (Seca severa / Seca / Normal / Atenção / Alerta / Emergência —
    ver "Regime do rio" abaixo) com um **banner de alerta** quando o nível
-   entra numa faixa crítica, medidor visual com essas mesmas faixas,
-   gráfico com o histórico e um feed tipo notícia com as leituras de cada
-   dia. O app só *lê* esses dados — a coleta é feita por uma função
+   entra numa faixa crítica, medidor visual com essas mesmas faixas (que
+   "respira" bem devagar — um brilho na cor do regime que cresce e some —
+   quando a faixa é crítica, reforçando o alerta sem precisar ficar olhando
+   o selo), gráfico com o histórico e um feed tipo notícia com as leituras
+   de cada dia. O app só *lê* esses dados — a coleta é feita por uma função
    separada (`api/cron/nivel-rio.js`, agendada pela Vercel via
    `vercel.json`), não pelo navegador de quem usa o app.
 
