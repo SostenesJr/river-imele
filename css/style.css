@@ -1,3 +1,9 @@
+/* crossfade ao trocar de tema claro/escuro (ver aplicarTema() em app.js):
+   liga por ~400ms uma transição de cor em tudo, em vez da troca brusca. */
+html.theme-transition, html.theme-transition * {
+  transition: background-color .32s ease, color .32s ease, border-color .32s ease, fill .32s ease, stroke .32s ease !important;
+}
+
 /* ============================================================
    NAVLOG AMAZÔNIA — VARIÁVEIS GLOBAIS E CORES DO SISTEMA
    ============================================================ */
@@ -155,18 +161,27 @@ html, body {
 }
 .logout-btn:active { border-color: var(--re); color: var(--re); }
 
-.htabs { display: flex; gap: 4px; }
+.htabs { display: flex; gap: 4px; position: relative; }
 .htab {
   display: flex; align-items: center; gap: 6px;
   padding: 7px 13px; border-radius: 7px;
   border: 1px solid var(--hdr-bd); background: var(--hdr-s2); color: var(--hdr-mu);
   font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-sans);
-  white-space: nowrap; position: relative;
+  white-space: nowrap; position: relative; z-index: 1;
+  transition: color .15s;
 }
-.htab.on { background: var(--ac); border-color: var(--ac); color: #fff; }
+.htab.on { background: transparent; border-color: transparent; color: #fff; }
 .hti { font-size: 13px; }
 .htab-icon { padding: 7px 10px; gap: 0; }
 .htab-icon .hti { font-size: 15px; }
+/* "pill" que desliza atrás da aba ativa em vez dela simplesmente trocar de
+   cor — a cor/borda em .htab.on acima só cuidam do texto, quem faz o fundo
+   é esse elemento, absoluto, medido e posicionado via JS (atualizarIndicadorAbas). */
+.htab-pill {
+  position: absolute; top: 0; left: 0; height: 100%; border-radius: 7px;
+  background: var(--ac); z-index: 0; pointer-events: none;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1);
+}
 
 /* Selinho vermelho pulsante nas abas Notícias (desktop + mobile) quando o
    nível do rio entra numa faixa crítica (ver NIVEL_REGIMES em app.js) —
@@ -187,22 +202,33 @@ html, body {
   border-top: 1px solid var(--bd);
   z-index: 300; display: none;
 }
-.brow { display: flex; height: 58px; }
+.brow { display: flex; height: 58px; position: relative; }
 .btab {
-  position: relative;
+  position: relative; z-index: 1;
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   cursor: pointer; border: none; background: transparent; color: var(--mu);
   font-family: var(--font-sans); font-size: 10px; font-weight: 700; padding: 0; text-transform: uppercase;
+  transition: color .15s;
 }
 .btab.on { color: var(--ac); }
 .bti { font-size: 18px; line-height: 1; }
 .btab-icon .bti { font-size: 21px; }
+/* barrinha que desliza embaixo do ícone ativo, no topo do menu (medida e
+   posicionada via JS, mesmo esquema da .htab-pill acima). */
+.btab-ind {
+  position: absolute; top: 0; left: 0; height: 3px; border-radius: 0 0 4px 4px;
+  background: var(--ac); z-index: 0; pointer-events: none;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1);
+}
 
 /* CONTEUDO */
 #app { position: fixed; top: calc(50px + var(--safe-top)); left: 0; right: 0; bottom: 0; display: flex; overflow: hidden; }
 .scr { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
 .scr-map { position: relative; }
 .scr.h { display: none !important; }
+/* fade + leve deslocamento ao abrir uma aba (ver SS() em app.js) */
+@keyframes scrEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.scr.scr-enter { animation: scrEnter .3s cubic-bezier(.2,.8,.2,1); }
 
 /* BUSCA (Rotas / Informações) */
 .rhdr {
@@ -304,13 +330,40 @@ html, body {
 .irow:hover { background: rgba(255,255,255,.03); }
 .irow:active { background: var(--s2); }
 
+/* skeleton: blocos "pulsando" no lugar do conteúdo real enquanto os dados
+   ainda estão carregando do Supabase (ver #rbdy/#nbdy em index.html) —
+   somem sozinhos assim que bRO()/bNIVEL() trocam o innerHTML pelo real. */
+@keyframes skelShimmer { to { background-position: -135% 0; } }
+.skel-card {
+  height: 68px; border-radius: 12px; margin-bottom: 8px;
+  background: linear-gradient(100deg, var(--s1) 30%, var(--s2) 50%, var(--s1) 70%);
+  background-size: 250% 100%;
+  animation: skelShimmer 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel-card { animation: none !important; opacity: .7; }
+}
+
+/* estado vazio quando a busca não bate com nada — some/some sozinho
+   (ver emptyStateHTML() + fR()/fINFO()/fC() em app.js) */
+.search-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 20px; text-align: center; gap: 10px;
+  animation: searchEmptyIn .35s cubic-bezier(.2,.8,.2,1) backwards;
+}
+.search-empty.h { display: none; }
+.search-empty-ic { font-size: 34px; animation: searchEmptyBob 2.2s ease-in-out infinite; }
+.search-empty-tx { font-size: 13px; font-weight: 600; color: var(--mu); }
+@keyframes searchEmptyIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes searchEmptyBob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-4px) rotate(-8deg); } }
+
 /* pisca de leve quando um município é atualizado por outra pessoa (Realtime) */
 @keyframes flashUpdate { 0% { background: rgba(20,184,166,.4); } 100% { background: transparent; } }
 .flash-update { animation: flashUpdate 1.4s ease; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rcard, .live-dot.live, .flash-update { animation: none !important; }
-  .rbody, .rchv, .rnb, .rhead, .mrow, .irow, .live-dot { transition: none !important; }
+  .rcard, .live-dot.live, .flash-update, .scr.scr-enter, .search-empty, .search-empty-ic { animation: none !important; }
+  .rbody, .rchv, .rnb, .rhead, .mrow, .irow, .live-dot, .htab-pill, .btab-ind { transition: none !important; }
 }
 .iinfo { flex: 1; min-width: 0; }
 .iname { font-size: 13px; font-weight: 700; }
@@ -435,9 +488,14 @@ html, body {
 .empresa-card { border-color: var(--ac); }
 
 .sh-actions { display: flex; gap: 10px; margin-top: 4px; }
-.sh-btn { flex: 1; border: none; border-radius: 9px; padding: 13px; font-size: 14px; font-weight: 800; cursor: pointer; }
+.sh-btn { flex: 1; border: none; border-radius: 9px; padding: 13px; font-size: 14px; font-weight: 800; cursor: pointer; transition: background .2s; }
 .sh-reset { background: var(--s2); color: var(--mu); border: 1px solid var(--bd); }
 .sh-save { background: var(--ac); color: #fff; }
+/* feedback de sucesso ao salvar/restaurar: fica verde e dá um "pop" rápido
+   (ver JS: classe aplicada junto com o texto "✓ Salvo!"/"✓ Restaurado!") */
+.sh-btn.ok { background: var(--ok); animation: saveOkPop .4s ease; }
+@keyframes saveOkPop { 0% { transform: scale(1); } 40% { transform: scale(1.045); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .sh-btn.ok { animation: none !important; } }
 
 /* NOTÍCIAS — nível do rio + feed */
 #nbdy { max-width: 560px; margin: 0 auto; width: 100%; box-sizing: border-box; }
@@ -578,6 +636,18 @@ html, body {
 }
 .mcb:hover { border-color: var(--ac); color: var(--ac); }
 .mcb:active { border-color: var(--ac); color: var(--ac); transform: scale(.9); }
+
+/* ondinha ("ripple") saindo do ponto do clique — só nos botões de
+   tema/idioma/filtro/zoom (ver JS: listener delegado em document). */
+.theme-btn, .lang-opt, .mfbtn, .mcb, .logout-btn { position: relative; overflow: hidden; }
+.ripple-el {
+  position: absolute; border-radius: 50%; background: rgba(255,255,255,.4);
+  transform: scale(0); animation: rippleAnim .55s ease-out; pointer-events: none;
+}
+@keyframes rippleAnim { to { transform: scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ripple-el { display: none; }
+}
 
 #map-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; }
 #msvg { width: 100%; height: 100%; display: block; touch-action: none; background: #070c14; }

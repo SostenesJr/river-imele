@@ -49,7 +49,8 @@ var I18N = {
     empresa_logo_label: 'URL do logo (imagem)', empresa_logo_ph: 'https://...',
     empresa_save_btn: '✓ Salvar dados da empresa',
 
-    salvando: 'Salvando...', restaurando: 'Restaurando...', salvo_ok: '✓ Salvo!',
+    salvando: 'Salvando...', restaurando: 'Restaurando...', salvo_ok: '✓ Salvo!', restaurado_ok: '✓ Restaurado!',
+    busca_sem_resultado: 'Nenhum resultado encontrado.',
 
     kpi_tt_amazon: 'TT Amazon', kpi_distancia: 'Distância', kpi_transit_rota: 'Transit rota', kpi_transit: 'Transit',
     dias_saida_view_label: '🗓️ Dias de saída do porto', dias_saida_edit_label: 'Dias de saída do porto',
@@ -133,7 +134,8 @@ var I18N = {
     empresa_logo_label: 'Logo URL (image)', empresa_logo_ph: 'https://...',
     empresa_save_btn: '✓ Save company info',
 
-    salvando: 'Saving...', restaurando: 'Restoring...', salvo_ok: '✓ Saved!',
+    salvando: 'Saving...', restaurando: 'Restoring...', salvo_ok: '✓ Saved!', restaurado_ok: '✓ Restored!',
+    busca_sem_resultado: 'No results found.',
 
     kpi_tt_amazon: 'TT Amazon', kpi_distancia: 'Distance', kpi_transit_rota: 'Route transit', kpi_transit: 'Transit',
     dias_saida_view_label: '🗓️ Port departure days', dias_saida_edit_label: 'Port departure days',
@@ -217,7 +219,8 @@ var I18N = {
     empresa_logo_label: 'URL del logo (imagen)', empresa_logo_ph: 'https://...',
     empresa_save_btn: '✓ Guardar datos de la empresa',
 
-    salvando: 'Guardando...', restaurando: 'Restaurando...', salvo_ok: '✓ ¡Guardado!',
+    salvando: 'Guardando...', restaurando: 'Restaurando...', salvo_ok: '✓ ¡Guardado!', restaurado_ok: '✓ ¡Restaurado!',
+    busca_sem_resultado: 'No se encontraron resultados.',
 
     kpi_tt_amazon: 'TT Amazon', kpi_distancia: 'Distancia', kpi_transit_rota: 'Tránsito de la ruta', kpi_transit: 'Tránsito',
     dias_saida_view_label: '🗓️ Días de salida del puerto', dias_saida_edit_label: 'Días de salida del puerto',
@@ -301,7 +304,8 @@ var I18N = {
     empresa_logo_label: '标志图片链接', empresa_logo_ph: 'https://...',
     empresa_save_btn: '✓ 保存公司信息',
 
-    salvando: '保存中...', restaurando: '恢复中...', salvo_ok: '✓ 已保存！',
+    salvando: '保存中...', restaurando: '恢复中...', salvo_ok: '✓ 已保存！', restaurado_ok: '✓ 已恢复！',
+    busca_sem_resultado: '未找到结果。',
 
     kpi_tt_amazon: 'TT Amazon', kpi_distancia: '距离', kpi_transit_rota: '航线时长', kpi_transit: '时长',
     dias_saida_view_label: '🗓️ 港口出发日', dias_saida_edit_label: '港口出发日',
@@ -430,4 +434,26 @@ document.addEventListener('click', function (e) {
   if (!menu || !menu.classList.contains('on')) return;
   if (menu.contains(e.target) || e.target.id === 'lang-btn') return;
   fecharLangMenu();
+});
+
+/* ── ripple: ondinha saindo do ponto do clique, nos botões de
+   tema/idioma/filtro/zoom (delegado — funciona também nos que são criados
+   dinamicamente depois, tipo os filtros do mapa). Fica aqui (i18n.js) por
+   ser o arquivo comum entre index.html e login.html. ── */
+document.addEventListener('click', function (e) {
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+  var el = e.target.closest('.theme-btn, .lang-opt, .mfbtn, .mcb, .logout-btn');
+  if (!el) return;
+  var rect = el.getBoundingClientRect();
+  var x = e.clientX - rect.left, y = e.clientY - rect.top;
+  var tam = Math.max(rect.width, rect.height) * 1.8;
+  var onda = document.createElement('span');
+  onda.className = 'ripple-el';
+  onda.style.width = onda.style.height = tam + 'px';
+  onda.style.left = (x - tam / 2) + 'px';
+  onda.style.top = (y - tam / 2) + 'px';
+  el.appendChild(onda);
+  onda.addEventListener('animationend', function () { if (onda.parentNode) onda.remove(); });
+  setTimeout(function () { if (onda.parentNode) onda.remove(); }, 700); // segurança, caso animationend não dispare
 });

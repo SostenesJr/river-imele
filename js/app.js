@@ -56,6 +56,14 @@ function aplicarBranding() {
    já aplicam o tema salvo ANTES de pintar a tela (script inline no <head>),
    pra não dar aquele "flash" trocando de tema na hora de abrir. */
 function aplicarTema(tema) {
+  // crossfade das cores em vez de trocar na cara — liga uma classe que ativa
+  // a transição em tudo, por um instante só, e desliga de novo (ver CSS).
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduced) {
+    document.documentElement.classList.add('theme-transition');
+    clearTimeout(window._temaTransT);
+    window._temaTransT = setTimeout(function () { document.documentElement.classList.remove('theme-transition'); }, 420);
+  }
   document.documentElement.setAttribute('data-theme', tema);
   try { localStorage.setItem('navlog-theme', tema); } catch (e) { /* ignora: modo privado etc. */ }
   var btn = document.getElementById('theme-btn');
@@ -75,6 +83,7 @@ function alternarTema() {
 function aplicarIdioma(lang) {
   setIdiomaEstatico(lang);
   atualizarHeroSub();
+  if (typeof atualizarIndicadorAbas === 'function') requestAnimationFrame(atualizarIndicadorAbas);
   if (typeof ROTAS === 'undefined') return; // data.js ainda não carregou
   bRO();
   bINFO();
@@ -91,7 +100,23 @@ function alternarIdioma() {
 function atualizarHeroSub() {
   var el = document.getElementById('hero-sub'); if (!el || typeof ROTAS === 'undefined') return;
   var totalMun = ROTAS.reduce(function (soma, r) { return soma + r.municipios.length; }, 0);
-  el.textContent = tf('hero_sub_tpl', { calhas: ROTAS.length, municipios: totalMun });
+  var calhasAlvo = ROTAS.length, munAlvo = totalMun;
+
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) { el.textContent = tf('hero_sub_tpl', { calhas: calhasAlvo, municipios: munAlvo }); return; }
+
+  // conta subindo do zero até o valor final — cancela uma contagem anterior
+  // em andamento (ex.: troca de idioma rápida) antes de começar outra.
+  if (el._heroCountRaf) cancelAnimationFrame(el._heroCountRaf);
+  var inicio = null, duracao = 900;
+  function passo(ts) {
+    if (!inicio) inicio = ts;
+    var p = Math.min((ts - inicio) / duracao, 1);
+    var facil = 1 - Math.pow(1 - p, 3); // ease-out cúbico
+    el.textContent = tf('hero_sub_tpl', { calhas: Math.round(calhasAlvo * facil), municipios: Math.round(munAlvo * facil) });
+    el._heroCountRaf = (p < 1) ? requestAnimationFrame(passo) : null;
+  }
+  el._heroCountRaf = requestAnimationFrame(passo);
 }
 
 async function salvarConfigEmpresa() {
@@ -111,8 +136,8 @@ async function salvarConfigEmpresa() {
   CONFIG_EMPRESA = { nome_empresa: nome || null, logo_url: logo || null };
   aplicarBranding();
   if (btn) {
-    btn.disabled = false; btn.textContent = t('salvo_ok');
-    setTimeout(function () { if (btn) btn.textContent = t('empresa_save_btn'); }, 1500);
+    btn.disabled = false; btn.textContent = t('salvo_ok'); btn.classList.add('ok');
+    setTimeout(function () { if (btn) { btn.textContent = t('empresa_save_btn'); btn.classList.remove('ok'); } }, 1500);
   }
 }
 
@@ -532,6 +557,16 @@ function buildRotaHeader(r) {
     + '</div>';
 }
 
+// Estado vazio (sem resultado) reaproveitado pelas 3 listas com busca
+// (Rotas / Informações / Configurações) — some sozinho quando a busca
+// está vazia ou quando algum card/linha bate com o texto digitado.
+function emptyStateHTML(id) {
+  return '<div class="search-empty h" id="' + id + '">'
+    + '<div class="search-empty-ic">🔍</div>'
+    + '<div class="search-empty-tx">' + t('busca_sem_resultado') + '</div>'
+    + '</div>';
+}
+
 function bRO() {
   var body = document.getElementById('rbdy'); if (!body) return;
   body.innerHTML = ROTAS.map(function (r, ri) {
@@ -548,7 +583,7 @@ function bRO() {
       + buildRotaHeader(r)
       + '<div class="rbody"><div class="rbody-inner"><div class="rtimeline">' + mRows + '</div></div></div>'
       + '</div>';
-  }).join('');
+  }).join('') + emptyStateHTML('rempty');
 }
 
 function toggleRota(num, headEl) {
@@ -559,12 +594,14 @@ function toggleRota(num, headEl) {
 
 function fR(q) {
   q = normKey(q.trim());
+  var algumaVisivel = false;
   document.querySelectorAll('#rbdy .rcard').forEach(function (card) {
     var rows = card.querySelectorAll('.mrow');
     if (!q) {
       card.style.display = '';
       card.classList.remove('open');
       rows.forEach(function (row) { row.style.display = ''; });
+      algumaVisivel = true;
       return;
     }
     var rotaMatch = card.dataset.txt.indexOf(q) !== -1;
@@ -575,8 +612,10 @@ function fR(q) {
       if (hit) algumaLinha = true;
     });
     card.style.display = algumaLinha ? '' : 'none';
-    if (algumaLinha) card.classList.add('open'); else card.classList.remove('open');
+    if (algumaLinha) { card.classList.add('open'); algumaVisivel = true; } else card.classList.remove('open');
   });
+  var vazio = document.getElementById('rempty');
+  if (vazio) vazio.classList.toggle('h', algumaVisivel);
 }
 
 /* ============================================================
@@ -605,14 +644,15 @@ function bINFO() {
       + '<div class="rsub">' + r.municipios.length + ' ' + t('municipios_word') + '</div></div></div>'
       + '<div class="rbody"><div class="rbody-inner"><div class="chipgrid">' + chips + '</div></div></div>'
       + '</div>';
-  }).join('');
+  }).join('') + emptyStateHTML('iempty');
 }
 
 function fINFO(q) {
   q = normKey(q.trim());
+  var algumaVisivel = false;
   document.querySelectorAll('#ibdy .rcard').forEach(function (card) {
     var chips = card.querySelectorAll('.chip');
-    if (!q) { card.style.display = ''; chips.forEach(function (c) { c.style.display = ''; }); return; }
+    if (!q) { card.style.display = ''; chips.forEach(function (c) { c.style.display = ''; }); algumaVisivel = true; return; }
     var rotaMatch = card.dataset.txt.indexOf(q) !== -1;
     var alguma = false;
     chips.forEach(function (c) {
@@ -621,7 +661,10 @@ function fINFO(q) {
       if (hit) alguma = true;
     });
     card.style.display = alguma ? '' : 'none';
+    if (alguma) algumaVisivel = true;
   });
+  var vazio = document.getElementById('iempty');
+  if (vazio) vazio.classList.toggle('h', algumaVisivel);
 }
 
 /* ── BALÃO SOMENTE LEITURA (Informações) ── */
@@ -745,15 +788,17 @@ function bCO() {
       + '<div class="rsub">' + r.municipios.length + ' ' + t('municipios_word') + '</div></div></div>'
       + '<div class="rbody"><div class="rbody-inner">' + mRows + '</div></div>'
       + '</div>';
-  }).join('');
+  }).join('') + emptyStateHTML('cempty');
 }
 
 function fC(q) {
   q = normKey(q.trim());
+  var algumaVisivel = false;
   document.querySelectorAll('#cbdy .rcard').forEach(function (card) {
     var rows = card.querySelectorAll('.irow');
-    if (!q) { card.style.display = ''; rows.forEach(function (row) { row.style.display = ''; }); return; }
-    var rotaMatch = card.dataset.txt.indexOf(q) !== -1;
+    if (!q) { card.style.display = ''; rows.forEach(function (row) { row.style.display = ''; }); algumaVisivel = true; return; }
+    if (card.classList.contains('empresa-card')) { card.style.display = 'none'; return; }
+    var rotaMatch = (card.dataset.txt || '').indexOf(q) !== -1;
     var algumaLinha = false;
     rows.forEach(function (row) {
       var hit = rotaMatch || row.dataset.txt.indexOf(q) !== -1;
@@ -761,7 +806,10 @@ function fC(q) {
       if (hit) algumaLinha = true;
     });
     card.style.display = algumaLinha ? '' : 'none';
+    if (algumaLinha) algumaVisivel = true;
   });
+  var vazio = document.getElementById('cempty');
+  if (vazio) vazio.classList.toggle('h', algumaVisivel);
 }
 
 /* ── BALÃO EDITÁVEL (bottom sheet) ── */
@@ -916,8 +964,15 @@ function salvarSheet() {
   var btn = document.querySelector('.sh-save');
   if (btn) { btn.disabled = true; btn.textContent = t('salvando'); }
   setInfo(seq, info).then(function () {
-    fecharSheet();
-    bCO();
+    // pisca "✓ Salvo!" um instante antes de fechar, pra dar um feedback
+    // visual claro (em vez de só sumir na hora) — depois pisca o card na
+    // lista também (flashSeq, o mesmo efeito usado pra updates via Realtime).
+    if (btn) { btn.disabled = false; btn.textContent = t('salvo_ok'); btn.classList.add('ok'); }
+    setTimeout(function () {
+      fecharSheet();
+      bCO();
+      flashSeq(seq);
+    }, 380);
   }).catch(function () {
     if (btn) { btn.disabled = false; btn.textContent = t('salvar_btn'); }
   });
@@ -929,8 +984,11 @@ function resetSheetAtual() {
   var btn = document.querySelector('.sh-reset');
   if (btn) { btn.disabled = true; btn.textContent = t('restaurando'); }
   resetInfo(seq).then(function () {
-    editState.info = getInfo(seq);
-    renderSheet();
+    if (btn) { btn.disabled = false; btn.textContent = t('restaurado_ok'); btn.classList.add('ok'); }
+    setTimeout(function () {
+      editState.info = getInfo(seq);
+      renderSheet();
+    }, 380);
   }).catch(function () {
     if (btn) { btn.disabled = false; btn.textContent = t('restaurar_btn'); }
   });
@@ -1678,6 +1736,30 @@ function zR() {
 /* ============================================================
    NAVEGAÇÃO ENTRE ABAS
    ============================================================ */
+/* "pill" deslizante atrás da aba ativa (desktop, cabeçalho) e barrinha
+   deslizante embaixo do ícone ativo (mobile, menu inferior) — desliza até
+   a posição/largura certa em vez de só trocar a cor na hora. Recalculada
+   a cada troca de aba, no resize e quando o idioma muda (o texto da aba
+   muda de largura em cada idioma). */
+function atualizarIndicadorAbas() {
+  var ativoH = document.querySelector('.htab.on');
+  var pill = document.getElementById('htab-pill');
+  if (ativoH && pill) {
+    pill.style.width = ativoH.offsetWidth + 'px';
+    pill.style.transform = 'translateX(' + ativoH.offsetLeft + 'px)';
+  }
+  var ativoB = document.querySelector('.btab.on');
+  var ind = document.getElementById('btab-ind');
+  if (ativoB && ind) {
+    ind.style.width = ativoB.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + ativoB.offsetLeft + 'px)';
+  }
+}
+window.addEventListener('resize', function () {
+  clearTimeout(window._indAbasResizeT);
+  window._indAbasResizeT = setTimeout(atualizarIndicadorAbas, 120);
+});
+
 function SS(name, btn) {
   cur = name;
   ['r', 'i', 'c', 'm', 'n'].forEach(function (s) {
@@ -1686,6 +1768,16 @@ function SS(name, btn) {
   });
   document.querySelectorAll('.htab').forEach(function (b) { b.classList.toggle('on', b.dataset.s === name); });
   ['r', 'i', 'c', 'm', 'n'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
+
+  // conteúdo da aba recém-aberta entra com um fade + leve deslocamento
+  // (reflow força reiniciar a animação, igual o truque usado em flashSeq)
+  var scAtual = document.getElementById('sc-' + name);
+  if (scAtual) {
+    scAtual.classList.remove('scr-enter');
+    void scAtual.offsetWidth;
+    scAtual.classList.add('scr-enter');
+  }
+  atualizarIndicadorAbas();
 
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
@@ -1723,6 +1815,7 @@ async function initApp() {
   aplicarTema(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
   setIdiomaEstatico(idiomaSalvo());
   atualizarHeroSub();
+  requestAnimationFrame(atualizarIndicadorAbas);
 
   var sessionRes = await sb.auth.getSession();
   var session = sessionRes.data && sessionRes.data.session;

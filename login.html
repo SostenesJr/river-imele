@@ -34,16 +34,38 @@ if ('serviceWorker' in navigator) {
   html, body { overflow: auto; }
   body {
     display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px;
+    background: var(--bg); position: relative; isolation: isolate;
+  }
+  /* fundo com zoom lento contínuo ("Ken Burns") — fica num pseudo-elemento
+     separado do body pra poder animar o transform sem mexer no layout/scroll. */
+  body::before {
+    content: ''; position: fixed; inset: -20px; z-index: -1;
     background:
       linear-gradient(180deg, rgba(10,19,16,.55), rgba(10,19,16,.88) 70%, rgba(10,19,16,.97)),
-      var(--hero-img) center 40% / cover no-repeat fixed;
+      var(--hero-img) center 40% / cover no-repeat;
+    animation: kenBurns 24s ease-in-out infinite alternate;
+    transform-origin: center;
   }
+  @keyframes kenBurns { from { transform: scale(1.05); } to { transform: scale(1.16); } }
   .login-box {
     width: 100%; max-width: 340px; padding: 28px;
     background: color-mix(in srgb, var(--s1) 82%, transparent);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--bd); border-radius: 16px;
     box-shadow: 0 20px 60px -15px rgba(0,0,0,.6);
+  }
+  .login-box.login-in { animation: loginIn .55s cubic-bezier(.2,.8,.2,1) backwards; }
+  @keyframes loginIn { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .login-box.shake { animation: loginShake .4s ease; }
+  @keyframes loginShake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body::before { animation: none !important; }
+    .login-box.login-in, .login-box.shake { animation: none !important; }
   }
   .login-logo { text-align: center; margin-bottom: 22px; }
   .login-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 8px var(--ac); margin: 0 auto 10px; }
@@ -66,7 +88,7 @@ if ('serviceWorker' in navigator) {
     <button id="lang-btn" onclick="toggleLangMenu(event)" title="Trocar idioma" data-i18n-title="lang_btn_title">PT</button>
     <div class="lang-menu" id="lang-menu"></div>
   </div>
-  <div class="login-box">
+  <div class="login-box login-in" id="login-box">
     <div class="login-logo">
       <div class="login-dot"></div>
       <div class="login-title">NAVLOG AMAZÔNIA</div>
@@ -98,6 +120,13 @@ if ('serviceWorker' in navigator) {
   });
 })();
 
+function balancarLoginBox() {
+  var box = document.getElementById('login-box'); if (!box) return;
+  box.classList.remove('shake');
+  void box.offsetWidth; // reinicia a animação mesmo se já tinha rodado
+  box.classList.add('shake');
+}
+
 document.getElementById('login-form').addEventListener('submit', function (e) {
   e.preventDefault();
   var btn = document.getElementById('btn-entrar');
@@ -112,6 +141,7 @@ document.getElementById('login-form').addEventListener('submit', function (e) {
       err.textContent = t('login_err_credentials');
       err.style.display = 'block';
       btn.disabled = false; btn.textContent = t('login_btn');
+      balancarLoginBox();
       return;
     }
     window.location.href = '/index.html';
@@ -119,6 +149,7 @@ document.getElementById('login-form').addEventListener('submit', function (e) {
     err.textContent = t('login_err_connection');
     err.style.display = 'block';
     btn.disabled = false; btn.textContent = t('login_btn');
+    balancarLoginBox();
   });
 });
 </script>

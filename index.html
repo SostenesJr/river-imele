@@ -62,6 +62,7 @@ if ('serviceWorker' in navigator) {
   </div>
   <div class="hdr-right">
     <div class="htabs">
+      <span class="htab-pill" id="htab-pill"></span>
       <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
       <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
       <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
@@ -81,6 +82,7 @@ if ('serviceWorker' in navigator) {
 
 <div id="btabs">
   <div class="brow">
+    <span class="btab-ind" id="btab-ind"></span>
     <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
     <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
     <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
@@ -103,7 +105,11 @@ if ('serviceWorker' in navigator) {
         <input type="text" id="rsearch" placeholder="Buscar município ou código..." data-i18n-ph="search_ph" oninput="fR(this.value)">
       </div>
     </div>
-    <div class="rbdy" id="rbdy"></div>
+    <div class="rbdy" id="rbdy">
+      <!-- skeleton: some sozinho assim que bRO() roda e troca o innerHTML pela lista de verdade -->
+      <div class="skel-card"></div><div class="skel-card"></div><div class="skel-card"></div>
+      <div class="skel-card"></div><div class="skel-card"></div>
+    </div>
   </div>
 
   <!-- INFORMAÇÕES (somente leitura) -->
@@ -145,7 +151,11 @@ if ('serviceWorker' in navigator) {
 
   <!-- NOTÍCIAS: nível do Rio Negro (referência Porto de Manaus) + feed -->
   <div class="scr h" id="sc-n">
-    <div class="rbdy" id="nbdy"></div>
+    <div class="rbdy" id="nbdy">
+      <!-- skeleton: some sozinho assim que bNIVEL() roda e troca o innerHTML pelo card de verdade -->
+      <div class="skel-card" style="height:210px"></div>
+      <div class="skel-card" style="height:130px"></div>
+    </div>
   </div>
 
 </div>

@@ -116,6 +116,49 @@ Os textos ficam em `js/i18n.js` (um dicionário por idioma); `aplicarIdioma()`
 e `alternarIdioma()`, em `js/app.js`, aplicam a troca e reconstroem o
 conteúdo das abas.
 
+## Animações e microinterações da página
+
+Além das animações do mapa (rota, `## Estrutura (5 abas)` / seção Mapa) e do
+selo "respirando" de nível crítico do rio (aba Notícias), a página inteira
+tem um conjunto de microinterações discretas — todas respeitam a preferência
+do sistema **"reduzir movimento"** (`prefers-reduced-motion: reduce`), que
+desliga ou simplifica cada uma delas:
+
+- **Troca de aba com fade + indicador deslizante**: o conteúdo de cada aba
+  entra com um fade/leve deslize (`.scr-enter`, em `css/style.css`), e uma
+  "pílula" (desktop, `#htab-pill`) ou barrinha (mobile, `#btab-ind`) desliza
+  por trás do botão da aba ativa em vez de simplesmente trocar de cor —
+  calculado em `atualizarIndicadorAbas()` (`js/app.js`).
+- **Carregamento com esqueleto (skeleton)**: enquanto os dados ainda estão
+  vindo do Supabase, as abas Rotas e Notícias mostram blocos cinzas
+  "pulsando" (`.skel-card`) no lugar das listas/cards reais — some sozinho
+  assim que `bRO()`/`bNIVEL()` trocam o conteúdo pelo de verdade.
+- **Contador animado no banner da aba Rotas**: "10 calhas · 57 municípios"
+  conta a partir de zero até o valor final quando a aba abre ou o idioma
+  muda (`atualizarHeroSub()`).
+- **Feedback de salvar/restaurar**: os botões de salvar (balão de edição,
+  dados da empresa) e de restaurar padrão mostram um "✓ Salvo!"/
+  "✓ Restaurado!" com o botão ficando verde por um instante antes de fechar
+  o balão ou voltar ao normal; ao salvar um município, a linha dele também
+  pisca de leve na lista (reaproveita o mesmo flash usado quando outra
+  pessoa atualiza algo em tempo real).
+- **Tela de login**: o card de login entra com um fade + leve deslize ao
+  abrir a página; o fundo (foto do rio) tem um zoom lento e contínuo
+  ("efeito Ken Burns"); e o card balança de leve (shake) quando o e-mail ou
+  a senha estão incorretos.
+- **Troca de tema claro/escuro suavizada**: em vez de trocar instantaneamente,
+  cores de fundo/texto/borda fazem um crossfade rápido (~0,3s) ao alternar
+  entre os dois temas.
+- **Efeito de ondulação (ripple) nos botões**: botões de tema, idioma, sair
+  e das abas mostram uma ondulação saindo do ponto do toque/clique, no
+  estilo "material" — puramente visual, não muda o comportamento do botão.
+- **Busca sem resultado**: quando o texto digitado na busca (abas Rotas,
+  Informações ou Configurações) não bate com nenhum município/rota, em vez
+  de a lista simplesmente ficar em branco aparece uma mensagem com um ícone
+  de lupa, entrando com fade (`emptyStateHTML()` em `js/app.js`, elemento
+  `.search-empty`) — some sozinha assim que a busca volta a encontrar algo
+  ou é apagada.
+
 ## Login e perfis (admin/cliente)
 
 Cada pessoa tem sua própria conta (e-mail + senha via Supabase Auth). Além
