@@ -1031,28 +1031,70 @@ function renderMap() {
   hl.setAttribute('fill', '#14b8a6'); hl.setAttribute('font-weight', '900'); hl.setAttribute('font-family', 'monospace'); hl.textContent = 'MANAUS'; g.appendChild(hl);
 
   var iz = 1 / T.s;
-  var routeLineEls = {}; // num da calha -> elemento <polyline> (pra animar a embarcação/ônibus por cima)
+  var routeLineEls = {}; // num da calha -> path "de medida" (pra animar a embarcação/ônibus por cima)
+
+  /* Catmull-Rom -> Bézier: pontos de controle do trecho p1->p2 levando em
+     conta os vizinhos p0/p3, pra linha curvar suave em vez de quebrar reto
+     em cada município — mais parecido com o traçado natural de um rio.
+     ("tensao" é o divisor padrão de Catmull-Rom, controla o quanto a
+     curva "estica" — 6 é o valor usual, mais suave sem exagerar.) */
+  function crControlPoints(p0, p1, p2, p3) {
+    var tensao = 6;
+    return {
+      c1x: p1.x + (p2.x - p0.x) / tensao, c1y: p1.y + (p2.y - p0.y) / tensao,
+      c2x: p2.x - (p3.x - p1.x) / tensao, c2y: p2.y - (p3.y - p1.y) / tensao
+    };
+  }
 
   ROTAS.forEach(function (r, ri) {
     var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
-    var pts = r.municipios.map(function (m) { return LATLNG[m.seq] ? proj(LATLNG[m.seq].lat, LATLNG[m.seq].lng) : null; }).filter(Boolean);
-    if (pts.length) {
-      var lineCoords = [[hub.x, hub.y]].concat(pts.map(function (p) { return [p.x, p.y]; }));
-      var polyPts = lineCoords.map(function (p) { return p[0] + ' ' + p[1]; }).join(', ');
-      var line = document.createElementNS(NS, 'polyline');
-      line.setAttribute('points', polyPts); line.setAttribute('fill', 'none');
-      line.setAttribute('class', 'mline');
-      line.setAttribute('stroke', r.cor); line.setAttribute('stroke-width', (algumAtivo && !tipoFiltrado) ? '2.4' : '1');
-      line.setAttribute('opacity', tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06')); line.setAttribute('stroke-linecap', 'round'); g.appendChild(line);
-      routeLineEls[r.num] = line;
+    var pares = r.municipios.map(function (m) {
+      var ll = LATLNG[m.seq]; return ll ? { m: m, p: proj(ll.lat, ll.lng) } : null;
+    }).filter(Boolean);
+    if (!pares.length) return;
+
+    var linePts = [{ m: null, p: hub }].concat(pares); // ponto 0 = hub (Manaus)
+    var largura = (algumAtivo && !tipoFiltrado) ? '1.6' : '0.7';
+    var opacidade = tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06');
+    var dCompleto = 'M ' + linePts[0].p.x + ',' + linePts[0].p.y; // curva inteira, só pra medir (animação do barco/ônibus)
+
+    for (var k = 0; k < linePts.length - 1; k++) {
+      var p0 = (linePts[k - 1] || linePts[k]).p;
+      var p1 = linePts[k].p;
+      var p2 = linePts[k + 1].p;
+      var p3 = (linePts[k + 2] || linePts[k + 1]).p;
+      var cp = crControlPoints(p0, p1, p2, p3);
+      var dTrecho = 'M ' + p1.x + ',' + p1.y + ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
+      dCompleto += ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
+
+      // trecho tracejado onde o MUNICÍPIO DE CHEGADA é aduaneiro ou
+      // corredor de escoamento (ponto de fiscalização/atenção).
+      var destino = linePts[k + 1].m;
+      var seg = destino ? SEGURANCA[destino.seq] : null;
+
+      var trecho = document.createElementNS(NS, 'path');
+      trecho.setAttribute('d', dTrecho); trecho.setAttribute('fill', 'none');
+      trecho.setAttribute('class', 'mline');
+      trecho.setAttribute('stroke', r.cor); trecho.setAttribute('stroke-width', largura);
+      trecho.setAttribute('opacity', opacidade); trecho.setAttribute('stroke-linecap', 'round');
+      if (seg) trecho.setAttribute('stroke-dasharray', '6,5');
+      g.appendChild(trecho);
+
       if (animarEntrada) {
-        var len = line.getTotalLength();
-        line.style.strokeDasharray = len;
-        line.style.setProperty('--len', len);
-        line.classList.add('mline-draw');
-        line.style.animationDelay = (ri * 60) + 'ms';
+        var len = trecho.getTotalLength();
+        trecho.style.setProperty('--len', len);
+        trecho.style.strokeDasharray = seg ? '6,5' : String(len);
+        trecho.classList.add('mline-draw');
+        trecho.style.animationDelay = ((ri * 9 + k) * 35) + 'ms';
       }
     }
+
+    // path invisível com a rota inteira (hub -> último município), só pra
+    // medir posição/distância — usado pra animar o barco/ônibus por cima.
+    var medida = document.createElementNS(NS, 'path');
+    medida.setAttribute('d', dCompleto); medida.setAttribute('fill', 'none'); medida.setAttribute('stroke', 'none');
+    g.appendChild(medida);
+    routeLineEls[r.num] = medida;
   });
 
   var nodeCounter = 0;

@@ -45,11 +45,17 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    contorno real do estado, os principais rios e as 10 rotas coloridas por
    calha desenhadas por cima, filtro por rota, zoom/arraste próprios (botões,
    scroll e pinça no celular) e popup por município com KPIs (transit,
-   distância, TT Amazon) e embarcações principais. Ao selecionar uma calha
-   específica, uma embarcação (🚤) ou ônibus (🚌, nas calhas rodoviárias) anima
-   percorrendo a rota do hub (Manaus) até os municípios. Municípios
-   classificados como **Aduaneiro** ou **Corredor de Escoamento** ganham um
-   selo diferenciado, uma aura vermelha pulsante (ponto de atenção/
+   distância, TT Amazon) e embarcações principais. As linhas das rotas são
+   traçadas como curvas suaves (spline Catmull-Rom), acompanhando o traçado
+   ao redor dos municípios em vez de segmentos retos, com traço mais fino do
+   que antes. O trecho que chega a um município classificado como
+   **Aduaneiro** ou **Corredor de Escoamento** (posto de fiscalização/polícia)
+   é desenhado tracejado, destacando visualmente onde há parada de
+   fiscalização no trajeto. Ao selecionar uma calha específica, uma
+   embarcação (🚤) ou ônibus (🚌, nas calhas rodoviárias) anima percorrendo a
+   rota do hub (Manaus) até os municípios, seguindo a mesma curva. Municípios
+   classificados como **Aduaneiro** ou **Corredor de Escoamento** ganham
+   ainda um selo diferenciado, uma aura vermelha pulsante (ponto de atenção/
    fiscalização), filtro próprio e um link "ver detalhes" que abre o balão
    somente-leitura da aba Informações.
 5. **Notícias** — nível do Rio Negro em Manaus (referência: Porto de
