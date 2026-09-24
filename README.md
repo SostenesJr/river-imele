@@ -78,6 +78,21 @@ visual escuro nos dois temas de propósito (é onde a foto/o mapa aparece);
 o resto do app (cards, balões, listas, aba Notícias) troca de verdade entre
 claro e escuro.
 
+**Idioma**: botão de bandeira/sigla (PT/EN/ES/中文) no cabeçalho e na tela
+de login troca o idioma da interface entre português, inglês, espanhol e
+chinês — também preferência de cada aparelho (fica salva no navegador,
+igual o tema). A tradução cobre todo o "chrome" do app: abas, botões,
+rótulos, mensagens, textos da aba Notícias (incluindo o selo de regime e o
+alerta de nível crítico) e a tela de login. **O que fica sempre em
+português**, porque é conteúdo/dado e não texto de interface: nome dos
+municípios e das calhas, direção da rota (ex. "Manaus -> leste"), nome de
+embarcações, observações pessoais, nome da empresa, e a nota de segurança
+específica de cada município (Aduaneiro/Corredor de Escoamento) — só o
+rótulo da categoria é traduzido, o texto individual de cada município não.
+Os textos ficam em `js/i18n.js` (um dicionário por idioma); `aplicarIdioma()`
+e `alternarIdioma()`, em `js/app.js`, aplicam a troca e reconstroem o
+conteúdo das abas.
+
 ## Login e perfis (admin/cliente)
 
 Cada pessoa tem sua própria conta (e-mail + senha via Supabase Auth). Além
@@ -183,9 +198,12 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
   "de fábrica" de cada município (MUNINFO — usados como ponto de partida e
   pelo botão "Restaurar original")
 - `js/supabase-config.js` — URL do projeto e chave pública do Supabase
+- `js/i18n.js` — dicionário de tradução da interface (PT/EN/ES/中文) e as
+  funções `t()`/`tf()` que buscam o texto no idioma atual
 - `js/app.js` — lógica das 5 abas, perfis (admin/cliente), dados da empresa,
   leitura/escrita no Supabase (Configurações e Observações), renderização
-  do mapa e classificação de regime do rio (`NIVEL_REGIMES`, aba Notícias)
+  do mapa, classificação de regime do rio (`NIVEL_REGIMES`, aba Notícias) e
+  troca de idioma (`aplicarIdioma()`)
 - `supabase/schema.sql` — tabelas (`municipios_info`, `observacoes`,
   `perfis`, `config_empresa`) e regras de acesso (RLS), incluindo a função
   `is_admin()`

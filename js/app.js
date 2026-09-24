@@ -66,6 +66,34 @@ function alternarTema() {
   aplicarTema(atual === 'light' ? 'dark' : 'light');
 }
 
+/* ── Idioma da interface (PT/EN/ES/ZH) ──
+   Preferência de cada aparelho (localStorage), igual o tema — não é dado
+   da empresa. setIdiomaEstatico() (em i18n.js) troca o texto estático do
+   HTML (via data-i18n); aqui a gente completa reconstruindo o conteúdo
+   dinâmico das abas (gerado em JS) e o que estiver aberto no momento
+   (balão de visualização/edição, popup do mapa). */
+function aplicarIdioma(lang) {
+  setIdiomaEstatico(lang);
+  atualizarHeroSub();
+  if (typeof ROTAS === 'undefined') return; // data.js ainda não carregou
+  bRO();
+  bINFO();
+  if (souAdmin()) bCO();
+  bNIVEL();
+  if (cur === 'm') { buildMapFilters(); renderMap(); }
+  if (viewSeq) renderInfoView();
+  if (editState) renderSheet();
+}
+function alternarIdioma() {
+  var i = LANGS.indexOf(LANG);
+  aplicarIdioma(LANGS[(i + 1) % LANGS.length]);
+}
+function atualizarHeroSub() {
+  var el = document.getElementById('hero-sub'); if (!el || typeof ROTAS === 'undefined') return;
+  var totalMun = ROTAS.reduce(function (soma, r) { return soma + r.municipios.length; }, 0);
+  el.textContent = tf('hero_sub_tpl', { calhas: ROTAS.length, municipios: totalMun });
+}
+
 async function salvarConfigEmpresa() {
   var nomeEl = document.getElementById('in-empresa-nome');
   var logoEl = document.getElementById('in-empresa-logo');
@@ -73,18 +101,18 @@ async function salvarConfigEmpresa() {
   var nome = nomeEl.value.trim();
   var logo = logoEl.value.trim();
   var btn = document.querySelector('.empresa-card .sh-save');
-  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('salvando'); }
   var res = await sb.from('config_empresa').upsert({ id: 1, nome_empresa: nome || null, logo_url: logo || null }, { onConflict: 'id' });
   if (res.error) {
-    alert('Não consegui salvar: ' + res.error.message);
-    if (btn) { btn.disabled = false; btn.textContent = '✓ Salvar dados da empresa'; }
+    alert(tf('erro_salvar_tpl', { msg: res.error.message }));
+    if (btn) { btn.disabled = false; btn.textContent = t('empresa_save_btn'); }
     return;
   }
   CONFIG_EMPRESA = { nome_empresa: nome || null, logo_url: logo || null };
   aplicarBranding();
   if (btn) {
-    btn.disabled = false; btn.textContent = '✓ Salvo!';
-    setTimeout(function () { if (btn) btn.textContent = '✓ Salvar dados da empresa'; }, 1500);
+    btn.disabled = false; btn.textContent = t('salvo_ok');
+    setTimeout(function () { if (btn) btn.textContent = t('empresa_save_btn'); }, 1500);
   }
 }
 
@@ -158,7 +186,7 @@ async function setInfo(seq, info) {
     emb: info.emb,
     dias: info.dias || []
   }, { onConflict: 'seq' });
-  if (res.error) { alert('Não consegui salvar: ' + res.error.message); throw res.error; }
+  if (res.error) { alert(tf('erro_salvar_tpl', { msg: res.error.message })); throw res.error; }
   MUNINFO_LIVE[seq] = JSON.parse(JSON.stringify(info));
 }
 
@@ -235,14 +263,18 @@ var NIVEL_HIST = []; // [{data,nivel_m,variacao_cm,tendencia,fonte}], mais antig
 // caso a caso) — por isso o corte crítico aqui (abaixo de 15m) é só uma
 // referência aproximada da mínima histórica, não uma cota oficial.
 var NIVEL_ESCALA_MIN = 11, NIVEL_ESCALA_MAX = 30;
+/* "label" é fixo (chave interna, não muda com idioma) — o texto exibido
+   vem de t('regime_' + label) na hora de renderizar (ver regimeLabel()),
+   assim a mesma faixa aparece certa nos 4 idiomas. */
 var NIVEL_REGIMES = [
-  { ate: 15,   label: 'Seca severa',         classe: 'seca-severa', cor: '#ea580c', critico: true  },
-  { ate: 19,   label: 'Seca',                classe: 'seca',        cor: '#f59e0b', critico: false },
-  { ate: 27,   label: 'Normal',               classe: 'normal',     cor: '#14b8a6', critico: false },
-  { ate: 27.5, label: 'Atenção',              classe: 'atencao',    cor: '#eab308', critico: true  },
-  { ate: 29,   label: 'Alerta (cheia)',       classe: 'alerta',     cor: '#3b82c4', critico: true  },
-  { ate: 99,   label: 'Emergência (cheia)',   classe: 'emergencia', cor: '#ef4444', critico: true  }
+  { ate: 15,   label: 'seca_severa', classe: 'seca-severa', cor: '#ea580c', critico: true  },
+  { ate: 19,   label: 'seca',        classe: 'seca',        cor: '#f59e0b', critico: false },
+  { ate: 27,   label: 'normal',      classe: 'normal',      cor: '#14b8a6', critico: false },
+  { ate: 27.5, label: 'atencao',     classe: 'atencao',     cor: '#eab308', critico: true  },
+  { ate: 29,   label: 'alerta',      classe: 'alerta',      cor: '#3b82c4', critico: true  },
+  { ate: 99,   label: 'emergencia',  classe: 'emergencia',  cor: '#ef4444', critico: true  }
 ];
+function regimeLabel(regime) { return t('regime_' + regime.label); }
 function classificarNivel(nivel) {
   for (var i = 0; i < NIVEL_REGIMES.length; i++) {
     if (nivel <= NIVEL_REGIMES[i].ate) return NIVEL_REGIMES[i];
@@ -250,21 +282,15 @@ function classificarNivel(nivel) {
   return NIVEL_REGIMES[NIVEL_REGIMES.length - 1];
 }
 
-var NIVEL_ALERTA_TEXTOS = {
-  'seca-severa': 'Rio numa faixa de seca severa, próxima da mínima histórica. Pode afetar a passagem de embarcações com mais calado em trechos rasos.',
-  'atencao':     'Rio na cota de atenção (Defesa Civil de Manaus/SGB). Ainda sem restrição, mas vale acompanhar de perto.',
-  'alerta':      'Rio na cota de alerta/inundação (Defesa Civil de Manaus/SGB). Pode afetar áreas mais baixas e o acesso a alguns portos/trapiches.',
-  'emergencia':  'Rio na cota de emergência (Defesa Civil de Manaus/SGB) — nível de inundação severa.'
-};
 /* Banner chamativo no topo da aba Notícias quando o nível entra numa faixa
    crítica (ver campo "critico" em NIVEL_REGIMES) — o selo discreto ao lado
    do valor já existia, isso aqui é só pra quem não repara no selo. */
 function nivelAlertaHTML(regime) {
   if (!regime.critico) return '';
-  var texto = NIVEL_ALERTA_TEXTOS[regime.classe] || '';
+  var texto = t('alert_text_' + regime.label) || '';
   return '<div class="niv-alert-banner ' + regime.classe + '">'
     + '<span class="niv-alert-ic">⚠️</span>'
-    + '<div><div class="niv-alert-tt">Nível do rio em ' + regime.label + '</div>'
+    + '<div><div class="niv-alert-tt">' + tf('niv_alert_title_tpl', { regime: regimeLabel(regime) }) + '</div>'
     + '<div class="niv-alert-tx">' + texto + '</div></div>'
     + '</div>';
 }
@@ -274,7 +300,7 @@ function nivelAlertaHTML(regime) {
 function atualizarAlertaAba(critico) {
   document.querySelectorAll('.htab[data-s="n"], #bt-n').forEach(function (el) {
     var existente = el.querySelector('.tab-alert-dot');
-    if (critico && !existente) el.insertAdjacentHTML('beforeend', '<span class="tab-alert-dot" title="Nível do rio em faixa crítica"></span>');
+    if (critico && !existente) el.insertAdjacentHTML('beforeend', '<span class="tab-alert-dot" title="' + t('alert_dot_title') + '"></span>');
     if (!critico && existente) existente.remove();
   });
 }
@@ -312,7 +338,7 @@ function fmtDataBR(iso) {
 }
 
 function niveTrendIcone(t) { return t === 'subindo' ? '📈' : (t === 'descendo' ? '📉' : '➖'); }
-function niveTrendTexto(t) { return t === 'subindo' ? 'Enchendo' : (t === 'descendo' ? 'Vazando' : 'Estável'); }
+function niveTrendTexto(tr) { return tr === 'subindo' ? t('trend_subindo') : (tr === 'descendo' ? t('trend_descendo') : t('trend_estavel')); }
 
 function nivelGaugeHTML(nivel) {
   var min = NIVEL_ESCALA_MIN, max = NIVEL_ESCALA_MAX;
@@ -325,8 +351,8 @@ function nivelGaugeHTML(nivel) {
   });
   return '<div class="niv-gauge-wrap">'
     + '<div class="niv-gauge">' + zonasHTML + '<div class="niv-gauge-marker" style="left:' + pct + '%"></div></div>'
-    + '<div class="niv-gauge-labels"><span>Seca</span><span>Normal</span><span>Atenção/Alerta/Emergência</span></div>'
-    + '<div class="niv-gauge-note">Lado da cheia usa as cotas oficiais da Defesa Civil de Manaus/SGB (atenção 27,00m · alerta 27,50m · emergência 29,00m). Não existe cota oficial de seca — o corte de 19,00m é uma referência informal, com base na mínima histórica (12,70m, a pior seca em 121 anos, out/2023).</div>'
+    + '<div class="niv-gauge-labels"><span>' + t('niv_gauge_seca') + '</span><span>' + t('niv_gauge_normal') + '</span><span>' + t('niv_gauge_alerta_grupo') + '</span></div>'
+    + '<div class="niv-gauge-note">' + t('niv_gauge_note') + '</div>'
     + '</div>';
 }
 
@@ -348,14 +374,14 @@ function nivelChartSVG(hist) {
     + '<circle cx="' + lastPt[0] + '" cy="' + lastPt[1] + '" r="4" fill="#2f9bd6"/>'
     + '</svg>'
     + '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--mu);margin-top:4px">'
-    + '<span>mín ' + min.toFixed(2) + 'm</span><span>máx ' + max.toFixed(2) + 'm</span></div>';
+    + '<span>' + t('min_abbr') + ' ' + min.toFixed(2) + 'm</span><span>' + t('max_abbr') + ' ' + max.toFixed(2) + 'm</span></div>';
 }
 
 function bNIVEL() {
   var body = document.getElementById('nbdy'); if (!body) return;
 
   if (!NIVEL_HIST.length) {
-    body.innerHTML = '<div class="niv-empty">Ainda não tem nenhuma leitura do nível do rio salva.<br>A coleta automática roda 1x por dia — volte mais tarde.</div>';
+    body.innerHTML = '<div class="niv-empty">' + t('niv_empty_html') + '</div>';
     atualizarAlertaAba(false);
     return;
   }
@@ -371,7 +397,7 @@ function bNIVEL() {
     var diffTxt = (diff > 0 ? '+' : '') + diff.toFixed(2).replace('.', ',') + 'm';
     var diffClasse = diff > 0.05 ? 'subindo' : (diff < -0.05 ? 'descendo' : 'estavel');
     compHTML = '<div class="niv-comp">'
-      + '<span class="niv-comp-label">' + (anoPassado.exato ? 'Mesmo dia do ano passado' : 'Próximo do mesmo dia, ano passado') + ' (' + fmtDataBR(anoPassado.item.data) + ')</span>'
+      + '<span class="niv-comp-label">' + (anoPassado.exato ? t('niv_mesmo_dia_ano_passado') : t('niv_proximo_mesmo_dia')) + ' (' + fmtDataBR(anoPassado.item.data) + ')</span>'
       + '<span class="niv-comp-val">' + anoPassado.item.nivel_m.toFixed(2).replace('.', ',') + 'm'
       + ' <span class="niv-comp-diff ' + diffClasse + '">(' + diffTxt + ')</span></span>'
       + '</div>';
@@ -379,28 +405,28 @@ function bNIVEL() {
 
   var regime = classificarNivel(atual.nivel_m);
   var cardHTML = '<div class="niv-card">'
-    + '<div class="niv-top"><span class="niv-label">🌊 Nível do Rio Negro</span><span class="niv-fonte">Fonte:<br>' + atual.fonte + '</span></div>'
-    + '<div class="niv-value-row"><span class="niv-value">' + atual.nivel_m.toFixed(2).replace('.', ',') + '</span><span class="niv-unit">metros</span></div>'
+    + '<div class="niv-top"><span class="niv-label">' + t('niv_label') + '</span><span class="niv-fonte">' + t('niv_fonte_label') + '<br>' + atual.fonte + '</span></div>'
+    + '<div class="niv-value-row"><span class="niv-value">' + atual.nivel_m.toFixed(2).replace('.', ',') + '</span><span class="niv-unit">' + t('niv_unit') + '</span></div>'
     + '<div class="niv-badges">'
-    + '<span class="niv-regime ' + regime.classe + '">' + regime.label + '</span>'
+    + '<span class="niv-regime ' + regime.classe + '">' + regimeLabel(regime) + '</span>'
     + '<span class="niv-trend ' + atual.tendencia + '">' + niveTrendIcone(atual.tendencia) + ' ' + niveTrendTexto(atual.tendencia)
-    + ' · ' + (atual.variacao_cm > 0 ? '+' : '') + atual.variacao_cm.toFixed(0) + ' cm hoje</span>'
+    + ' · ' + (atual.variacao_cm > 0 ? '+' : '') + atual.variacao_cm.toFixed(0) + ' cm ' + t('niv_hoje') + '</span>'
     + '</div>'
-    + '<div class="niv-date">Atualizado em ' + fmtDataBR(atual.data) + '</div>'
+    + '<div class="niv-date">' + t('niv_atualizado_em') + ' ' + fmtDataBR(atual.data) + '</div>'
     + nivelGaugeHTML(atual.nivel_m)
     + compHTML
     + '</div>';
 
   var chartHTML = '<div class="niv-chart-card">'
-    + '<div class="niv-chart-hdr"><span class="niv-chart-title">Histórico</span><span class="niv-chart-range">últimas ' + historico90.length + ' leituras</span></div>'
+    + '<div class="niv-chart-hdr"><span class="niv-chart-title">' + t('niv_historico_title') + '</span><span class="niv-chart-range">' + tf('niv_historico_range_tpl', { n: historico90.length }) + '</span></div>'
     + '<div class="niv-chart">' + nivelChartSVG(historico90) + '</div>'
     + '</div>';
 
-  var feedHTML = '<div class="niv-feed-title">Notícias do nível</div>'
+  var feedHTML = '<div class="niv-feed-title">' + t('niv_feed_title') + '</div>'
     + feedItens.map(function (h) {
       var txt = (h.tendencia === 'estavel')
-        ? 'Nível estável em ' + h.nivel_m.toFixed(2) + 'm'
-        : (niveTrendTexto(h.tendencia) + ' ' + Math.abs(h.variacao_cm).toFixed(0) + 'cm — nível em ' + h.nivel_m.toFixed(2) + 'm');
+        ? tf('niv_feed_estavel_tpl', { v: h.nivel_m.toFixed(2) })
+        : tf('niv_feed_trend_tpl', { trend: niveTrendTexto(h.tendencia), cm: Math.abs(h.variacao_cm).toFixed(0), v: h.nivel_m.toFixed(2) });
       return '<div class="niv-feed-item">'
         + '<div class="niv-feed-icon">' + niveTrendIcone(h.tendencia) + '</div>'
         + '<div class="niv-feed-body"><div class="niv-feed-text">' + txt + '</div><div class="niv-feed-date">' + fmtDataBR(h.data) + ' · ' + h.fonte + '</div></div>'
@@ -439,11 +465,14 @@ function principalEmb(lista) {
 }
 
 /* ── Avaliação (1-5 estrelas, por embarcação) e dias de saída do
-   porto (por município — não muda de embarcação pra embarcação) ── */
-var DIAS_SEMANA = [
-  { k: 'seg', l: 'S' }, { k: 'ter', l: 'T' }, { k: 'qua', l: 'Q' }, { k: 'qui', l: 'Q' },
-  { k: 'sex', l: 'S' }, { k: 'sab', l: 'S' }, { k: 'dom', l: 'D' }
-];
+   porto (por município — não muda de embarcação pra embarcação) ──
+   As chaves ('seg','ter'...) nunca mudam (é o que fica salvo no banco);
+   a letra/nome mostrados na tela vêm traduzidos de i18n.js (chaves dl_ e dn_),
+   pra fazer sentido em qualquer um dos 4 idiomas (ex: em inglês, o certo
+   é "M T W T F S S", não "S T Q Q S S D"). */
+var DIAS_SEMANA_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
+function diaLetra(k) { return t('dl_' + k); }
+function diaNome(k) { return t('dn_' + k); }
 function estrelasHTML(nota) {
   var n = Number(nota) || 0;
   var s = '';
@@ -453,8 +482,8 @@ function estrelasHTML(nota) {
 function diasBadgeHTML(dias) {
   dias = dias || [];
   if (!dias.length) return '';
-  return '<div class="emb-dias-badges">' + DIAS_SEMANA.map(function (d) {
-    return '<span class="dia-badge' + (dias.indexOf(d.k) !== -1 ? ' on' : '') + '">' + d.l + '</span>';
+  return '<div class="emb-dias-badges">' + DIAS_SEMANA_KEYS.map(function (k) {
+    return '<span class="dia-badge' + (dias.indexOf(k) !== -1 ? ' on' : '') + '" title="' + diaNome(k) + '">' + diaLetra(k) + '</span>';
   }).join('') + '</div>';
 }
 
@@ -479,19 +508,25 @@ function segTiposDaRota(r) {
   return lista;
 }
 
+/* SEGURANCA_META (data.js) guarda só o que não muda com idioma (cor,
+   ícone, chave "tipo"); o texto (label/curto/desc) vem daqui, traduzido. */
+function segMetaLabel(tipo) { return t('seg_' + tipo + '_label'); }
+function segMetaCurto(tipo) { return t('seg_' + tipo + '_curto'); }
+function segMetaDesc(tipo) { return t('seg_' + tipo + '_desc'); }
+
 function buildRotaHeader(r) {
   var rodoviaria = isRodoviaria(r);
   var veicIc = rodoviaria ? '🚌' : '🚤';
   var kmFmt = kmTotalRota(r).toLocaleString('pt-BR');
   var segBadges = segTiposDaRota(r).map(function (tipo) {
     var meta = SEGURANCA_META[tipo];
-    return '<span class="rseg-badge" style="background:' + meta.cor + '22;color:' + meta.cor + ';border-color:' + meta.cor + '55" title="' + meta.label + '">' + meta.icone + '</span>';
+    return '<span class="rseg-badge" style="background:' + meta.cor + '22;color:' + meta.cor + ';border-color:' + meta.cor + '55" title="' + segMetaLabel(tipo) + '">' + meta.icone + '</span>';
   }).join('');
   return '<div class="rhead" onclick="toggleRota(\'' + r.num + '\', this)">'
     + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
     + '<div class="rinfo">'
-    + '<div class="rnome">Calha ' + r.nome + ' <span class="rveic" title="' + (rodoviaria ? 'Rota rodoviária' : 'Rota fluvial') + '">' + veicIc + '</span>' + segBadges + '</div>'
-    + '<div class="rsub">' + r.municipios.length + ' municípios · ' + kmFmt + ' km total · ' + r.dir + '</div>'
+    + '<div class="rnome">' + t('calha_word') + ' ' + r.nome + ' <span class="rveic" title="' + (rodoviaria ? t('rota_rodoviaria_title') : t('rota_fluvial_title')) + '">' + veicIc + '</span>' + segBadges + '</div>'
+    + '<div class="rsub">' + r.municipios.length + ' ' + t('municipios_word') + ' · ' + kmFmt + ' km ' + t('total_word') + ' · ' + r.dir + '</div>'
     + '</div>'
     + '<div class="rchv">▶</div>'
     + '</div>';
@@ -556,8 +591,8 @@ function bINFO() {
   body.innerHTML = ROTAS.map(function (r, ri) {
     var chips = r.municipios.map(function (m) {
       var seg = SEGURANCA[m.seq];
-      var dot = seg ? '<span class="chip-segdot" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
-      var obsDot = getObs(m.seq) ? '<span class="chip-obsdot" title="Tem observação salva"></span>' : '';
+      var dot = seg ? '<span class="chip-segdot" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + segMetaLabel(seg.tipo) + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
+      var obsDot = getObs(m.seq) ? '<span class="chip-obsdot" title="' + t('obs_saved_dot_title') + '"></span>' : '';
       return '<button class="chip" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" style="border-color:' + r.cor + '" onclick="abrirInfoView(\'' + m.seq + '\')">'
         + '<span class="chip-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
         + dot + obsDot
@@ -566,8 +601,8 @@ function bINFO() {
     return '<div class="rcard open" id="icard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + '<div class="rhead rhead-static">'
       + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
-      + '<div class="rinfo"><div class="rnome">Calha ' + r.nome + '</div>'
-      + '<div class="rsub">' + r.municipios.length + ' municípios</div></div></div>'
+      + '<div class="rinfo"><div class="rnome">' + t('calha_word') + ' ' + r.nome + '</div>'
+      + '<div class="rsub">' + r.municipios.length + ' ' + t('municipios_word') + '</div></div></div>'
       + '<div class="rbody"><div class="rbody-inner"><div class="chipgrid">' + chips + '</div></div></div>'
       + '</div>';
   }).join('');
@@ -602,7 +637,7 @@ function abrirInfoView(seq) {
 }
 
 function embListViewHTML(lista) {
-  if (!lista || !lista.length) return '<div class="emb-empty">Nenhuma embarcação cadastrada.</div>';
+  if (!lista || !lista.length) return '<div class="emb-empty">' + t('emb_empty') + '</div>';
   return lista.map(function (item) {
     return '<div class="sh-view-emb">'
       + '<div class="sh-view-emb-top">'
@@ -623,36 +658,36 @@ function renderInfoView() {
     '<div class="sh-hdr">'
     + '<div class="sh-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
     + '<div><div class="sh-nome">' + m.nome + '</div>'
-    + '<div class="sh-badge" style="background:' + r.cor + '">CALHA ' + r.nome.toUpperCase() + '</div></div>'
+    + '<div class="sh-badge" style="background:' + r.cor + '">' + t('calha_word').toUpperCase() + ' ' + r.nome.toUpperCase() + '</div></div>'
     + '</div>'
 
     + segHTML(seq)
 
     + '<div class="sh-view-grid">'
-    + '<div class="sh-view-kpi"><div class="sh-view-kt">TT Amazon</div><div class="sh-view-kv">' + fmtTA(info.ta) + '</div></div>'
-    + '<div class="sh-view-kpi"><div class="sh-view-kt">Distância</div><div class="sh-view-kv">' + m.km + ' km</div></div>'
-    + '<div class="sh-view-kpi"><div class="sh-view-kt">Transit rota</div><div class="sh-view-kv">' + m.tt + '</div></div>'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('kpi_tt_amazon') + '</div><div class="sh-view-kv">' + fmtTA(info.ta) + '</div></div>'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('kpi_distancia') + '</div><div class="sh-view-kv">' + m.km + ' km</div></div>'
+    + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('kpi_transit_rota') + '</div><div class="sh-view-kv">' + m.tt + '</div></div>'
     + '</div>'
 
     + '<div class="sh-season">'
-    + '<label class="sh-sub" style="margin-top:0">🗓️ Dias de saída do porto</label>'
-    + (info.dias && info.dias.length ? diasBadgeHTML(info.dias) : '<div class="emb-empty">Não informado.</div>')
+    + '<label class="sh-sub" style="margin-top:0">' + t('dias_saida_view_label') + '</label>'
+    + (info.dias && info.dias.length ? diasBadgeHTML(info.dias) : '<div class="emb-empty">' + t('dias_nao_informado') + '</div>')
     + '</div>'
 
     + '<div class="sh-season">'
-    + '<div class="sh-season-hdr">💰 PREÇO POR SACA</div>'
-    + '<div class="sh-price-line"><span class="sh-price-tag" style="color:#f59e0b">🏜️ Seca</span><span class="sh-view-price">' + fmtSaca(info.ps.seca) + ' /saca</span></div>'
-    + '<div class="sh-price-line"><span class="sh-price-tag" style="color:#0ea5e9">🌊 Cheia</span><span class="sh-view-price">' + fmtSaca(info.ps.cheia) + ' /saca</span></div>'
+    + '<div class="sh-season-hdr">' + t('preco_saca_title') + '</div>'
+    + '<div class="sh-price-line"><span class="sh-price-tag" style="color:#f59e0b">' + t('preco_seca_view') + '</span><span class="sh-view-price">' + fmtSaca(info.ps.seca) + ' ' + t('per_saca_suffix') + '</span></div>'
+    + '<div class="sh-price-line"><span class="sh-price-tag" style="color:#0ea5e9">' + t('preco_cheia_view') + '</span><span class="sh-view-price">' + fmtSaca(info.ps.cheia) + ' ' + t('per_saca_suffix') + '</span></div>'
     + '</div>'
 
     + '<div class="sh-season">'
-    + '<label class="sh-sub" style="margin-top:0">Embarcações mais usadas</label>'
+    + '<label class="sh-sub" style="margin-top:0">' + t('emb_mais_usadas') + '</label>'
     + '<div class="sh-view-emblist">' + embListViewHTML(info.emb) + '</div>'
     + '</div>'
 
     + '<div class="sh-obs-wrap">'
-    + '<label class="sh-sub">Observações <span class="sh-obs-hint">(só você vê — fica na sua conta)</span></label>'
-    + '<textarea class="sh-obs" id="in-obs" placeholder="Anotações pessoais sobre ' + m.nome + '..." oninput="setObs(\'' + seq + '\', this.value)">' + (getObs(seq) || '').replace(/</g, '&lt;') + '</textarea>'
+    + '<label class="sh-sub">' + t('observacoes_label') + ' <span class="sh-obs-hint">' + t('observacoes_hint') + '</span></label>'
+    + '<textarea class="sh-obs" id="in-obs" placeholder="' + tf('observacoes_ph_tpl', { nome: m.nome }).replace(/"/g, '&quot;') + '" oninput="setObs(\'' + seq + '\', this.value)">' + (getObs(seq) || '').replace(/</g, '&lt;') + '</textarea>'
     + '</div>';
 
   document.getElementById('sheet-body').innerHTML = html;
@@ -668,28 +703,28 @@ function renderInfoView() {
 function empresaPanelHTML() {
   return '<div class="rcard open empresa-card">'
     + '<div class="rhead rhead-static">'
-    + '<div class="rinfo"><div class="rnome">🏢 Dados da empresa</div>'
-    + '<div class="rsub">Nome e logo aparecem no cabeçalho pra todo mundo</div></div>'
+    + '<div class="rinfo"><div class="rnome">' + t('empresa_card_title') + '</div>'
+    + '<div class="rsub">' + t('empresa_card_sub') + '</div></div>'
     + '</div>'
     + '<div class="rbody"><div class="rbody-inner">'
-    + '<div class="sh-field"><label>Nome da empresa</label>'
-    + '<input type="text" id="in-empresa-nome" value="' + (CONFIG_EMPRESA.nome_empresa || '').replace(/"/g, '&quot;') + '" placeholder="Ex: Facil Express"></div>'
-    + '<div class="sh-field"><label>URL do logo (imagem)</label>'
-    + '<input type="text" id="in-empresa-logo" value="' + (CONFIG_EMPRESA.logo_url || '').replace(/"/g, '&quot;') + '" placeholder="https://..."></div>'
-    + '<button class="sh-btn sh-save" onclick="salvarConfigEmpresa()">✓ Salvar dados da empresa</button>'
+    + '<div class="sh-field"><label>' + t('empresa_nome_label') + '</label>'
+    + '<input type="text" id="in-empresa-nome" value="' + (CONFIG_EMPRESA.nome_empresa || '').replace(/"/g, '&quot;') + '" placeholder="' + t('empresa_nome_ph') + '"></div>'
+    + '<div class="sh-field"><label>' + t('empresa_logo_label') + '</label>'
+    + '<input type="text" id="in-empresa-logo" value="' + (CONFIG_EMPRESA.logo_url || '').replace(/"/g, '&quot;') + '" placeholder="' + t('empresa_logo_ph') + '"></div>'
+    + '<button class="sh-btn sh-save" onclick="salvarConfigEmpresa()">' + t('empresa_save_btn') + '</button>'
     + '</div></div>'
     + '</div>';
 }
 
 function bCO() {
   var body = document.getElementById('cbdy'); if (!body) return;
-  if (!souAdmin()) { body.innerHTML = '<div class="emb-empty" style="padding:20px;">Você não tem permissão pra ver Configurações.</div>'; return; }
+  if (!souAdmin()) { body.innerHTML = '<div class="emb-empty" style="padding:20px;">' + t('config_no_permission') + '</div>'; return; }
   body.innerHTML = empresaPanelHTML() + ROTAS.map(function (r, ri) {
     var mRows = r.municipios.map(function (m, i) {
       var info = getInfo(m.seq);
       var pEmb = principalEmb(info.emb);
       var seg = SEGURANCA[m.seq];
-      var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + SEGURANCA_META[seg.tipo].label + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
+      var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + segMetaLabel(seg.tipo) + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
       return '<div class="irow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
         + '<span class="mseq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
         + '<div class="iinfo">'
@@ -706,8 +741,8 @@ function bCO() {
     return '<div class="rcard open" id="ccard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
       + '<div class="rhead rhead-static">'
       + '<div class="rnb" style="background:' + r.cor + '">' + r.num + '</div>'
-      + '<div class="rinfo"><div class="rnome">Calha ' + r.nome + '</div>'
-      + '<div class="rsub">' + r.municipios.length + ' municípios</div></div></div>'
+      + '<div class="rinfo"><div class="rnome">' + t('calha_word') + ' ' + r.nome + '</div>'
+      + '<div class="rsub">' + r.municipios.length + ' ' + t('municipios_word') + '</div></div></div>'
       + '<div class="rbody"><div class="rbody-inner">' + mRows + '</div></div>'
       + '</div>';
   }).join('');
@@ -758,12 +793,12 @@ function segHTML(seq) {
   return '<div class="sh-seg sh-seg-' + seg.tipo + '" style="border-color:' + meta.cor + '66">'
     + '<div class="sh-seg-hdr" onclick="segAberto=!segAberto; document.getElementById(\'sh-seg-body\').style.display = segAberto ? \'block\' : \'none\'; this.querySelector(\'.sh-seg-chv\').textContent = segAberto ? \'▾\' : \'▸\';" style="color:' + meta.cor + '">'
     + '<span class="sh-seg-ic">' + meta.icone + '</span>'
-    + '<span class="sh-seg-tt">' + meta.label.toUpperCase() + '</span>'
+    + '<span class="sh-seg-tt">' + segMetaLabel(seg.tipo).toUpperCase() + '</span>'
     + '<span class="sh-seg-chv">▾</span>'
     + '</div>'
     + '<div id="sh-seg-body" class="sh-seg-body" style="display:' + (segAberto ? 'block' : 'none') + '">'
     + '<div class="sh-seg-nota">' + seg.nota + '</div>'
-    + '<div class="sh-seg-desc">' + meta.desc + '</div>'
+    + '<div class="sh-seg-desc">' + segMetaDesc(seg.tipo) + '</div>'
     + '</div></div>';
 }
 
@@ -775,13 +810,13 @@ function embRowHTML(idx, item) {
   }
   return '<div class="emb-row">'
     + '<div class="emb-row-top">'
-    + '<input class="emb-in emb-nome" type="text" value="' + (item.n || '').replace(/"/g, '&quot;') + '" placeholder="Nome da embarcação" '
+    + '<input class="emb-in emb-nome" type="text" value="' + (item.n || '').replace(/"/g, '&quot;') + '" placeholder="' + t('emb_nome_ph') + '" '
     + 'oninput="editEmb(' + idx + ',\'n\',this.value)">'
-    + '<input class="emb-in emb-tt" type="number" step="0.1" min="0" value="' + (item.tt === null || item.tt === undefined ? '' : item.tt) + '" placeholder="dias" '
+    + '<input class="emb-in emb-tt" type="number" step="0.1" min="0" value="' + (item.tt === null || item.tt === undefined ? '' : item.tt) + '" placeholder="' + t('emb_tt_ph') + '" '
     + 'oninput="editEmb(' + idx + ',\'tt\',this.value)">'
     + '<button class="emb-rm" onclick="removeEmb(' + idx + ')">✕</button>'
     + '</div>'
-    + '<div class="emb-row-mid"><span class="emb-stars-label">Avaliação</span><span class="star-picker">' + starsHTML + '</span></div>'
+    + '<div class="emb-row-mid"><span class="emb-stars-label">' + t('avaliacao_label') + '</span><span class="star-picker">' + starsHTML + '</span></div>'
     + '</div>';
 }
 
@@ -807,47 +842,47 @@ function renderSheet() {
   var hit = NODEIDX[seq]; var r = hit.rota; var m = hit.mun;
 
   var embHTML = info.emb.map(function (item, i) { return embRowHTML(i, item); }).join('')
-    || '<div class="emb-empty">Nenhuma embarcação cadastrada.</div>';
+    || '<div class="emb-empty">' + t('emb_empty') + '</div>';
 
   var html =
     '<div class="sh-hdr">'
     + '<div class="sh-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
     + '<div><div class="sh-nome">' + m.nome + '</div>'
-    + '<div class="sh-badge" style="background:' + r.cor + '">CALHA ' + r.nome.toUpperCase() + '</div></div>'
+    + '<div class="sh-badge" style="background:' + r.cor + '">' + t('calha_word').toUpperCase() + ' ' + r.nome.toUpperCase() + '</div></div>'
     + '</div>'
 
     + segHTML(seq)
 
     + '<div class="sh-field">'
-    + '<label>Transit Time Amazon (dias)</label>'
+    + '<label>' + t('ta_label') + '</label>'
     + '<input type="number" step="0.1" min="0" id="in-ta" value="' + (info.ta === null || info.ta === undefined ? '' : info.ta) + '" oninput="editState.info.ta = this.value === \'\' ? null : Number(this.value)">'
     + '</div>'
 
     + '<div class="sh-field">'
-    + '<label>Dias de saída do porto</label>'
-    + '<div class="dia-chips">' + DIAS_SEMANA.map(function (d) {
-        var ativo = (info.dias || []).indexOf(d.k) !== -1;
-        return '<button type="button" class="dia-chip' + (ativo ? ' on' : '') + '" title="' + d.k + '" onclick="toggleInfoDia(\'' + d.k + '\')">' + d.l + '</button>';
+    + '<label>' + t('dias_saida_edit_label') + '</label>'
+    + '<div class="dia-chips">' + DIAS_SEMANA_KEYS.map(function (k) {
+        var ativo = (info.dias || []).indexOf(k) !== -1;
+        return '<button type="button" class="dia-chip' + (ativo ? ' on' : '') + '" title="' + diaNome(k) + '" onclick="toggleInfoDia(\'' + k + '\')">' + diaLetra(k) + '</button>';
       }).join('') + '</div>'
     + '</div>'
 
     + '<div class="sh-season">'
-    + '<div class="sh-season-hdr">💰 PREÇO POR SACA</div>'
-    + '<div class="sh-field"><label style="color:#f59e0b">🏜️ Seca (R$)</label>'
+    + '<div class="sh-season-hdr">' + t('preco_saca_title') + '</div>'
+    + '<div class="sh-field"><label style="color:#f59e0b">' + t('preco_seca_edit') + '</label>'
     + '<input type="number" step="0.5" min="0" value="' + (info.ps.seca === null || info.ps.seca === undefined ? '' : info.ps.seca) + '" oninput="editState.info.ps.seca = this.value === \'\' ? null : Number(this.value)"></div>'
-    + '<div class="sh-field"><label style="color:#0ea5e9">🌊 Cheia (R$)</label>'
+    + '<div class="sh-field"><label style="color:#0ea5e9">' + t('preco_cheia_edit') + '</label>'
     + '<input type="number" step="0.5" min="0" value="' + (info.ps.cheia === null || info.ps.cheia === undefined ? '' : info.ps.cheia) + '" oninput="editState.info.ps.cheia = this.value === \'\' ? null : Number(this.value)"></div>'
     + '</div>'
 
     + '<div class="sh-season">'
-    + '<label class="sh-sub" style="margin-top:0">Embarcações mais usadas</label>'
+    + '<label class="sh-sub" style="margin-top:0">' + t('emb_mais_usadas') + '</label>'
     + '<div id="emb-list">' + embHTML + '</div>'
-    + '<button class="emb-add" onclick="addEmb()">+ Adicionar embarcação</button>'
+    + '<button class="emb-add" onclick="addEmb()">' + t('emb_add_btn') + '</button>'
     + '</div>'
 
     + '<div class="sh-actions">'
-    + '<button class="sh-btn sh-reset" onclick="resetSheetAtual()">⟲ Restaurar original</button>'
-    + '<button class="sh-btn sh-save" onclick="salvarSheet()">✓ Salvar</button>'
+    + '<button class="sh-btn sh-reset" onclick="resetSheetAtual()">' + t('restaurar_btn') + '</button>'
+    + '<button class="sh-btn sh-save" onclick="salvarSheet()">' + t('salvar_btn') + '</button>'
     + '</div>';
 
   document.getElementById('sheet-body').innerHTML = html;
@@ -879,12 +914,12 @@ function salvarSheet() {
   editState.info.emb = editState.info.emb.filter(function (it) { return it.n && it.n.trim(); });
   var seq = editState.seq, info = editState.info;
   var btn = document.querySelector('.sh-save');
-  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('salvando'); }
   setInfo(seq, info).then(function () {
     fecharSheet();
     bCO();
   }).catch(function () {
-    if (btn) { btn.disabled = false; btn.textContent = '✓ Salvar'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('salvar_btn'); }
   });
 }
 
@@ -892,12 +927,12 @@ function resetSheetAtual() {
   if (!editState) return;
   var seq = editState.seq;
   var btn = document.querySelector('.sh-reset');
-  if (btn) { btn.disabled = true; btn.textContent = 'Restaurando...'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('restaurando'); }
   resetInfo(seq).then(function () {
     editState.info = getInfo(seq);
     renderSheet();
   }).catch(function () {
-    if (btn) { btn.disabled = false; btn.textContent = '⟲ Restaurar original'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('restaurar_btn'); }
   });
 }
 
@@ -1047,7 +1082,7 @@ function renderMap() {
         alertRing.setAttribute('width', String(labelW)); alertRing.setAttribute('height', String(labelH));
         alertRing.setAttribute('rx', String(4 * iz));
         alertRing.setAttribute('class', 'mnode-alert-ring');
-        var ringDelay = document.createElementNS(NS, 'title'); ringDelay.textContent = 'Ponto de atenção: ' + SEGURANCA_META[seg.tipo].label;
+        var ringDelay = document.createElementNS(NS, 'title'); ringDelay.textContent = t('seg_ponto_atencao') + ' ' + segMetaLabel(seg.tipo);
         alertRing.appendChild(ringDelay);
         grp.appendChild(alertRing);
       }
@@ -1209,11 +1244,11 @@ function showMapPopup(hit, label) {
     + '<span class="mp-rota" style="background:' + r.cor + '22;color:' + r.cor + '">' + r.nome.toUpperCase() + '</span></div>'
     + '<div class="mp-nome">' + m.nome + '</div>'
     + (seg ? '<button class="mp-segtag" style="background:' + segMeta.cor + '22;color:' + segMeta.cor + ';border-color:' + segMeta.cor + '55" onclick="verDetalheSeg(\'' + m.seq + '\')">'
-        + segMeta.icone + ' ' + segMeta.curto + ' <span class="mp-segtag-link">· ver detalhes ›</span></button>' : '')
+        + segMeta.icone + ' ' + segMetaCurto(seg.tipo) + ' <span class="mp-segtag-link">· ' + t('ver_detalhes') + '</span></button>' : '')
     + '<div class="mp-kpis">'
-    + '<div class="mp-kpi"><div class="mp-kt">Transit</div><div class="mp-kv">' + m.tt + '</div></div>'
-    + '<div class="mp-kpi"><div class="mp-kt">Distância</div><div class="mp-kv">' + m.km + ' km</div></div>'
-    + '<div class="mp-kpi"><div class="mp-kt">TT Amazon</div><div class="mp-kv">' + fmtTA(info.ta) + '</div></div>'
+    + '<div class="mp-kpi"><div class="mp-kt">' + t('kpi_transit') + '</div><div class="mp-kv">' + m.tt + '</div></div>'
+    + '<div class="mp-kpi"><div class="mp-kt">' + t('kpi_distancia') + '</div><div class="mp-kv">' + m.km + ' km</div></div>'
+    + '<div class="mp-kpi"><div class="mp-kt">' + t('kpi_tt_amazon') + '</div><div class="mp-kv">' + fmtTA(info.ta) + '</div></div>'
     + '</div>'
     + '<div class="mp-emb">'
     + '<div class="mp-embrow">🏜️ <b>' + fmtSaca(info.ps.seca) + '</b></div>'
@@ -1221,8 +1256,8 @@ function showMapPopup(hit, label) {
     + '<div class="mp-embrow">🚢 <b>' + (pEmb ? pEmb.n : '—') + '</b></div>'
     + '</div>'
     + '<div class="mp-nav">'
-    + (prev ? '<span>⬅ ' + prev.nome + '</span>' : '<span class="mp-dim">⬅ Início</span>')
-    + (next ? '<span>' + next.nome + ' ➡</span>' : '<span class="mp-dim">Fim ➡</span>')
+    + (prev ? '<span>⬅ ' + prev.nome + '</span>' : '<span class="mp-dim">⬅ ' + t('map_popup_inicio') + '</span>')
+    + (next ? '<span>' + next.nome + ' ➡</span>' : '<span class="mp-dim">' + t('map_popup_fim') + ' ➡</span>')
     + '</div>';
 
   popup.classList.add('on');
@@ -1266,7 +1301,7 @@ function buildMapFilters() {
   var cont = document.getElementById('map-filters'); if (!cont) return;
   cont.innerHTML = '';
   var all = document.createElement('button'); all.className = 'mfbtn active'; all.dataset.rota = '';
-  all.textContent = 'TODAS';
+  all.textContent = t('map_filter_todas');
   all.onclick = function () { rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa(); renderMap(); };
   cont.appendChild(all);
   ROTAS.forEach(function (r) {
@@ -1280,8 +1315,8 @@ function buildMapFilters() {
   Object.keys(SEGURANCA_META).forEach(function (tipo) {
     var meta = SEGURANCA_META[tipo];
     var btn = document.createElement('button'); btn.className = 'mfbtn mfbtn-seg'; btn.dataset.tipo = tipo;
-    btn.innerHTML = meta.icone + ' ' + meta.curto;
-    btn.title = meta.label;
+    btn.innerHTML = meta.icone + ' ' + segMetaCurto(tipo);
+    btn.title = segMetaLabel(tipo);
     btn.style.setProperty('--rc', meta.cor);
     btn.onclick = function () { filtrarTipo(tipo); };
     cont.appendChild(btn);
@@ -1416,9 +1451,9 @@ function setLiveStatus(state) {
   // state: 'connecting' | 'live' | 'offline'
   var dot = document.getElementById('live-dot'); if (!dot) return;
   dot.classList.remove('live', 'offline');
-  if (state === 'live') { dot.classList.add('live'); dot.title = 'Ao vivo — atualizações da equipe em tempo real'; }
-  else if (state === 'offline') { dot.classList.add('offline'); dot.title = 'Sem conexão em tempo real — pode não ver atualizações da equipe agora'; }
-  else { dot.title = 'Conectando...'; }
+  if (state === 'live') { dot.classList.add('live'); dot.title = t('live_live_title'); }
+  else if (state === 'offline') { dot.classList.add('offline'); dot.title = t('live_offline_title'); }
+  else { dot.title = t('live_connecting'); }
 }
 
 /* Pisca por um instante o card/chip do município que acabou de ser
@@ -1435,6 +1470,8 @@ function flashSeq(seq) {
 
 async function initApp() {
   aplicarTema(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+  setIdiomaEstatico(idiomaSalvo());
+  atualizarHeroSub();
 
   var sessionRes = await sb.auth.getSession();
   var session = sessionRes.data && sessionRes.data.session;

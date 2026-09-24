@@ -62,26 +62,30 @@ if ('serviceWorker' in navigator) {
   </div>
   <div class="hdr-right">
     <div class="htabs">
-      <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span>Rotas</button>
-      <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span>Informações</button>
-      <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span>Mapa</button>
-      <button class="htab" data-s="n" onclick="SS('n',this)"><span class="hti">🌊</span>Notícias</button>
-      <button class="htab htab-icon" data-s="c" onclick="SS('c',this)" title="Configurações"><span class="hti">⚙️</span></button>
+      <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
+      <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
+      <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
+      <button class="htab" data-s="n" onclick="SS('n',this)"><span class="hti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
+      <button class="htab htab-icon" data-s="c" onclick="SS('c',this)" title="Configurações" data-i18n-title="tab_config"><span class="hti">⚙️</span></button>
     </div>
     <span class="live-dot" id="live-dot" title="Conectando..."></span>
     <span class="user-badge" id="user-badge"></span>
-    <button class="theme-btn" id="theme-btn" onclick="alternarTema()" title="Trocar tema claro/escuro">☀️</button>
-    <button class="logout-btn" onclick="sair()" title="Sair">⏻</button>
+    <div class="lang-wrap">
+      <button class="theme-btn" id="lang-btn" onclick="toggleLangMenu(event)" title="Trocar idioma" data-i18n-title="lang_btn_title">PT</button>
+      <div class="lang-menu" id="lang-menu"></div>
+    </div>
+    <button class="theme-btn" id="theme-btn" onclick="alternarTema()" title="Trocar tema claro/escuro" data-i18n-title="theme_btn_title">☀️</button>
+    <button class="logout-btn" onclick="sair()" title="Sair" data-i18n-title="logout_title">⏻</button>
   </div>
 </div>
 
 <div id="btabs">
   <div class="brow">
-    <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span>Rotas</button>
-    <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span>Informações</button>
-    <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span>Mapa</button>
-    <button class="btab" id="bt-n" onclick="SS('n',null)"><span class="bti">🌊</span>Notícias</button>
-    <button class="btab btab-icon" id="bt-c" onclick="SS('c',null)" title="Configurações"><span class="bti">⚙️</span></button>
+    <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
+    <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
+    <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
+    <button class="btab" id="bt-n" onclick="SS('n',null)"><span class="bti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
+    <button class="btab btab-icon" id="bt-c" onclick="SS('c',null)" title="Configurações" data-i18n-title="tab_config"><span class="bti">⚙️</span></button>
   </div>
 </div>
 
@@ -90,13 +94,13 @@ if ('serviceWorker' in navigator) {
   <!-- ROTAS -->
   <div class="scr" id="sc-r">
     <div class="hero-banner">
-      <div class="hero-banner-tt">Rotas fluviais do Amazonas</div>
-      <div class="hero-banner-sb">10 calhas · 57 municípios</div>
+      <div class="hero-banner-tt" data-i18n="hero_title">Rotas fluviais do Amazonas</div>
+      <div class="hero-banner-sb" id="hero-sub">10 calhas · 57 municípios</div>
     </div>
     <div class="rhdr">
       <div class="rsw">
         <span class="rsi">🔍</span>
-        <input type="text" id="rsearch" placeholder="Buscar município ou código..." oninput="fR(this.value)">
+        <input type="text" id="rsearch" placeholder="Buscar município ou código..." data-i18n-ph="search_ph" oninput="fR(this.value)">
       </div>
     </div>
     <div class="rbdy" id="rbdy"></div>
@@ -107,7 +111,7 @@ if ('serviceWorker' in navigator) {
     <div class="rhdr">
       <div class="rsw">
         <span class="rsi">🔍</span>
-        <input type="text" id="isearch" placeholder="Buscar município ou código..." oninput="fINFO(this.value)">
+        <input type="text" id="isearch" placeholder="Buscar município ou código..." data-i18n-ph="search_ph" oninput="fINFO(this.value)">
       </div>
     </div>
     <div class="rbdy" id="ibdy"></div>
@@ -118,7 +122,7 @@ if ('serviceWorker' in navigator) {
     <div class="rhdr">
       <div class="rsw">
         <span class="rsi">🔍</span>
-        <input type="text" id="csearch" placeholder="Buscar município ou código..." oninput="fC(this.value)">
+        <input type="text" id="csearch" placeholder="Buscar município ou código..." data-i18n-ph="search_ph" oninput="fC(this.value)">
       </div>
     </div>
     <div class="rbdy" id="cbdy"></div>
@@ -156,6 +160,7 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <script src="js/data.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/app.js"></script>
 <script>initApp();</script>
 </body>

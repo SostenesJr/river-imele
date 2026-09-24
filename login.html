@@ -57,9 +57,15 @@ if ('serviceWorker' in navigator) {
   .login-btn:disabled { opacity: .6; cursor: default; }
   .login-err { color: var(--re); font-size: 12px; margin-top: 12px; text-align: center; display: none; }
   .login-hint { color: var(--mu); font-size: 11px; margin-top: 16px; text-align: center; line-height: 1.5; }
+  .login-lang { position: fixed; top: 14px; right: 14px; }
+  .login-lang button { width: 34px; height: 34px; border-radius: 8px; background: color-mix(in srgb, var(--s1) 82%, transparent); border: 1px solid var(--bd); color: var(--tx); font-size: 11px; font-weight: 800; cursor: pointer; font-family: var(--font-sans); }
 </style>
 </head>
 <body>
+  <div class="login-lang lang-wrap">
+    <button id="lang-btn" onclick="toggleLangMenu(event)" title="Trocar idioma" data-i18n-title="lang_btn_title">PT</button>
+    <div class="lang-menu" id="lang-menu"></div>
+  </div>
   <div class="login-box">
     <div class="login-logo">
       <div class="login-dot"></div>
@@ -67,19 +73,21 @@ if ('serviceWorker' in navigator) {
     </div>
     <form id="login-form">
       <div class="login-field">
-        <label>E-mail</label>
+        <label data-i18n="login_email_label">E-mail</label>
         <input type="email" id="in-email" autocomplete="username" autofocus required>
       </div>
       <div class="login-field">
-        <label>Senha</label>
+        <label data-i18n="login_senha_label">Senha</label>
         <input type="password" id="in-senha" autocomplete="current-password" required>
       </div>
-      <button type="submit" class="login-btn" id="btn-entrar">Entrar</button>
+      <button type="submit" class="login-btn" id="btn-entrar" data-i18n="login_btn">Entrar</button>
       <div class="login-err" id="login-err">E-mail ou senha incorretos.</div>
     </form>
-    <div class="login-hint">Sua conta é criada pelo administrador do sistema.<br>Não tem acesso ainda? Fale com quem administra o NavLog.</div>
+    <div class="login-hint" data-i18n-html="login_hint_html">Sua conta é criada pelo administrador do sistema.<br>Não tem acesso ainda? Fale com quem administra o NavLog.</div>
   </div>
 
+<script src="js/i18n.js"></script>
+<script>setIdiomaEstatico(idiomaSalvo());</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script>
@@ -96,21 +104,21 @@ document.getElementById('login-form').addEventListener('submit', function (e) {
   var err = document.getElementById('login-err');
   var email = document.getElementById('in-email').value.trim();
   var senha = document.getElementById('in-senha').value;
-  btn.disabled = true; btn.textContent = 'Entrando...';
+  btn.disabled = true; btn.textContent = t('login_entering');
   err.style.display = 'none';
 
   sb.auth.signInWithPassword({ email: email, password: senha }).then(function (res) {
     if (res.error) {
-      err.textContent = 'E-mail ou senha incorretos.';
+      err.textContent = t('login_err_credentials');
       err.style.display = 'block';
-      btn.disabled = false; btn.textContent = 'Entrar';
+      btn.disabled = false; btn.textContent = t('login_btn');
       return;
     }
     window.location.href = '/index.html';
   }).catch(function () {
-    err.textContent = 'Falha de conexão. Tente novamente.';
+    err.textContent = t('login_err_connection');
     err.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Entrar';
+    btn.disabled = false; btn.textContent = t('login_btn');
   });
 });
 </script>
