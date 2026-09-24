@@ -464,17 +464,18 @@ function bNIVEL() {
 }
 
 /* ============================================================
-   ABA "NOTÍCIAS" — clima atual nos municípios
-   Usa a Open-Meteo (api.open-meteo.com), um serviço público e gratuito
-   de previsão do tempo que não exige conta nem chave de API e aceita
-   vários pontos (lat/lng) numa única chamada — por isso dá pra buscar
-   os 57 municípios de uma vez só, em vez de 57 chamadas separadas.
+   ABA "CLIMA" — clima atual + qualidade do ar nos municípios
+   Usa a Open-Meteo (api.open-meteo.com + air-quality-api.open-meteo.com),
+   um serviço público e gratuito que não exige conta nem chave de API e
+   aceita vários pontos (lat/lng) numa única chamada — por isso dá pra
+   buscar os 57 municípios de uma vez só, em vez de 57 chamadas separadas
+   (x2, uma pro tempo e uma pra qualidade do ar).
    Roda direto no navegador de quem está usando o app (não passa pelo
    Supabase); por isso, se a pessoa estiver sem internet ou algum
    bloqueio de rede impedir a chamada, a seção mostra um aviso com
    botão de "tentar de novo" em vez de travar o resto da aba.
    ============================================================ */
-var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo}
+var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo, aqi, pm25, pm10}
 var CLIMA_ATUALIZADO_EM = null; // epoch ms da última busca com sucesso
 var CLIMA_CARREGANDO = false;
 var CLIMA_ERRO = false;
@@ -494,6 +495,20 @@ function climaCategoria(codigo) {
   if ((codigo >= 71 && codigo <= 77) || codigo === 85 || codigo === 86) return { ic: '🌨️', key: 'clima_desc_neve' };
   if (codigo >= 95) return { ic: '⛈️', key: 'clima_desc_trovoada' };
   return { ic: '🌡️', key: 'clima_desc_indef' };
+}
+
+/* Faixas do "European AQI" (escala 0-100+ usada pela Open-Meteo, baseada
+   no Copernicus CAMS) — mais simples de mostrar num selinho do que o
+   AQI americano (0-500). Relevante sobretudo na época de seca/fumaça de
+   queimada na região. */
+function aqiCategoria(aqi) {
+  if (aqi === null || aqi === undefined || isNaN(aqi)) return null;
+  if (aqi <= 20) return { cor: '#22c55e', key: 'aqi_bom' };
+  if (aqi <= 40) return { cor: '#84cc16', key: 'aqi_razoavel' };
+  if (aqi <= 60) return { cor: '#eab308', key: 'aqi_moderado' };
+  if (aqi <= 80) return { cor: '#f97316', key: 'aqi_ruim' };
+  if (aqi <= 100) return { cor: '#ef4444', key: 'aqi_muito_ruim' };
+  return { cor: '#a21caf', key: 'aqi_extremo' };
 }
 
 /* Lista estável de municípios com coordenada conhecida (LATLNG, em
@@ -519,27 +534,41 @@ async function carregarClima() {
   if (!lista.length) { CLIMA_CARREGANDO = false; return; }
   var lats = lista.map(function (m) { return m.lat; }).join(',');
   var lngs = lista.map(function (m) { return m.lng; }).join(',');
-  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lats + '&longitude=' + lngs
+  var urlTempo = 'https://api.open-meteo.com/v1/forecast?latitude=' + lats + '&longitude=' + lngs
     + '&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m'
     + '&timezone=America%2FManaus';
+  // Endpoint separado (outro subdomínio) só pra qualidade do ar — mesma
+  // lista de coordenadas, na mesma ordem, então dá pra casar as duas
+  // respostas pelo índice (i).
+  var urlAr = 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lats + '&longitude=' + lngs
+    + '&current=pm2_5,pm10,european_aqi'
+    + '&timezone=America%2FManaus';
   try {
-    var res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    var data = await res.json();
+    var resArr = await Promise.all([fetch(urlTempo), fetch(urlAr)]);
+    var resTempo = resArr[0], resAr = resArr[1];
+    if (!resTempo.ok) throw new Error('HTTP ' + resTempo.status + ' (tempo)');
+    if (!resAr.ok) throw new Error('HTTP ' + resAr.status + ' (qualidade do ar)');
+    var dataArr = await Promise.all([resTempo.json(), resAr.json()]);
+    var dataTempo = dataArr[0], dataAr = dataArr[1];
     // Com mais de uma coordenada na URL, a Open-Meteo devolve uma lista
     // (um item por município, na mesma ordem que foi mandada); com uma
     // só, devolve um objeto único — cobre os dois casos por garantia.
-    var itens = Array.isArray(data) ? data : [data];
+    var itensTempo = Array.isArray(dataTempo) ? dataTempo : [dataTempo];
+    var itensAr = Array.isArray(dataAr) ? dataAr : [dataAr];
     var novo = {};
-    itens.forEach(function (item, i) {
-      var mun = lista[i];
-      if (!mun || !item || !item.current) return;
+    lista.forEach(function (mun, i) {
+      var ct = itensTempo[i] && itensTempo[i].current;
+      var ca = itensAr[i] && itensAr[i].current;
+      if (!ct) return;
       novo[mun.seq] = {
-        temp: item.current.temperature_2m,
-        sensacao: item.current.apparent_temperature,
-        chuva: item.current.precipitation,
-        vento: item.current.wind_speed_10m,
-        codigo: item.current.weather_code
+        temp: ct.temperature_2m,
+        sensacao: ct.apparent_temperature,
+        chuva: ct.precipitation,
+        vento: ct.wind_speed_10m,
+        codigo: ct.weather_code,
+        aqi: ca ? ca.european_aqi : null,
+        pm25: ca ? ca.pm2_5 : null,
+        pm10: ca ? ca.pm10 : null
       };
     });
     CLIMA_POR_SEQ = novo;
@@ -557,6 +586,11 @@ function climaCardHTML(mun) {
   var d = CLIMA_POR_SEQ[mun.seq];
   if (!d || d.temp === null || d.temp === undefined) return '';
   var cat = climaCategoria(d.codigo);
+  var aqiCat = aqiCategoria(d.aqi);
+  var aqiHTML = aqiCat
+    ? '<div class="clima-aqi" style="--aqi-cor:' + aqiCat.cor + '" title="' + tf('clima_aqi_title_tpl', { pm25: (d.pm25 != null ? d.pm25.toFixed(0) : '—'), pm10: (d.pm10 != null ? d.pm10.toFixed(0) : '—') }) + '">'
+      + '<span class="clima-aqi-dot"></span>' + t(aqiCat.key) + ' · ' + Math.round(d.aqi) + '</div>'
+    : '<div class="clima-aqi clima-aqi-indef">' + t('clima_aqi_indef') + '</div>';
   return '<div class="clima-card" data-txt="' + normKey(mun.seq + ' ' + mun.nome) + '">'
     + '<div class="clima-card-top">'
     + '<span class="clima-seq" style="color:' + mun.cor + ';' + seqFS(mun.seq) + '">' + mun.seq + '</span>'
@@ -566,6 +600,7 @@ function climaCardHTML(mun) {
     + '<div class="clima-temp">' + Math.round(d.temp) + '°<span class="clima-sensacao">' + tf('clima_sensacao_tpl', { v: Math.round(d.sensacao) }) + '</span></div>'
     + '<div class="clima-sub"><span title="' + t('clima_chuva_title') + '">💧 ' + (d.chuva || 0).toFixed(1) + 'mm</span>'
     + '<span title="' + t('clima_vento_title') + '">💨 ' + Math.round(d.vento) + 'km/h</span></div>'
+    + aqiHTML
     + '</div>';
 }
 
@@ -1886,12 +1921,12 @@ window.addEventListener('resize', function () {
 
 function SS(name, btn) {
   cur = name;
-  ['r', 'i', 'c', 'm', 'n'].forEach(function (s) {
+  ['r', 'i', 'c', 'm', 'n', 'w'].forEach(function (s) {
     var el = document.getElementById('sc-' + s);
     if (el) el.classList.toggle('h', s !== name);
   });
   document.querySelectorAll('.htab').forEach(function (b) { b.classList.toggle('on', b.dataset.s === name); });
-  ['r', 'i', 'c', 'm', 'n'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
+  ['r', 'i', 'c', 'm', 'n', 'w'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
 
   // conteúdo da aba recém-aberta entra com um fade + leve deslocamento
   // (reflow força reiniciar a animação, igual o truque usado em flashSeq)
@@ -1906,8 +1941,8 @@ function SS(name, btn) {
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
   if (name === 'm') { mapAnimateEntrance = true; buildMapFilters(); renderMap(); initMapInteractions(); }
-  if (name === 'n') {
-    bNIVEL();
+  if (name === 'n') bNIVEL();
+  if (name === 'w') {
     bCLIMA();
     // busca de novo só se nunca buscou ou se já faz tempo — abrir/fechar
     // a aba não deve disparar uma chamada nova toda vez

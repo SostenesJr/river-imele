@@ -596,7 +596,7 @@ html, body {
 
 /* Clima nos municípios (Open-Meteo) — grade de cartõezinhos, um por
    município, abaixo do card de nível do rio na mesma aba Notícias. */
-#climabdy { max-width: 900px; margin: 16px auto 0; width: 100%; box-sizing: border-box; }
+#climabdy { max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 10px; }
 .clima-hdr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .clima-title { font-size: 12px; font-weight: 800; color: var(--mu); text-transform: uppercase; letter-spacing: .06em; }
 .clima-atualizado { font-size: 10.5px; color: var(--mu); }
@@ -612,6 +612,13 @@ html, body {
 .clima-temp { font-family: var(--font-mono); font-size: 19px; font-weight: 800; margin-top: 2px; }
 .clima-sensacao { font-family: var(--font-sans); font-size: 9.5px; font-weight: 600; color: var(--mu); margin-left: 4px; }
 .clima-sub { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--mu); margin-top: 6px; }
+.clima-aqi {
+  display: flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 700;
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--bd);
+  color: color-mix(in srgb, var(--aqi-cor, var(--mu)) 85%, var(--tx));
+}
+.clima-aqi-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--aqi-cor); flex-shrink: 0; }
+.clima-aqi-indef { color: var(--mu); font-weight: 600; }
 .clima-empty { text-align: center; color: var(--mu); font-size: 12px; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 @media (prefers-reduced-motion: reduce) { .clima-card { animation: none !important; } }
 .niv-empty { text-align: center; color: var(--mu); font-size: 13px; padding: 40px 20px; }

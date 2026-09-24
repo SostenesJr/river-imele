@@ -21,7 +21,7 @@ var LANG = 'pt';
 var I18N = {
 
   pt: {
-    tab_rotas: 'Rotas', tab_info: 'Informações', tab_mapa: 'Mapa', tab_noticias: 'Notícias',
+    tab_rotas: 'Rotas', tab_info: 'Informações', tab_mapa: 'Mapa', tab_noticias: 'Notícias', tab_clima: 'Clima',
     tab_config: 'Configurações',
     theme_btn_title: 'Trocar tema claro/escuro',
     logout_title: 'Sair',
@@ -105,6 +105,10 @@ var I18N = {
     clima_desc_nevoa: 'Névoa/neblina', clima_desc_garoa: 'Garoa', clima_desc_chuva: 'Chuva',
     clima_desc_pancada: 'Pancada de chuva', clima_desc_neve: 'Precipitação gelada', clima_desc_trovoada: 'Trovoada',
     clima_desc_indef: 'Sem dados',
+    clima_aqi_title_tpl: 'Qualidade do ar (índice europeu) · PM2,5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
+    clima_aqi_indef: 'Ar: sem dados',
+    aqi_bom: 'Ar bom', aqi_razoavel: 'Ar razoável', aqi_moderado: 'Ar moderado',
+    aqi_ruim: 'Ar ruim', aqi_muito_ruim: 'Ar muito ruim', aqi_extremo: 'Ar extremamente ruim',
 
     map_filter_todas: 'TODAS', map_popup_inicio: 'Início', map_popup_fim: 'Fim',
     ver_detalhes: 'ver detalhes ›', min_abbr: 'mín', max_abbr: 'máx',
@@ -115,7 +119,7 @@ var I18N = {
   },
 
   en: {
-    tab_rotas: 'Routes', tab_info: 'Info', tab_mapa: 'Map', tab_noticias: 'River level',
+    tab_rotas: 'Routes', tab_info: 'Info', tab_mapa: 'Map', tab_noticias: 'River level', tab_clima: 'Weather',
     tab_config: 'Settings',
     theme_btn_title: 'Switch light/dark theme',
     logout_title: 'Log out',
@@ -199,6 +203,10 @@ var I18N = {
     clima_desc_nevoa: 'Fog/mist', clima_desc_garoa: 'Drizzle', clima_desc_chuva: 'Rain',
     clima_desc_pancada: 'Rain showers', clima_desc_neve: 'Frozen precipitation', clima_desc_trovoada: 'Thunderstorm',
     clima_desc_indef: 'No data',
+    clima_aqi_title_tpl: 'Air quality (European index) · PM2.5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
+    clima_aqi_indef: 'Air: no data',
+    aqi_bom: 'Good air', aqi_razoavel: 'Fair air', aqi_moderado: 'Moderate air',
+    aqi_ruim: 'Poor air', aqi_muito_ruim: 'Very poor air', aqi_extremo: 'Extremely poor air',
 
     map_filter_todas: 'ALL', map_popup_inicio: 'Start', map_popup_fim: 'End',
     ver_detalhes: 'see details ›', min_abbr: 'min', max_abbr: 'max',
@@ -209,7 +217,7 @@ var I18N = {
   },
 
   es: {
-    tab_rotas: 'Rutas', tab_info: 'Información', tab_mapa: 'Mapa', tab_noticias: 'Nivel del río',
+    tab_rotas: 'Rutas', tab_info: 'Información', tab_mapa: 'Mapa', tab_noticias: 'Nivel del río', tab_clima: 'Clima',
     tab_config: 'Configuración',
     theme_btn_title: 'Cambiar tema claro/oscuro',
     logout_title: 'Salir',
@@ -293,6 +301,10 @@ var I18N = {
     clima_desc_nevoa: 'Niebla/neblina', clima_desc_garoa: 'Llovizna', clima_desc_chuva: 'Lluvia',
     clima_desc_pancada: 'Chubascos', clima_desc_neve: 'Precipitación helada', clima_desc_trovoada: 'Tormenta',
     clima_desc_indef: 'Sin datos',
+    clima_aqi_title_tpl: 'Calidad del aire (índice europeo) · PM2,5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
+    clima_aqi_indef: 'Aire: sin datos',
+    aqi_bom: 'Aire bueno', aqi_razoavel: 'Aire razonable', aqi_moderado: 'Aire moderado',
+    aqi_ruim: 'Aire malo', aqi_muito_ruim: 'Aire muy malo', aqi_extremo: 'Aire extremadamente malo',
 
     map_filter_todas: 'TODAS', map_popup_inicio: 'Inicio', map_popup_fim: 'Fin',
     ver_detalhes: 'ver detalles ›', min_abbr: 'mín', max_abbr: 'máx',
@@ -303,7 +315,7 @@ var I18N = {
   },
 
   zh: {
-    tab_rotas: '航线', tab_info: '信息', tab_mapa: '地图', tab_noticias: '河水位',
+    tab_rotas: '航线', tab_info: '信息', tab_mapa: '地图', tab_noticias: '河水位', tab_clima: '天气',
     tab_config: '设置',
     theme_btn_title: '切换浅色/深色主题',
     logout_title: '退出登录',
@@ -387,6 +399,10 @@ var I18N = {
     clima_desc_nevoa: '雾', clima_desc_garoa: '毛毛雨', clima_desc_chuva: '雨',
     clima_desc_pancada: '阵雨', clima_desc_neve: '冰冻降水', clima_desc_trovoada: '雷暴',
     clima_desc_indef: '无数据',
+    clima_aqi_title_tpl: '空气质量（欧洲指数）· PM2.5 {pm25}µg/m³ · PM10 {pm10}µg/m³',
+    clima_aqi_indef: '空气：无数据',
+    aqi_bom: '空气优', aqi_razoavel: '空气良', aqi_moderado: '空气中等',
+    aqi_ruim: '空气差', aqi_muito_ruim: '空气很差', aqi_extremo: '空气极差',
 
     map_filter_todas: '全部', map_popup_inicio: '起点', map_popup_fim: '终点',
     ver_detalhes: '查看详情 ›', min_abbr: '最低', max_abbr: '最高',

@@ -6,7 +6,7 @@ individual por pessoa e dados compartilhados em tempo real via Supabase.
 É um **PWA** (Progressive Web App): dá pra "instalar" pelo navegador e usar
 como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
 
-## Estrutura (5 abas)
+## Estrutura (6 abas)
 
 1. **Rotas** — lista com as 10 calhas (A–J). Ao abrir uma calha, mostra os
    municípios em ordem de passagem, com distância (km) e transit time de cada um.
@@ -85,6 +85,10 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    de cada dia. O app só *lê* esses dados — a coleta é feita por uma função
    separada (`api/cron/nivel-rio.js`, agendada pela Vercel via
    `vercel.json`), não pelo navegador de quem usa o app.
+6. **Clima** — clima atual (temperatura, sensação térmica, chuva e vento) e
+   **qualidade do ar** (índice europeu, PM2,5 e PM10) de todos os 57
+   municípios, um cartão por município. Ver "Clima nos municípios" abaixo
+   pra detalhes de como isso é buscado.
 
 ## Visual
 
@@ -118,7 +122,7 @@ conteúdo das abas.
 
 ## Animações e microinterações da página
 
-Além das animações do mapa (rota, `## Estrutura (5 abas)` / seção Mapa) e do
+Além das animações do mapa (rota, `## Estrutura (6 abas)` / seção Mapa) e do
 selo "respirando" de nível crítico do rio (aba Notícias), a página inteira
 tem um conjunto de microinterações discretas — todas respeitam a preferência
 do sistema **"reduzir movimento"** (`prefers-reduced-motion: reduce`), que
@@ -208,28 +212,42 @@ ficam em `NIVEL_REGIMES`/`NIVEL_ALERTA_TEXTOS`, no topo de `js/app.js`.
 
 ## Clima nos municípios
 
-Além do nível do rio, a aba Notícias mostra uma grade com o **clima atual**
-de todos os municípios (temperatura, sensação térmica, chuva e vento no
-momento), um cartão por município, agrupados na mesma ordem das calhas.
+A aba **Clima** (separada da aba Notícias, que ficou só com o nível do rio)
+mostra uma grade com o **clima atual** e a **qualidade do ar** de todos os
+municípios, um cartão por município, agrupados na mesma ordem das calhas.
+Cada cartão traz: ícone e temperatura/sensação térmica, chuva e vento
+atuais, e um selo de qualidade do ar.
 
 - **Fonte**: [Open-Meteo](https://open-meteo.com/) — serviço público e
-  gratuito de previsão do tempo, sem necessidade de conta nem chave de API.
-  A chamada roda **direto no navegador de quem está usando o app**, não
-  passa pelo Supabase nem por nenhum servidor próprio.
-- **Uma chamada só pra todos os municípios**: a Open-Meteo aceita várias
-  coordenadas (lat/lng) numa única requisição e devolve uma lista de
-  resultados na mesma ordem — em vez de fazer 57 chamadas separadas, o app
+  gratuito, sem necessidade de conta nem chave de API. Duas APIs da mesma
+  família: a de previsão do tempo (`api.open-meteo.com`) e a de qualidade
+  do ar (`air-quality-api.open-meteo.com`, subdomínio separado). As duas
+  chamadas rodam **direto no navegador de quem está usando o app**, não
+  passam pelo Supabase nem por nenhum servidor próprio.
+- **Uma chamada só (x2) pra todos os municípios**: as duas APIs aceitam
+  várias coordenadas (lat/lng) numa única requisição e devolvem uma lista
+  de resultados na mesma ordem — em vez de 57×2 chamadas separadas, o app
   manda a latitude/longitude de todos os municípios (as mesmas usadas no
-  mapa, em `LATLNG`, `js/data.js`) de uma vez.
+  mapa, em `LATLNG`, `js/data.js`) de uma vez pras duas APIs em paralelo, e
+  casa as duas respostas pelo índice da lista.
+- **Qualidade do ar**: usa o **índice europeu (European AQI)**, escala de
+  0 a 100+ (mais simples de mostrar num selinho que o índice americano,
+  0–500), em 6 faixas — Bom / Razoável / Moderado / Ruim / Muito ruim /
+  Extremamente ruim — cada uma com uma cor própria. O valor de PM2,5 e
+  PM10 (µg/m³) fica disponível ao passar o mouse/tocar no selo. É
+  particularmente relevante na época de seca, quando a fumaça de queimada
+  costuma piorar a qualidade do ar na região.
 - **Cache simples**: a busca só é refeita se ainda não tiver nenhum dado ou
-  se já fizer mais de 20 minutos da última — abrir e fechar a aba Notícias
+  se já fizer mais de 20 minutos da última — abrir e fechar a aba Clima
   repetidas vezes não dispara uma chamada nova a cada vez.
 - **Se a chamada falhar** (sem internet, bloqueio de rede, API fora do ar),
-  a seção mostra um aviso com botão "Tentar de novo" em vez de travar o
-  resto da aba — o card de nível do rio (que já vem do Supabase, sem
-  depender dessa chamada externa) continua funcionando normalmente.
-- Implementado em `carregarClima()`/`bCLIMA()`/`climaCategoria()`
-  (`js/app.js`) e no elemento `#climabdy` (`index.html`).
+  a aba mostra um aviso com botão "Tentar de novo" em vez de travar o
+  resto do app — o card de nível do rio, na aba Notícias (que já vem do
+  Supabase, sem depender dessas chamadas externas), continua funcionando
+  normalmente.
+- Implementado em `carregarClima()`/`bCLIMA()`/`climaCategoria()`/
+  `aqiCategoria()` (`js/app.js`) e no elemento `#climabdy`, dentro da aba
+  `#sc-w` (`index.html`).
 
 ## Códigos dos municípios (sigla)
 
