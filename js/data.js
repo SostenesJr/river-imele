@@ -137,6 +137,12 @@ const ROTAS=[
              disponivel) — foi unificada numa lista so pra nao sugerir
              uma precisao que nao existe. O preco por saca (ps) esse
              sim continua separado por seca/cheia, por ser dado real.
+             Cada item tambem pode ter `nota` (avaliacao 1-5, individual
+             por embarcacao) — preenchido só depois, pela aba
+             Configuracoes, por isso nao vem da planilha original.
+     dias -> dias da semana que o PORTO desse municipio sai (nao muda de
+             embarcacao pra embarcacao) — tambem preenchido só depois,
+             pela aba Configuracoes; nao vem da planilha original.
 
    Gerado a partir de ANALISE_POR_MUNICIPIO.xlsx (planilha da empresa).
    Municipios sem historico na planilha (Iranduba, Balbina, Canutama,

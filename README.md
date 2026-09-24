@@ -15,9 +15,10 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    Aduaneiro/Corredor de Escoamento ganham um selo no canto do balão. Tocar num
    balão abre um pop-up com o nome do município e todas as informações:
    - Transit Time Amazon, distância e transit da rota
+   - **Dias de saída do porto** (seg a dom), quando cadastrados
    - Preço por saca — **Seca** e **Cheia**
-   - Embarcações mais usadas, com avaliação (estrelas) e dias de saída na
-     semana, quando cadastrados
+   - Embarcações mais usadas, com avaliação (estrelas) individual de cada
+     uma, quando cadastrada
    - Classificação de segurança (Aduaneiro/Corredor), quando aplicável, em
      seção retrátil
    - **Observações** — campo de texto livre por município. Pessoal de cada
@@ -27,10 +28,12 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    admin e cliente" abaixo). Os mesmos municípios por calha; ao tocar num
    município abre um balão **editável** com:
    - Transit Time Amazon (dias)
+   - **Dias de saída do porto** (seg a dom) — é do **município** (o porto
+     sai nesses dias, não muda de embarcação pra embarcação).
    - Preço por saca — Seca e Cheia
    - Embarcações mais usadas, com opção de adicionar, remover ou renomear,
-     ajustar o transit time, dar uma **avaliação (1 a 5 estrelas)** e marcar
-     em quais **dias da semana** ela costuma sair (seg a dom).
+     ajustar o transit time e dar uma **avaliação (1 a 5 estrelas)
+     individual** (cada embarcação tem a sua).
    - No topo da aba, um card **"Dados da empresa"** pra definir o nome e o
      logo que aparecem no cabeçalho do app, pra todo mundo.
    Edições são salvas no banco de dados e aparecem **para toda a equipe, em
@@ -195,6 +198,9 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `supabase/migracao-sigla-node.sql` — migração histórica: troca o código
   antigo do município (`seq`) pela sigla oficial de 3 letras, preservando
   preços/embarcações/observações já cadastrados
+- `supabase/migracao-dias-porto.sql` — migração histórica: cria a coluna
+  `dias` (dias de saída do porto, agora por município) e a preenche a
+  partir dos dias que já estavam marcados em cada embarcação
 - `manifest.json` — metadados do PWA (nome, ícone, cor, modo "standalone")
 - `sw.js` — service worker: guarda o "esqueleto" do app em cache local pra
   abrir instantâneo; nunca guarda dados do Supabase, que continuam sempre

@@ -125,7 +125,8 @@ function rowToInfo(row) {
   return {
     ta: row.ta,
     ps: { seca: row.ps_seca, cheia: row.ps_cheia },
-    emb: row.emb || []
+    emb: row.emb || [],
+    dias: row.dias || [] // dias da semana que SAI DO PORTO (por município, não por embarcação)
   };
 }
 
@@ -141,8 +142,10 @@ async function carregarMunicipiosInfo() {
    existir linha pra esse município). */
 function getInfo(seq) {
   var fonte = MUNINFO_LIVE[seq] || MUNINFO[seq]
-    || { ta: null, ps: { seca: null, cheia: null }, emb: [] };
-  return JSON.parse(JSON.stringify(fonte)); // clona pra nao vazar referencia
+    || { ta: null, ps: { seca: null, cheia: null }, emb: [], dias: [] };
+  var info = JSON.parse(JSON.stringify(fonte)); // clona pra nao vazar referencia
+  if (!info.dias) info.dias = [];
+  return info;
 }
 
 /* Salva no banco (compartilhado com todo mundo) e atualiza o cache local. */
@@ -152,7 +155,8 @@ async function setInfo(seq, info) {
     ta: info.ta,
     ps_seca: info.ps.seca,
     ps_cheia: info.ps.cheia,
-    emb: info.emb
+    emb: info.emb,
+    dias: info.dias || []
   }, { onConflict: 'seq' });
   if (res.error) { alert('Não consegui salvar: ' + res.error.message); throw res.error; }
   MUNINFO_LIVE[seq] = JSON.parse(JSON.stringify(info));
@@ -161,8 +165,10 @@ async function setInfo(seq, info) {
 /* "Restaurar original" agora escreve os valores de fábrica de volta
    no banco — vale pra equipe toda, não só pra quem clicou. */
 async function resetInfo(seq) {
-  var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: [] };
-  await setInfo(seq, JSON.parse(JSON.stringify(original)));
+  var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: [], dias: [] };
+  original = JSON.parse(JSON.stringify(original));
+  if (!original.dias) original.dias = [];
+  await setInfo(seq, original);
 }
 
 /* ── Observações pessoais por município — cada usuário só vê e edita
@@ -432,7 +438,8 @@ function principalEmb(lista) {
   return lista[0];
 }
 
-/* ── Avaliação (1-5 estrelas) e dias de saída por embarcação ── */
+/* ── Avaliação (1-5 estrelas, por embarcação) e dias de saída do
+   porto (por município — não muda de embarcação pra embarcação) ── */
 var DIAS_SEMANA = [
   { k: 'seg', l: 'S' }, { k: 'ter', l: 'T' }, { k: 'qua', l: 'Q' }, { k: 'qui', l: 'Q' },
   { k: 'sex', l: 'S' }, { k: 'sab', l: 'S' }, { k: 'dom', l: 'D' }
@@ -603,7 +610,6 @@ function embListViewHTML(lista) {
       + ((item.tt !== null && item.tt !== undefined && item.tt !== '') ? '<span class="sh-view-emb-tt">' + item.tt + ' d</span>' : '')
       + '</div>'
       + (item.nota ? '<div class="sh-view-emb-stars">' + estrelasHTML(item.nota) + '</div>' : '')
-      + diasBadgeHTML(item.dias)
       + '</div>';
   }).join('');
 }
@@ -626,6 +632,11 @@ function renderInfoView() {
     + '<div class="sh-view-kpi"><div class="sh-view-kt">TT Amazon</div><div class="sh-view-kv">' + fmtTA(info.ta) + '</div></div>'
     + '<div class="sh-view-kpi"><div class="sh-view-kt">Distância</div><div class="sh-view-kv">' + m.km + ' km</div></div>'
     + '<div class="sh-view-kpi"><div class="sh-view-kt">Transit rota</div><div class="sh-view-kv">' + m.tt + '</div></div>'
+    + '</div>'
+
+    + '<div class="sh-season">'
+    + '<label class="sh-sub" style="margin-top:0">🗓️ Dias de saída do porto</label>'
+    + (info.dias && info.dias.length ? diasBadgeHTML(info.dias) : '<div class="emb-empty">Não informado.</div>')
     + '</div>'
 
     + '<div class="sh-season">'
@@ -762,12 +773,6 @@ function embRowHTML(idx, item) {
   for (var i = 1; i <= 5; i++) {
     starsHTML += '<span class="star-pick' + (i <= nota ? ' on' : '') + '" onclick="setEmbNota(' + idx + ',' + i + ')">' + (i <= nota ? '★' : '☆') + '</span>';
   }
-  var dias = item.dias || [];
-  var diasHTML = DIAS_SEMANA.map(function (d) {
-    var ativo = dias.indexOf(d.k) !== -1;
-    return '<button type="button" class="dia-chip' + (ativo ? ' on' : '') + '" title="' + d.k + '" onclick="toggleEmbDia(' + idx + ',\'' + d.k + '\')">' + d.l + '</button>';
-  }).join('');
-
   return '<div class="emb-row">'
     + '<div class="emb-row-top">'
     + '<input class="emb-in emb-nome" type="text" value="' + (item.n || '').replace(/"/g, '&quot;') + '" placeholder="Nome da embarcação" '
@@ -777,7 +782,6 @@ function embRowHTML(idx, item) {
     + '<button class="emb-rm" onclick="removeEmb(' + idx + ')">✕</button>'
     + '</div>'
     + '<div class="emb-row-mid"><span class="emb-stars-label">Avaliação</span><span class="star-picker">' + starsHTML + '</span></div>'
-    + '<div class="emb-row-bot"><span class="emb-dias-label">Sai</span><span class="dia-chips">' + diasHTML + '</span></div>'
     + '</div>';
 }
 
@@ -788,12 +792,12 @@ function setEmbNota(idx, valor) {
   renderSheet();
 }
 
-function toggleEmbDia(idx, dia) {
+/* Dias de saída do porto — agora é do município (não da embarcação) */
+function toggleInfoDia(dia) {
   if (!editState) return;
-  var item = editState.info.emb[idx]; if (!item) return;
-  if (!item.dias) item.dias = [];
-  var i = item.dias.indexOf(dia);
-  if (i === -1) item.dias.push(dia); else item.dias.splice(i, 1);
+  if (!editState.info.dias) editState.info.dias = [];
+  var i = editState.info.dias.indexOf(dia);
+  if (i === -1) editState.info.dias.push(dia); else editState.info.dias.splice(i, 1);
   renderSheet();
 }
 
@@ -817,6 +821,14 @@ function renderSheet() {
     + '<div class="sh-field">'
     + '<label>Transit Time Amazon (dias)</label>'
     + '<input type="number" step="0.1" min="0" id="in-ta" value="' + (info.ta === null || info.ta === undefined ? '' : info.ta) + '" oninput="editState.info.ta = this.value === \'\' ? null : Number(this.value)">'
+    + '</div>'
+
+    + '<div class="sh-field">'
+    + '<label>Dias de saída do porto</label>'
+    + '<div class="dia-chips">' + DIAS_SEMANA.map(function (d) {
+        var ativo = (info.dias || []).indexOf(d.k) !== -1;
+        return '<button type="button" class="dia-chip' + (ativo ? ' on' : '') + '" title="' + d.k + '" onclick="toggleInfoDia(\'' + d.k + '\')">' + d.l + '</button>';
+      }).join('') + '</div>'
     + '</div>'
 
     + '<div class="sh-season">'
@@ -855,7 +867,7 @@ function removeEmb(idx) {
 
 function addEmb() {
   if (!editState) return;
-  editState.info.emb.push({ n: '', tt: null, nota: null, dias: [] });
+  editState.info.emb.push({ n: '', tt: null, nota: null });
   renderSheet();
   var inputs = document.querySelectorAll('#emb-list .emb-nome');
   var last = inputs[inputs.length - 1]; if (last) last.focus();
