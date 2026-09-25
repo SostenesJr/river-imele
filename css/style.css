@@ -466,11 +466,18 @@ html, body {
 
 /* Tamanho do balão — 3 opções fixas (P = tamanho normal/atual, M = 30%
    maior, G = 50% maior), escaladas via CSS var (setSheetScale(), js/app.js).
-   transform:scale em vez de font-size porque escala TUDO dentro do balão
-   de uma vez só (textos, ícones, botões, campos) sem precisar converter
-   cada font-size/padding/width em px pra uma unidade relativa — e a
-   largura é compensada (100% / escala) pra continuar preenchendo a
-   largura do balão depois de escalado. */
+   "zoom" em vez de "transform:scale": os dois escalam TUDO dentro do balão
+   de uma vez só (textos, ícones, botões, campos), sem precisar converter
+   cada font-size/padding em px pra uma unidade relativa — mas transform é
+   só um efeito visual (o layout ao redor não sabia que o conteúdo tinha
+   ficado maior, então a "caixa" continuava do mesmo tamanho por fora e o
+   conteúdo escalado vazava/precisava rolar por dentro, mais um efeito de
+   "zoom" do que de balão fisicamente maior). zoom participa do layout de
+   verdade: o balão (#sheet, que tem altura automática) cresce sozinho
+   pra caber o conteúdo maior — a CAIXA aumenta junto com a letra, não só
+   a letra "dando zoom" dentro da caixa do mesmo tamanho. A largura ainda
+   precisa ser compensada (100% / escala), porque zoom também multiplica
+   a largura, e sem isso o conteúdo passaria da largura do balão. */
 .sh-size-ctl { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
 .sh-size-btn {
   width: 30px; height: 30px; border-radius: 8px;
@@ -479,11 +486,9 @@ html, body {
 }
 .sh-size-btn.on { background: var(--ac); border-color: var(--ac); color: #fff; }
 #sheet-body {
-  transform: scale(var(--sh-scale, 1)); transform-origin: top left;
+  zoom: var(--sh-scale, 1);
   width: calc(100% / var(--sh-scale, 1));
-  transition: transform .2s ease;
 }
-@media (prefers-reduced-motion: reduce) { #sheet-body { transition: none; } }
 
 .sh-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .sh-seq { font-family: var(--font-mono); font-size: 30px; font-weight: 900; letter-spacing: 1px; max-width: 140px; overflow-wrap: break-word; line-height: 1.05; }
@@ -997,6 +1002,12 @@ html, body {
   background: color-mix(in srgb, #12151b 88%, transparent);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   border-radius: 12px; padding: 14px 16px; width: calc(100% - 24px); max-width: 320px;
+  /* max-height/overflow: rede de segurança pra quando o balão em G, num
+     município com muita informação, ainda assim não cabe na tela — no
+     dia a dia o balão só cresce (altura automática) pra caber o
+     conteúdo em qualquer um dos 3 tamanhos (ver .mp-body, "zoom" abaixo),
+     isso aqui só evita que ultrapasse o topo/fundo da tela num caso
+     extremo. */
   max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
   box-sizing: border-box; box-shadow: 0 8px 30px rgba(0,0,0,.85); border: 1.5px solid var(--bd); font-family: inherit;
   transition: opacity .22s cubic-bezier(.2,.8,.2,1), transform .22s cubic-bezier(.2,.8,.2,1);
@@ -1029,8 +1040,11 @@ html, body {
 /* Tamanho do popup (P/M/G) — mesma técnica do balão de Informações/
    Configurações (.sh-size-ctl/#sheet-body, ver CSS acima): fica fora de
    .mp-body (não escala junto), e .mp-body escala tudo dentro dele de uma
-   vez via transform, com a largura compensada pra continuar preenchendo
-   certinho. */
+   vez via "zoom" (não "transform:scale" — zoom participa do layout de
+   verdade, então o próprio #map-popup, que tem altura automática, cresce
+   sozinho pra caber o conteúdo maior; a CAIXA aumenta junto com a letra,
+   não só a letra "dando zoom" dentro de uma caixa do mesmo tamanho), com
+   a largura compensada pra continuar preenchendo certinho. */
 .mp-size-ctl { display: flex; justify-content: center; gap: 6px; padding-right: 26px; margin-bottom: 10px; }
 .mp-size-btn {
   width: 26px; height: 26px; border-radius: 7px;
@@ -1039,11 +1053,9 @@ html, body {
 }
 .mp-size-btn.on { background: var(--ac); border-color: var(--ac); color: #fff; }
 .mp-body {
-  transform: scale(var(--mp-scale, 1)); transform-origin: top left;
+  zoom: var(--mp-scale, 1);
   width: calc(100% / var(--mp-scale, 1));
-  transition: transform .2s ease;
 }
-@media (prefers-reduced-motion: reduce) { .mp-body { transition: none; } }
 
 .mp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-right: 24px; }
 .mp-label { font-size: 20px; font-weight: 900; font-family: var(--font-mono); }

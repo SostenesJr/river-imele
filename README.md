@@ -503,18 +503,32 @@ pinça livre, o balão ganhou **3 tamanhos físicos fixos**, escolhidos por
 - **G** — 50% maior.
 
 Os 3 tamanhos escalam **tudo** dentro do balão de uma vez (textos, ícones,
-cards, campos de formulário) via `transform: scale()` em `#sheet-body`
-— não é o texto crescendo separado do resto, é o balão inteiro "físico"
-ficando maior, tanto no card de Informações quanto no de Configurações
-(os dois usam o mesmo balão). A largura é compensada
-(`width: calc(100% / var(--sh-scale))`) pra
-continuar preenchendo a largura certa depois de escalado. O tamanho
+cards, campos de formulário) via `zoom` (propriedade CSS, não
+`transform: scale()` — a primeira versão usava `transform`, mas
+`transform` é só um efeito visual: o layout ao redor não sabia que o
+conteúdo tinha ficado maior, então a caixa continuava do mesmo tamanho
+por fora e o conteúdo "vazava"/precisava rolar por dentro — mais um zoom
+dentro de uma caixa do mesmo tamanho do que uma caixa fisicamente maior,
+que foi o que a pessoa pediu depois de testar. `zoom` participa do
+layout de verdade, então o próprio balão, que tem altura automática,
+cresce sozinho pra caber o conteúdo maior) em `#sheet-body`. A largura é
+compensada (`width: calc(100% / var(--sh-scale))`, porque `zoom` também
+multiplica a largura) pra continuar preenchendo a largura certa depois de
+escalado — mas a altura cresce naturalmente, sem precisar de nenhum
+truque. O tamanho
 escolhido fica salvo por aparelho (`localStorage`, igual tema/idioma) e
 volta a valer da próxima vez que um balão for aberto. O zoom por pinça
 continua funcionando normalmente no **mapa em si** (arrastar/beliscar pra
 navegar) — só foi desligado em cima destes balões. O popup que abre ao
 tocar num pino do mapa é um elemento diferente (`#map-popup`) e recebeu o
 mesmo tratamento separadamente — ver seção abaixo.
+
+Compatibilidade: `zoom` funciona em todos os navegadores que este app
+mira de verdade (Chrome/Android, Safari/iOS a partir da versão 15.4 —
+bem anterior a qualquer aparelho em uso hoje — e Firefox recente). Num
+navegador muito antigo que não reconheça `zoom`, os botões M/G
+simplesmente não fazem efeito visual (o app não quebra, só continua no
+tamanho P).
 
 Implementado em `setSheetScale()`/`sheetScaleSalva()` (`js/app.js`,
 chamado no `initApp()` e nos 3 botões `.sh-size-btn`), no CSS de
@@ -529,20 +543,23 @@ elemento diferente do balão de Informações/Configurações (seção acima) �
 mesmo problema, então recebeu a mesma correção: zoom por pinça desligado
 dentro dele (`touch-action: pan-y`, mais o mesmo reforço em JS pro gesto
 do Safari) e 3 botões fixos **P/M/G** (normal / 30% maior / 50% maior) no
-topo do popup, acima do conteúdo que escala (`.mp-body`, mesma técnica de
-`transform: scale()` + largura compensada usada em `#sheet-body`).
+topo do popup, acima do conteúdo que escala (`.mp-body`, `zoom` + largura
+compensada, mesma técnica usada em `#sheet-body` — ver seção acima pra
+detalhe de por que é `zoom` e não `transform: scale()`).
 
 Diferença em relação ao balão de Informações/Configurações: `#map-popup`
 não tinha altura máxima nem rolagem (a altura sempre foi só o conteúdo
-mesmo), então ao aumentar pra M/G ele pode ficar mais alto que a tela —
-por isso ganhou `max-height: 80vh` com `overflow-y: auto` junto dessa
-mudança, pra rolar dentro do próprio popup em vez de estourar pra fora
-dele. O botão fechar (✕) e os 3 botões de tamanho ficam fora de
-`.mp-body`, então não crescem/encolhem junto com o resto. A preferência
-de tamanho é salva separada da do outro balão (`localStorage`
-`navlog-mappopup-scale`) — são dois popups diferentes, abertos de jeitos
-diferentes (clicar num pino vs. abrir pela lista), cada um lembra o
-próprio tamanho.
+mesmo, sem limite). Como `zoom` cresce a caixa de verdade, isso deixou de
+ser um problema no dia a dia — o popup simplesmente fica mais alto, sem
+precisar rolar, em qualquer um dos 3 tamanhos. `max-height: 80vh` com
+`overflow-y: auto` ficaram só como rede de segurança, pro caso raro de um
+município com muita informação cadastrada não caber na tela mesmo em G —
+aí sim rola por dentro em vez de estourar pra fora do popup. O botão
+fechar (✕) e os 3 botões de tamanho ficam fora de `.mp-body`, então não
+crescem/encolhem junto com o resto. A preferência de tamanho é salva
+separada da do outro balão (`localStorage` `navlog-mappopup-scale`) — são
+dois popups diferentes, abertos de jeitos diferentes (clicar num pino vs.
+abrir pela lista), cada um lembra o próprio tamanho.
 
 Implementado em `showMapPopup()`/`setMapPopupScale()`/
 `mapPopupScaleSalva()` (`js/app.js`), no CSS de `#map-popup`/
