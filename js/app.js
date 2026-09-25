@@ -1856,7 +1856,28 @@ function initLeafletMapa() {
   LAYER_CALC = L.layerGroup().addTo(LMAP);
   LAYER_NODES = L.layerGroup().addTo(LMAP);
 
-  LMAP.on('click', function () { fecharPopupMapa(); });
+  LMAP.on('click', function () { fecharPopupMapa(); fecharMapToolbar(); });
+}
+
+/* Gaveta lateral com os filtros/ferramentas do mapa (antes era uma barra
+   fixa em cima, ocupando espaço da tela o tempo todo) — abre/fecha ao
+   clicar no botão ☰ flutuante, e fecha sozinha ao clicar em qualquer ponto
+   do mapa (ver LMAP.on('click', ...) acima). */
+function toggleMapToolbar() {
+  var painel = document.getElementById('map-toolbar');
+  var btn = document.getElementById('map-toolbar-toggle');
+  if (!painel || !btn) return;
+  var abrir = !painel.classList.contains('on');
+  painel.classList.toggle('on', abrir);
+  btn.classList.toggle('on', abrir);
+  btn.textContent = abrir ? '✕' : '☰';
+}
+function fecharMapToolbar() {
+  var painel = document.getElementById('map-toolbar');
+  var btn = document.getElementById('map-toolbar-toggle');
+  if (!painel || !painel.classList.contains('on')) return;
+  painel.classList.remove('on');
+  if (btn) { btn.classList.remove('on'); btn.textContent = '☰'; }
 }
 
 /* Alterna entre o tile claro (OpenStreetMap) e escuro (CartoDB Dark Matter,
@@ -2153,14 +2174,14 @@ function filtrarRota(num) {
   tipoFiltrado = null;
   rotaFiltrada = (rotaFiltrada === num) ? null : num;
   atualizarBotoesFiltro();
-  fecharPopupMapa(); renderMap();
+  fecharPopupMapa(); renderMap(); fecharMapToolbar();
 }
 
 function filtrarTipo(tipo) {
   rotaFiltrada = null;
   tipoFiltrado = (tipoFiltrado === tipo) ? null : tipo;
   atualizarBotoesFiltro();
-  fecharPopupMapa(); renderMap();
+  fecharPopupMapa(); renderMap(); fecharMapToolbar();
 }
 
 function atualizarBotoesFiltro() {
@@ -2178,7 +2199,7 @@ function buildMapFilters() {
   cont.innerHTML = '';
   var all = document.createElement('button'); all.className = 'mfbtn active'; all.dataset.rota = '';
   all.textContent = t('map_filter_todas');
-  all.onclick = function () { rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa(); renderMap(); };
+  all.onclick = function () { rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa(); renderMap(); fecharMapToolbar(); };
   cont.appendChild(all);
   ROTAS.forEach(function (r) {
     var btn = document.createElement('button'); btn.className = 'mfbtn'; btn.dataset.rota = r.num;

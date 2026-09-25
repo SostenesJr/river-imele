@@ -687,34 +687,57 @@ html, body {
    deixaria tudo ilegível; funciona como uma "ilha" escura dentro do app
    claro, igual outros apps fazem com mapas em modo noturno. */
 #sc-m { position: relative; overflow: hidden; background: #070c14; padding: 0 !important; }
-#map-toolbar {
-  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+
+/* Botão flutuante que abre/fecha a gaveta (fica sempre visível, em cima do
+   mapa, mesmo canto onde uma "hamburger menu" costuma ficar). */
+.map-toolbar-toggle {
+  position: absolute; top: 10px; left: 10px; z-index: 25;
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
   background: color-mix(in srgb, var(--s1) 82%, transparent);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--bd); flex-shrink: 0;
+  border: 1px solid var(--bd); color: var(--tx); font-size: 17px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s, color .15s;
 }
+.map-toolbar-toggle:hover { border-color: var(--ac); color: var(--ac); }
+.map-toolbar-toggle.on { background: color-mix(in srgb, var(--ac) 22%, var(--s1)); border-color: var(--ac); color: var(--ac); }
+
+/* Gaveta lateral com os filtros e as ferramentas do mapa — antes era uma
+   barra fixa em cima (#map-toolbar horizontal), ocupando altura da tela o
+   tempo todo; agora fica escondida fora da tela (translateX) e desliza por
+   cima do mapa só quando o botão ☰ é clicado (.on, ver toggleMapToolbar()
+   em js/app.js). Fecha sozinha ao clicar em qualquer ponto do mapa. */
+#map-toolbar {
+  position: absolute; top: 0; left: 0; bottom: 0; z-index: 24;
+  width: 210px; max-width: 78vw;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 60px 12px 14px;
+  background: color-mix(in srgb, var(--s1) 92%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-right: 1px solid var(--bd);
+  transform: translateX(-100%);
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+  overflow-y: auto;
+}
+#map-toolbar.on { transform: translateX(0); }
 #map-filters {
-  display: flex; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  /* esmaece a última pastilha visível quando tem mais filtro pra rolar —
-     assim fica claro que dá pra arrastar pros lados, mesmo sem barra de rolagem visível */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent 100%);
+  display: flex; flex-direction: column; gap: 6px; overflow: visible; scrollbar-width: none;
 }
 #map-filters::-webkit-scrollbar { display: none; }
 .mfbtn {
   flex-shrink: 0; background: var(--s2); border: 1.5px solid var(--bd); color: var(--mu);
-  padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer;
-  font-family: var(--font-sans); white-space: nowrap;
+  padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer;
+  font-family: var(--font-sans); white-space: nowrap; text-align: left;
   transition: background .18s, border-color .18s, color .18s, transform .12s;
 }
-.mfbtn:active { transform: scale(.94); }
+.mfbtn:active { transform: scale(.96); }
 .mfbtn[data-rota]:not([data-rota=""]) { border-color: var(--rc); color: var(--rc); background: color-mix(in srgb, var(--rc) 14%, transparent); }
 .mfbtn.active { background: var(--ac); border-color: var(--ac); color: #fff; }
 .mfbtn[data-rota]:not([data-rota=""]).active { background: var(--rc); border-color: var(--rc); color: #fff; }
-.mf-sep { flex-shrink: 0; width: 1px; background: var(--bd); margin: 2px 2px; }
+.mf-sep { flex-shrink: 0; width: 100%; height: 1px; background: var(--bd); margin: 2px 0; }
 .mfbtn-seg { border-color: var(--rc); color: var(--rc); background: color-mix(in srgb, var(--rc) 14%, transparent); display: flex; align-items: center; gap: 4px; }
 .mfbtn-seg.active { background: var(--rc); border-color: var(--rc); color: #fff; }
-.map-zoomctl { display: flex; gap: 5px; flex-shrink: 0; }
+.map-zoomctl { display: flex; flex-wrap: wrap; gap: 5px; flex-shrink: 0; }
 .mcb {
   width: 36px; height: 36px; background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; color: var(--tx);
   font-size: 17px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -991,15 +1014,6 @@ html, body {
   #app { bottom: calc(58px + var(--safe-bottom)); }
   .isub { max-width: 100%; }
   .sh-actions { position: sticky; bottom: -20px; background: color-mix(in srgb, var(--s1) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding-top: 6px; }
-
-  /* Mapa: numa tela estreita, filtros e zoom/reset disputando a mesma linha
-     acabavam espremendo os filtros num canto minúsculo (só dava pra ver
-     2-3). Em telas de celular, cada grupo ganha a própria linha — os
-     filtros usam a largura toda (com rolagem lateral) e o zoom/reset fica
-     sempre inteiro e visível embaixo deles. */
-  #map-toolbar { flex-wrap: wrap; row-gap: 8px; }
-  #map-filters { flex-basis: 100%; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%); mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%); }
-  .map-zoomctl { margin-left: auto; }
 }
 
 @media (min-width: 768px) {

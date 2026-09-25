@@ -408,6 +408,35 @@ chama `LMAP.invalidateSize()` toda vez que a aba Mapa é aberta (dentro de
 `zR()` (`js/app.js`), no CSS de `.leaflet-*`/`.lm-node*`/`.lm-hub*`
 (`css/style.css`) e nas tags do Leaflet (CDN cdnjs) em `index.html`.
 
+## Filtros/ferramentas do mapa numa gaveta lateral
+
+Os filtros por calha/segurança e os botões de ferramenta (🧭 calculadora de
+rota, 🌗 trocar tile, +/−/⟳) deixaram de ficar numa barra fixa em cima do
+mapa — ocupando altura da tela o tempo todo, mesmo sem estar em uso — e
+passaram a viver numa **gaveta lateral** (`#map-toolbar`), escondida por
+padrão e que só desliza por cima do mapa quando aberta:
+
+- Um botão flutuante ☰, sempre visível no canto superior esquerdo do mapa,
+  abre a gaveta; clicando nele de novo (agora com ícone ✕) ela fecha.
+- Clicar em qualquer ponto do mapa (com a gaveta aberta) também fecha —
+  reaproveita o mesmo clique do Leaflet que já fechava o popup do
+  município (`LMAP.on('click', ...)` em `initLeafletMapa()`).
+- Escolher um filtro (uma calha específica, "Todas", Aduaneiro ou Corredor
+  de Escoamento) fecha a gaveta sozinha, pra já mostrar o mapa filtrado em
+  vez de deixar o painel tampando a tela.
+- Dentro da gaveta, os filtros ficam empilhados verticalmente (antes era
+  uma fileira horizontal com rolagem lateral) — mais fácil de ler e tocar
+  numa gaveta estreita do que numa barra comprida.
+- Os botões de ferramenta (calculadora de rota, trocar tile, zoom) não
+  fecham a gaveta sozinhos, pra dar pra clicar em "+"/"−" várias vezes
+  seguidas sem o painel sumir a cada clique.
+
+Implementado em `toggleMapToolbar()`/`fecharMapToolbar()` (`js/app.js`,
+chamado também no fim de `filtrarRota()`/`filtrarTipo()` e do clique em
+"Todas" dentro de `buildMapFilters()`), no CSS de `.map-toolbar-toggle`/
+`#map-toolbar`/`#map-filters` (`css/style.css`) e no HTML de `#sc-m`
+(`index.html`).
+
 ## Alerta de embarcação mal avaliada
 
 Quando a avaliação de uma embarcação cadastrada num município está baixa

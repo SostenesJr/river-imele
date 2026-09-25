@@ -143,18 +143,23 @@ if ('serviceWorker' in navigator) {
 
   <!-- MAPA -->
   <div class="scr h scr-map" id="sc-m">
-    <div id="map-toolbar">
-      <div id="map-filters"></div>
-      <div class="map-zoomctl">
-        <button class="mcb" onclick="abrirRotaCalc()" title="Distância entre dois municípios" data-i18n-title="rota_calc_btn_title">🧭</button>
-        <button class="mcb" onclick="toggleTileEstilo()" id="btn-tile-estilo" title="Alternar mapa claro/escuro" data-i18n-title="tile_toggle_title">🌗</button>
-        <button class="mcb" onclick="zI()">+</button>
-        <button class="mcb" onclick="zO()">−</button>
-        <button class="mcb" onclick="zR()">⟳</button>
-      </div>
-    </div>
     <div id="map-wrap">
       <div id="msvg"></div>
+      <!-- Botão flutuante: abre/fecha a gaveta lateral com os filtros e as
+           ferramentas do mapa (ver toggleMapToolbar() em js/app.js) — antes
+           essa barra ficava fixa em cima, ocupando altura do mapa o tempo
+           todo; agora fica escondida, reativa só ao clique. -->
+      <button id="map-toolbar-toggle" class="map-toolbar-toggle" onclick="toggleMapToolbar()" title="Filtros e ferramentas do mapa" data-i18n-title="map_toolbar_toggle_title">☰</button>
+      <div id="map-toolbar">
+        <div id="map-filters"></div>
+        <div class="map-zoomctl">
+          <button class="mcb" onclick="abrirRotaCalc()" title="Distância entre dois municípios" data-i18n-title="rota_calc_btn_title">🧭</button>
+          <button class="mcb" onclick="toggleTileEstilo()" id="btn-tile-estilo" title="Alternar mapa claro/escuro" data-i18n-title="tile_toggle_title">🌗</button>
+          <button class="mcb" onclick="zI()">+</button>
+          <button class="mcb" onclick="zO()">−</button>
+          <button class="mcb" onclick="zR()">⟳</button>
+        </div>
+      </div>
       <div id="map-regime-legend" class="h" onclick="SS('n',null)"></div>
       <div id="map-radar-ctl"></div>
     </div>
