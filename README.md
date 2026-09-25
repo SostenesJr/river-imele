@@ -735,6 +735,65 @@ Preço por saca (seca/cheia) foi aplicado por regra definida pelo operador:
 Todos os valores continuam editáveis por município na aba Configurações,
 mostrados um embaixo do outro (seca em cima, cheia embaixo).
 
+## Dias de saída do porto + avaliação das embarcações preenchidos em lote
+
+`supabase/migracao-dias-avaliacoes-lote.sql` (ver `## Arquivos` abaixo)
+preenche de uma vez, pra todo o banco:
+
+- **Dias de saída do porto** de 53 dos 57 municípios, a partir da
+  planilha `FREQUENCIA_ENVIOS.xlsx` (aba FREQUÊNCIA, coluna DIAS —
+  nomes por extenso tipo "Segunda, Terça, ..." convertidos pros códigos
+  de 3 letras que o app usa: `seg`/`ter`/`qua`/`qui`/`sex`/`sab`/`dom`).
+  Os outros 4 (Iranduba, Balbina, Canutama, Sta. Isabel do Rio Negro) não
+  tinham linha nessa planilha — mesmo gap de "## Dados de origem" acima —
+  e ficam do jeito que já estavam.
+- **Avaliação (nota) de toda embarcação cadastrada**, em qualquer
+  município: todas viram **4 estrelas**, sobrescrevendo a nota que já
+  existisse (a maioria estava em branco). Só a nota muda — nome e tempo
+  de trânsito de cada embarcação continuam os mesmos.
+
+Depois de rodar, tudo continua editável normalmente em Configurações —
+é só um ponto de partida, não trava nada. Testado antes de entregar
+contra um Postgres local com a mesma estrutura da tabela
+`municipios_info` (schema + seed reais): confirma que só os 53
+municípios da planilha são tocados na parte de dias, os 4 sem histórico
+ficam intactos, toda embarcação de teste ganhou `nota: 4` mantendo nome/
+tempo de trânsito, e rodar o script duas vezes seguidas dá o mesmo
+resultado (idempotente — seguro rodar de novo por engano).
+
+## Dias de saída por embarcação individual (além do resumo por município)
+
+Antes, "dias de saída do porto" só existia no nível do município (um resumo
+geral, editável em Configurações — ver seção acima). Agora cada embarcação
+cadastrada em "Embarcações mais usadas" também pode ter seus **próprios**
+dias de saída, já que na prática cada barco costuma sair num dia diferente
+do resto — o resumo do município continua existindo (pra visão rápida), mas
+sem substituir o detalhe por embarcação.
+
+Em Configurações, cada linha de embarcação ganhou uma fileira "Sai" com os
+mesmos 7 botões de dia (S T Q Q S S D) já usados no resto do app — clica pra
+marcar/desmarcar. Na aba Informações (visão de leitura), esses dias aparecem
+como selinhos pequenos embaixo do nome de cada embarcação, do lado da nota
+em estrelas.
+
+`supabase/migracao-dias-embarcacao.sql` (ver `## Arquivos` abaixo) preencheu
+os dias de 282 embarcações em 53 municípios de uma vez, a partir da
+planilha `DIAS_EMBARCACOES_INDIVIDUAL.xlsx` (aba EMBARCACOES_DIAS — nome da
+embarcação + dias por extenso). O casamento é pelo nome da embarcação
+(sem diferenciar maiúsc/minúsc), dentro do mesmo município — as 282 linhas
+da planilha bateram exatamente 1 a 1 com as 282 embarcações que já estavam
+cadastradas nesses municípios, nenhuma sobrou de fora dos dois lados. Os
+outros 4 municípios sem histórico (Iranduba, Balbina, Canutama, Sta. Isabel
+do Rio Negro) não foram tocados, e nada além do campo `dias` de cada
+embarcação muda (nome, tempo de trânsito e nota continuam os mesmos).
+
+Testado antes de entregar contra um Postgres local com a estrutura real de
+`municipios_info`: confirma o casamento por nome mesmo com maiúsc/minúsc
+diferente, confirma que uma embarcação sem linha na planilha fica sem o
+campo `dias` (e o resto dela intacto), confirma que os municípios fora da
+planilha não são tocados, e que rodar o script duas vezes seguidas dá o
+mesmo resultado (idempotente).
+
 A lista de "embarcações mais usadas" por município é única (não separada por
 seca/cheia): até 20/09/2026 ela existia duplicada nos dois regimes, mas como
 as duas listas sempre vinham idênticas (mesma fonte de dados), foi unificada
@@ -783,6 +842,16 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `supabase/migracao-dias-porto.sql` — migração histórica: cria a coluna
   `dias` (dias de saída do porto, agora por município) e a preenche a
   partir dos dias que já estavam marcados em cada embarcação
+- `supabase/migracao-dias-avaliacoes-lote.sql` — migração de dados (não de
+  schema): preenche `dias` de 53 municípios a partir de
+  `FREQUENCIA_ENVIOS.xlsx` e marca `nota: 4` em toda embarcação cadastrada
+  — ver `## Dias de saída do porto + avaliação das embarcações preenchidos
+  em lote` acima
+- `supabase/migracao-dias-embarcacao.sql` — migração de dados (não de
+  schema): preenche o campo `dias` de cada embarcação individual (282, em
+  53 municípios) a partir de `DIAS_EMBARCACOES_INDIVIDUAL.xlsx` — ver
+  `## Dias de saída por embarcação individual (além do resumo por
+  município)` acima
 - `manifest.json` — metadados do PWA (nome, ícone, cor, modo "standalone")
 - `sw.js` — service worker: guarda o "esqueleto" do app em cache local pra
   abrir instantâneo; nunca guarda dados do Supabase, que continuam sempre

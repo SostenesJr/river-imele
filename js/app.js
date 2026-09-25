@@ -319,8 +319,8 @@ function rowToInfo(row) {
   return {
     ta: row.ta,
     ps: { seca: row.ps_seca, cheia: row.ps_cheia },
-    emb: row.emb || [],
-    dias: row.dias || [], // dias da semana que SAI DO PORTO (por município, não por embarcação)
+    emb: row.emb || [], // cada item pode ter seu próprio `dias` (dias de saída daquela embarcação específica)
+    dias: row.dias || [], // dias da semana que SAI DO PORTO — resumo geral do município (visão rápida)
     contato: { nome: row.contato_nome || '', tel: row.contato_tel || '' } // agente local/porto
   };
 }
@@ -1182,6 +1182,7 @@ function embListViewHTML(lista) {
       + ((item.tt !== null && item.tt !== undefined && item.tt !== '') ? '<span class="sh-view-emb-tt">' + item.tt + ' d</span>' : '')
       + '</div>'
       + (item.nota ? '<div class="sh-view-emb-stars">' + estrelasHTML(item.nota) + '</div>' : '')
+      + ((item.dias && item.dias.length) ? diasBadgeHTML(item.dias) : '')
       + '</div>';
   }).join('');
 }
@@ -1364,6 +1365,11 @@ function embRowHTML(idx, item) {
   for (var i = 1; i <= 5; i++) {
     starsHTML += '<span class="star-pick' + (i <= nota ? ' on' : '') + '" onclick="setEmbNota(' + idx + ',' + i + ')">' + (i <= nota ? '★' : '☆') + '</span>';
   }
+  var dias = item.dias || [];
+  var diasHTML = DIAS_SEMANA_KEYS.map(function (k) {
+    var ativo = dias.indexOf(k) !== -1;
+    return '<button type="button" class="dia-chip' + (ativo ? ' on' : '') + '" title="' + diaNome(k) + '" onclick="toggleEmbDia(' + idx + ',\'' + k + '\')">' + diaLetra(k) + '</button>';
+  }).join('');
   return '<div class="emb-row">'
     + '<div class="emb-row-top">'
     + '<input class="emb-in emb-nome" type="text" value="' + (item.n || '').replace(/"/g, '&quot;') + '" placeholder="' + t('emb_nome_ph') + '" '
@@ -1373,6 +1379,7 @@ function embRowHTML(idx, item) {
     + '<button class="emb-rm" onclick="removeEmb(' + idx + ')">✕</button>'
     + '</div>'
     + '<div class="emb-row-mid"><span class="emb-stars-label">' + t('avaliacao_label') + '</span><span class="star-picker">' + starsHTML + '</span></div>'
+    + '<div class="emb-row-bot"><span class="emb-dias-label">' + t('emb_dias_label') + '</span><div class="dia-chips">' + diasHTML + '</div></div>'
     + '</div>';
 }
 
@@ -1383,7 +1390,20 @@ function setEmbNota(idx, valor) {
   renderSheet();
 }
 
-/* Dias de saída do porto — agora é do município (não da embarcação) */
+/* Dias de saída por embarcação individual (cada barco pode sair em dias
+   diferentes do resto do município — complementa info.dias, que é só
+   o resumo geral do município). */
+function toggleEmbDia(idx, dia) {
+  if (!editState) return;
+  var item = editState.info.emb[idx]; if (!item) return;
+  if (!item.dias) item.dias = [];
+  var i = item.dias.indexOf(dia);
+  if (i === -1) item.dias.push(dia); else item.dias.splice(i, 1);
+  renderSheet();
+}
+
+/* Dias de saída do porto, resumo do município (visão rápida — cada
+   embarcação também pode ter seus próprios dias, ver toggleEmbDia acima) */
 function toggleInfoDia(dia) {
   if (!editState) return;
   if (!editState.info.dias) editState.info.dias = [];
@@ -1467,7 +1487,7 @@ function removeEmb(idx) {
 
 function addEmb() {
   if (!editState) return;
-  editState.info.emb.push({ n: '', tt: null, nota: null });
+  editState.info.emb.push({ n: '', tt: null, nota: null, dias: [] });
   renderSheet();
   var inputs = document.querySelectorAll('#emb-list .emb-nome');
   var last = inputs[inputs.length - 1]; if (last) last.focus();
