@@ -7,7 +7,7 @@
    Muda o nome do cache (CACHE_NAME) sempre que fizer uma atualização
    visível no app, pra garantir que o service worker antigo seja
    substituído e o cache velho, limpo. */
-var CACHE_NAME = 'navlog-shell-v2';
+var CACHE_NAME = 'navlog-shell-v3';
 var SHELL_FILES = [
   '/index.html',
   '/login.html',
@@ -36,6 +36,43 @@ self.addEventListener('activate', function (event) {
           .map(function (n) { return caches.delete(n); })
       );
     }).then(function () { return self.clients.claim(); })
+  );
+});
+
+/* Notificação push chegou (nível do rio mudou de regime, dado de
+   município foi editado, ou qualidade do ar mudou — ver README, seção
+   "Notificações push"). O payload vem em JSON: {title, body, url, tag}.
+   "tag" agrupa notificações do mesmo assunto (ex.: chega uma nova
+   notificação de nível do rio, substitui a anterior em vez de empilhar
+   várias antigas na tela). */
+self.addEventListener('push', function (event) {
+  var dados = {};
+  try { dados = event.data ? event.data.json() : {}; } catch (e) { dados = { body: event.data ? event.data.text() : '' }; }
+
+  var titulo = dados.title || 'NavLog Amazônia';
+  var opcoes = {
+    body: dados.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: dados.tag || 'navlog',
+    data: { url: dados.url || '/index.html' }
+  };
+  event.waitUntil(self.registration.showNotification(titulo, opcoes));
+});
+
+/* Clicar na notificação: foca uma aba já aberta do app (se tiver) em
+   vez de abrir uma nova toda vez, senão abre uma nova na URL indicada. */
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || '/index.html';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (lista) {
+      for (var i = 0; i < lista.length; i++) {
+        var c = lista[i];
+        if ('focus' in c) { c.navigate(url); return c.focus(); }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
   );
 });
 

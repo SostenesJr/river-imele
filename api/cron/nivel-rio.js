@@ -24,7 +24,20 @@
      CRON_SECRET                — opcional, mas recomendado: uma senha
                                   qualquer só sua, pra ninguém além da
                                   Vercel conseguir chamar essa rota
+
+   Desde a notificação push "qualquer mudança" (ver README, seção
+   "Notificações push"), esse cron também manda um push pra quem ativou
+   notificações sempre que o REGIME do rio muda de faixa (ex.: Seca →
+   Seca severa, Normal → Atenção) em relação à leitura anterior — não a
+   cada leitura diária, só quando a faixa muda de verdade. Usa
+   api/_lib/regime.js (cópia server-side de NIVEL_REGIMES) e
+   api/_lib/push.js (envio via Web Push). Variáveis extra necessárias
+   pra isso: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY (ver api/_lib/push.js).
    ============================================================ */
+
+const { sbFetch } = require('../_lib/supabase');
+const { classificarNivel } = require('../_lib/regime');
+const { enviarPushTodos } = require('../_lib/push');
 
 const FONTE_URL = 'https://portodemanaus.com.br/nivel-do-rio-negro/';
 const FONTE_NOME = 'Porto de Manaus';
@@ -68,21 +81,6 @@ function extrairCotaAbsoluta(texto, dataISO) {
   if (!m) return null;
   var v = numBR(m[1]);
   return (v > 5 && v < 35) ? v : null; // faixa plausível de cota em Manaus, evita pegar lixo
-}
-
-async function sbFetch(path, opts) {
-  var url = process.env.SUPABASE_URL + '/rest/v1/' + path;
-  var headers = Object.assign({
-    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY,
-    'Content-Type': 'application/json'
-  }, (opts && opts.headers) || {});
-  var res = await fetch(url, Object.assign({}, opts, { headers: headers }));
-  if (!res.ok) {
-    var body = await res.text().catch(function () { return ''; });
-    throw new Error('Supabase ' + res.status + ': ' + body);
-  }
-  return res.status === 204 ? null : res.json();
 }
 
 module.exports = async function handler(req, res) {
@@ -142,10 +140,30 @@ module.exports = async function handler(req, res) {
       }])
     });
 
+    // Regime mudou de faixa em relação à leitura anterior? Manda push.
+    // (não é obrigatório pro resto do cron funcionar — se o push falhar
+    // por qualquer motivo, a leitura já foi gravada normalmente acima.)
+    var pushInfo = null;
+    try {
+      var regimeAntes = classificarNivel(ultima[0].nivel_m);
+      var regimeDepois = classificarNivel(nivelFinal);
+      if (regimeAntes.label !== regimeDepois.label) {
+        pushInfo = await enviarPushTodos({
+          title: 'NavLog Amazônia — nível do rio',
+          body: 'O regime do Rio Negro em Manaus mudou de "' + regimeAntes.nome + '" para "' + regimeDepois.nome + '" (' + nivelFinal.toFixed(2).replace('.', ',') + 'm).',
+          url: '/index.html#n',
+          tag: 'navlog-nivel-rio'
+        });
+      }
+    } catch (pushErr) {
+      console.error('push (nível do rio) falhou, seguindo mesmo assim:', String((pushErr && pushErr.message) || pushErr));
+    }
+
     res.status(200).json({
       ok: true, data: variacao.data, nivel_m: nivelFinal,
       variacao_cm: variacao.variacaoCm, tendencia: variacao.tendencia,
-      corrigido_por_tabela: nivelFinal === nivelAbsoluto
+      corrigido_por_tabela: nivelFinal === nivelAbsoluto,
+      push: pushInfo
     });
   } catch (err) {
     res.status(500).json({ error: String((err && err.message) || err) });

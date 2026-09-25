@@ -85,6 +85,7 @@ function aplicarIdioma(lang) {
   atualizarHeroSub();
   if (typeof atualizarIndicadorAbas === 'function') requestAnimationFrame(atualizarIndicadorAbas);
   if (typeof ROTAS === 'undefined') return; // data.js ainda não carregou
+  if (typeof atualizarBotaoPush === 'function') atualizarBotaoPush();
   bRO();
   bINFO();
   if (souAdmin()) bCO();
@@ -119,6 +120,123 @@ function atualizarHeroSub() {
     el._heroCountRaf = (p < 1) ? requestAnimationFrame(passo) : null;
   }
   el._heroCountRaf = requestAnimationFrame(passo);
+}
+
+/* ── Notificações push (Web Push) ──
+   Ativado por "aparelho + navegador" (não por conta): cada inscrição
+   fica salva em push_subscriptions, pareada com quem estava logado no
+   momento de ativar, só pra identificação — quem manda a notificação de
+   verdade é sempre o backend (crons/webhook na Vercel), nunca o
+   navegador de quem ativou. Dispara em qualquer mudança: regime do
+   nível do rio, edição de um município em Configurações, ou mudança na
+   qualidade do ar (ver README, seção "Notificações push", e
+   api/_lib/push.js). */
+var PUSH_ESTADO = 'indisponivel'; // 'indisponivel' | 'desativado' | 'ativado' | 'negado'
+
+function pushSuportado() {
+  return 'serviceWorker' in navigator && typeof window.PushManager !== 'undefined' && typeof window.Notification !== 'undefined';
+}
+
+// applicationServerKey do PushManager precisa ser Uint8Array, não a
+// string base64url em que a VAPID_PUBLIC_KEY vem — conversão padrão
+// usada em qualquer integração Web Push.
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function atualizarBotaoPush() {
+  var btn = document.getElementById('push-btn');
+  if (!btn) return;
+  if (!pushSuportado()) { PUSH_ESTADO = 'indisponivel'; btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  if (Notification.permission === 'denied') {
+    PUSH_ESTADO = 'negado';
+    btn.textContent = '🔕';
+    btn.setAttribute('data-i18n-title', 'push_btn_title_negado');
+    btn.title = t('push_btn_title_negado');
+    return;
+  }
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    PUSH_ESTADO = sub ? 'ativado' : 'desativado';
+  } catch (e) { PUSH_ESTADO = 'desativado'; }
+  var ligado = PUSH_ESTADO === 'ativado';
+  btn.textContent = ligado ? '🔔' : '🔕';
+  var chave = ligado ? 'push_btn_title_on' : 'push_btn_title_off';
+  btn.setAttribute('data-i18n-title', chave);
+  btn.title = t(chave);
+}
+
+async function togglePush() {
+  if (!pushSuportado()) { alert(t('push_indisponivel_msg')); return; }
+  if (PUSH_ESTADO === 'ativado') {
+    await desativarPush();
+  } else {
+    if (Notification.permission === 'denied') { alert(t('push_negado_msg')); return; }
+    await ativarPush();
+  }
+  await atualizarBotaoPush();
+}
+
+async function ativarPush() {
+  var btn = document.getElementById('push-btn');
+  if (btn) btn.disabled = true;
+  try {
+    var permissao = await Notification.requestPermission();
+    if (permissao !== 'granted') return;
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    var json = sub.toJSON();
+    var userRes = await sb.auth.getUser();
+    var userId = userRes.data && userRes.data.user && userRes.data.user.id;
+    if (!userId || !json.keys) return;
+    var res = await sb.from('push_subscriptions').upsert({
+      user_id: userId,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth_key: json.keys.auth,
+      user_agent: navigator.userAgent
+    }, { onConflict: 'endpoint' });
+    if (res.error) {
+      console.error('push: falha ao salvar inscrição:', res.error.message);
+      alert(tf('erro_salvar_tpl', { msg: res.error.message }));
+    }
+  } catch (e) {
+    console.error('push: falha ao ativar:', e);
+    alert(t('push_erro_msg'));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function desativarPush() {
+  var btn = document.getElementById('push-btn');
+  if (btn) btn.disabled = true;
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      var endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await sb.from('push_subscriptions').delete().eq('endpoint', endpoint);
+    }
+  } catch (e) {
+    console.error('push: falha ao desativar:', e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function salvarConfigEmpresa() {
@@ -308,6 +426,13 @@ function classificarNivel(nivel) {
   }
   return NIVEL_REGIMES[NIVEL_REGIMES.length - 1];
 }
+/* Regime atual (última leitura), usado pra colorir os rios no mapa —
+   null enquanto o nível ainda não carregou (mapa mostra os rios sem a
+   camada de cor nesse caso, sem travar nada). */
+function regimeAtual() {
+  if (!NIVEL_HIST.length) return null;
+  return classificarNivel(NIVEL_HIST[NIVEL_HIST.length - 1].nivel_m);
+}
 
 /* Banner chamativo no topo da aba Notícias quando o nível entra numa faixa
    crítica (ver campo "critico" em NIVEL_REGIMES) — o selo discreto ao lado
@@ -321,13 +446,14 @@ function nivelAlertaHTML(regime) {
     + '<div class="niv-alert-tx">' + texto + '</div></div>'
     + '</div>';
 }
-/* Selinho vermelho pulsante nas abas Notícias (cabeçalho + menu mobile),
-   visível de qualquer aba, pra avisar sobre um nível crítico sem precisar
-   entrar na aba Notícias. */
-function atualizarAlertaAba(critico) {
-  document.querySelectorAll('.htab[data-s="n"], #bt-n').forEach(function (el) {
+/* Selinho vermelho pulsante numa aba (cabeçalho + menu mobile), visível
+   de qualquer aba, pra avisar sobre algo crítico sem precisar entrar na
+   aba em questão. "tab" é o código da aba ('n' pro nível do rio, 'w' pra
+   qualidade do ar); tituloKey é a chave de tradução do tooltip. */
+function atualizarAlertaAba(tab, critico, tituloKey) {
+  document.querySelectorAll('.htab[data-s="' + tab + '"], #bt-' + tab).forEach(function (el) {
     var existente = el.querySelector('.tab-alert-dot');
-    if (critico && !existente) el.insertAdjacentHTML('beforeend', '<span class="tab-alert-dot" title="' + t('alert_dot_title') + '"></span>');
+    if (critico && !existente) el.insertAdjacentHTML('beforeend', '<span class="tab-alert-dot" title="' + t(tituloKey || 'alert_dot_title') + '"></span>');
     if (!critico && existente) existente.remove();
   });
 }
@@ -409,7 +535,7 @@ function bNIVEL() {
 
   if (!NIVEL_HIST.length) {
     body.innerHTML = '<div class="niv-empty">' + t('niv_empty_html') + '</div>';
-    atualizarAlertaAba(false);
+    atualizarAlertaAba('n', false);
     return;
   }
 
@@ -461,7 +587,7 @@ function bNIVEL() {
     }).join('');
 
   body.innerHTML = nivelAlertaHTML(regime) + cardHTML + chartHTML + feedHTML;
-  atualizarAlertaAba(!!regime.critico);
+  atualizarAlertaAba('n', !!regime.critico);
 }
 
 /* ============================================================
@@ -476,7 +602,7 @@ function bNIVEL() {
    bloqueio de rede impedir a chamada, a seção mostra um aviso com
    botão de "tentar de novo" em vez de travar o resto da aba.
    ============================================================ */
-var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo, aqi, pm25, pm10}
+var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo, aqi, pm25, pm10, diario:[{data,max,min,chuva,codigo}]}
 var CLIMA_ATUALIZADO_EM = null; // epoch ms da última busca com sucesso
 var CLIMA_CARREGANDO = false;
 var CLIMA_ERRO = false;
@@ -537,6 +663,7 @@ async function carregarClima() {
   var lngs = lista.map(function (m) { return m.lng; }).join(',');
   var urlTempo = 'https://api.open-meteo.com/v1/forecast?latitude=' + lats + '&longitude=' + lngs
     + '&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m'
+    + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=5'
     + '&timezone=America%2FManaus';
   // Endpoint separado (outro subdomínio) só pra qualidade do ar — mesma
   // lista de coordenadas, na mesma ordem, então dá pra casar as duas
@@ -559,8 +686,21 @@ async function carregarClima() {
     var novo = {};
     lista.forEach(function (mun, i) {
       var ct = itensTempo[i] && itensTempo[i].current;
+      var cd = itensTempo[i] && itensTempo[i].daily;
       var ca = itensAr[i] && itensAr[i].current;
       if (!ct) return;
+      var diario = [];
+      if (cd && cd.time) {
+        cd.time.forEach(function (data, di) {
+          diario.push({
+            data: data,
+            max: cd.temperature_2m_max ? cd.temperature_2m_max[di] : null,
+            min: cd.temperature_2m_min ? cd.temperature_2m_min[di] : null,
+            chuva: cd.precipitation_sum ? cd.precipitation_sum[di] : null,
+            codigo: cd.weather_code ? cd.weather_code[di] : null
+          });
+        });
+      }
       novo[mun.seq] = {
         temp: ct.temperature_2m,
         sensacao: ct.apparent_temperature,
@@ -569,7 +709,8 @@ async function carregarClima() {
         codigo: ct.weather_code,
         aqi: ca ? ca.european_aqi : null,
         pm25: ca ? ca.pm2_5 : null,
-        pm10: ca ? ca.pm10 : null
+        pm10: ca ? ca.pm10 : null,
+        diario: diario
       };
     });
     CLIMA_POR_SEQ = novo;
@@ -620,7 +761,33 @@ function bCLIMA() {
   var horaFmt = new Date(CLIMA_ATUALIZADO_EM).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   body.innerHTML = '<div class="clima-hdr"><span class="clima-title">' + t('clima_title') + '</span>'
     + '<span class="clima-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</span></div>'
+    + climaArAlertaHTML(lista)
     + '<div class="clima-grid">' + lista.map(climaCardHTML).join('') + '</div>';
+}
+
+/* Lista de municípios com qualidade do ar "muito ruim"/"extremamente
+   ruim" agora — comum na época de seca/fumaça de queimada na região.
+   Usado tanto pro banner no topo da aba quanto pro selinho de alerta
+   na própria aba (visível de qualquer outra aba, igual o do nível do
+   rio). */
+function climaArCriticoLista(lista) {
+  return lista.filter(function (mun) {
+    var d = CLIMA_POR_SEQ[mun.seq];
+    var cat = d && aqiCategoria(d.aqi);
+    return cat && (cat.key === 'aqi_muito_ruim' || cat.key === 'aqi_extremo');
+  });
+}
+function climaArAlertaHTML(lista) {
+  var criticos = climaArCriticoLista(lista);
+  atualizarAlertaAba('w', criticos.length > 0, 'clima_ar_alert_dot_title');
+  if (!criticos.length) return '';
+  var nomes = criticos.map(function (mun) { return mun.nome; });
+  var nomesTxt = nomes.length <= 4 ? nomes.join(', ') : nomes.slice(0, 4).join(', ') + tf('clima_ar_alerta_mais_tpl', { n: nomes.length - 4 });
+  return '<div class="niv-alert-banner ar-critico">'
+    + '<span class="niv-alert-ic">💨</span>'
+    + '<div><div class="niv-alert-tt">' + tf('clima_ar_alerta_title_tpl', { n: criticos.length }) + '</div>'
+    + '<div class="niv-alert-tx">' + nomesTxt + '</div></div>'
+    + '</div>';
 }
 
 /* ── BALÃO DO CLIMA (clicar num cartão da aba Clima abre o detalhe,
@@ -680,9 +847,38 @@ function renderClimaView() {
     + aqiBlocoHTML
     + '</div>'
 
+    + climaPrevisaoHTML(d.diario)
+
     + (horaFmt ? '<div class="clima-view-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</div>' : '');
 
   document.getElementById('sheet-body').innerHTML = html;
+}
+
+/* Faixa horizontal com a previsão dos próximos dias (a Open-Meteo já
+   manda isso na mesma chamada do clima atual, sem precisar de outra
+   requisição). Reaproveita DIAS_SEMANA_KEYS/diaLetra() — o mesmo sistema
+   de tradução da letra do dia usado nos "dias de saída do porto" — pra
+   rotular cada dia certo nos 4 idiomas. */
+function climaPrevisaoHTML(diario) {
+  if (!diario || !diario.length) return '';
+  var hojeISO = new Date().toISOString().slice(0, 10);
+  var diasHTML = diario.map(function (dia, i) {
+    var cat = climaCategoria(dia.codigo);
+    var jsDay = new Date(dia.data + 'T12:00:00').getDay(); // meio-dia evita virar de data por fuso
+    var idxSemana = jsDay === 0 ? 6 : jsDay - 1;
+    var label = (i === 0 && dia.data === hojeISO) ? t('clima_hoje') : diaLetra(DIAS_SEMANA_KEYS[idxSemana]);
+    return '<div class="clima-prev-dia">'
+      + '<div class="clima-prev-label">' + label + '</div>'
+      + '<div class="clima-prev-ic" title="' + t(cat.key) + '">' + cat.ic + '</div>'
+      + '<div class="clima-prev-max">' + (dia.max != null ? Math.round(dia.max) + '°' : '—') + '</div>'
+      + '<div class="clima-prev-min">' + (dia.min != null ? Math.round(dia.min) + '°' : '—') + '</div>'
+      + (dia.chuva ? '<div class="clima-prev-chuva">💧' + dia.chuva.toFixed(0) + 'mm</div>' : '<div class="clima-prev-chuva">&nbsp;</div>')
+      + '</div>';
+  }).join('');
+  return '<div class="sh-season">'
+    + '<div class="sh-season-hdr">' + t('clima_previsao_title') + '</div>'
+    + '<div class="clima-prev-row">' + diasHTML + '</div>'
+    + '</div>';
 }
 
 /* ============================================================
@@ -1287,8 +1483,23 @@ function renderMap() {
     amGroup.appendChild(blob);
   });
   var grOverlay = document.createElementNS(NS, 'rect'); grOverlay.setAttribute('width', W); grOverlay.setAttribute('height', H); grOverlay.setAttribute('fill', 'url(#gr)'); grOverlay.setAttribute('opacity', '0.5'); amGroup.appendChild(grOverlay);
+  // Regime atual do nível do rio (Seca/Normal/Atenção/Alerta/Emergência)
+  // pintado como um "glow" por baixo do traçado azul de cada rio — o rio
+  // continua com cara de água, só ganha uma auréola na cor do regime,
+  // reforçando visualmente o que já é mostrado na aba Notícias.
+  var regime = regimeAtual();
+
   RIOS.forEach(function (rv) {
     var pts = rv.coords.map(function (c) { var p = proj(c[0], c[1]); return p.x + ' ' + p.y; });
+    if (regime) {
+      var glow = document.createElementNS(NS, 'polyline');
+      glow.setAttribute('points', pts.join(', ')); glow.setAttribute('fill', 'none');
+      glow.setAttribute('stroke', regime.cor); glow.setAttribute('stroke-width', String(rv.w + 5));
+      glow.setAttribute('opacity', '0.35'); glow.setAttribute('stroke-linecap', 'round');
+      glow.setAttribute('class', 'river-regime-glow' + (regime.critico ? ' river-regime-critico' : ''));
+      glow.style.setProperty('--regime-glow', regime.cor);
+      amGroup.appendChild(glow);
+    }
     var path = document.createElementNS(NS, 'polyline');
     path.setAttribute('points', pts.join(', ')); path.setAttribute('fill', 'none');
     path.setAttribute('stroke', '#2f9bd6'); path.setAttribute('stroke-width', rv.w);
@@ -1619,6 +1830,18 @@ function renderMap() {
     iniciarAnimacaoRota(rotaFiltrada, routeLineEls[rotaFiltrada], iz, routeMarcosEls[rotaFiltrada]);
   } else {
     pararAnimacaoRota();
+  }
+
+  // legenda do regime do rio (o mesmo "regime" usado pra pintar o glow
+  // dos rios acima) — clicável, leva direto pra aba Notícias
+  var legenda = document.getElementById('map-regime-legend');
+  if (legenda) {
+    if (regime) {
+      legenda.classList.remove('h');
+      legenda.innerHTML = '<span class="map-regime-dot" style="background:' + regime.cor + '"></span>' + regimeLabel(regime);
+    } else {
+      legenda.classList.add('h');
+    }
   }
 }
 
@@ -2068,6 +2291,7 @@ async function initApp() {
   bCO();
   bNIVEL();
   carregarClima(); // dispara em paralelo (não é await) — não deve atrasar o resto do app
+  atualizarBotaoPush(); // idem: só ajusta o ícone do sino, não deve atrasar o resto do app
 
   // Realtime: quando alguém edita Configurações em outro aparelho,
   // a tela de quem estiver olhando atualiza sozinha.
@@ -2092,8 +2316,9 @@ async function initApp() {
       carregarNivelRio().then(function () {
         // Atualiza o selinho de alerta mesmo se quem estiver olhando não
         // estiver na aba Notícias agora — senão só reagia entrando lá.
-        if (NIVEL_HIST.length) atualizarAlertaAba(!!classificarNivel(NIVEL_HIST[NIVEL_HIST.length - 1].nivel_m).critico);
+        if (NIVEL_HIST.length) atualizarAlertaAba('n', !!classificarNivel(NIVEL_HIST[NIVEL_HIST.length - 1].nivel_m).critico);
         if (cur === 'n') bNIVEL();
+        if (cur === 'm') renderMap(); // cor dos rios (regime do nível) precisa acompanhar em tempo real
       });
     })
     .subscribe();

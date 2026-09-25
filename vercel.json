@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/nivel-rio", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/nivel-rio", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/qualidade-ar", "schedule": "0 15 * * *" }
   ]
 }

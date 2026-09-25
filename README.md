@@ -257,6 +257,121 @@ atuais, e um selo de qualidade do ar.
   `aqiCategoria()`/`abrirClimaView()`/`renderClimaView()` (`js/app.js`) e
   no elemento `#climabdy`, dentro da aba `#sc-w` (`index.html`).
 
+### Previsão dos próximos 5 dias
+
+O balão de detalhe de cada município (abre ao clicar no cartão, ver acima)
+traz também uma tira com a **previsão dos próximos 5 dias**: um cartãozinho
+por dia com a letra do dia da semana (ou "Hoje" pro primeiro), ícone do
+tempo, temperatura máxima/mínima e chuva prevista. Vem na mesma chamada do
+clima atual (`carregarClima()` já pede `daily=weather_code,
+temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=5`
+pra API de previsão do tempo), então não é uma chamada extra. Implementado
+em `climaPrevisaoHTML()` (`js/app.js`), reaproveitando o mesmo sistema de
+tradução da letra do dia da semana já usado nos dias de saída do porto
+(`DIAS_SEMANA_KEYS`/`diaLetra()`).
+
+## Alerta de qualidade do ar ruim
+
+Igual ao regime do nível do rio (abaixo), a aba **Clima** mostra um
+**banner de alerta** no topo sempre que um ou mais municípios estiverem com
+qualidade do ar na faixa "Muito ruim" ou "Extremamente ruim" (ver escala
+acima) — situação comum na época de seca, com fumaça de queimadas. O
+banner lista os municípios afetados (até 4 nomes, com "e mais N" se
+passar disso) e um selinho vermelho aparece também na aba Clima (cabeçalho
+e menu inferior), visível mesmo em outra aba — o mesmo mecanismo de selo
+usado no alerta de nível do rio, generalizado em `atualizarAlertaAba(tab,
+critico, tituloKey)` pra funcionar em qualquer aba. Implementado em
+`climaArCriticoLista()`/`climaArAlertaHTML()` (`js/app.js`).
+
+## Nível do rio no mapa (cor do traçado pelo regime atual)
+
+Na aba **Mapa**, o traçado dos rios agora reflete visualmente o **regime
+atual do nível do rio** (mesma classificação da aba Notícias, ver seção
+"Regime do rio" abaixo): cada rio ganha um brilho colorido por cima do
+traçado normal, na cor do regime vigente (verde em regime Normal, laranja/
+vermelho em regimes críticos), com uma leve animação "respirando" quando o
+regime é crítico (Seca severa/Atenção/Alerta/Emergência). Uma legenda
+fixa no canto inferior esquerdo do mapa mostra o nome do regime atual;
+tocar/clicar nela leva direto pra aba Notícias, onde está o detalhe
+completo. Atualiza sozinha em tempo real (Realtime do Supabase), junto com
+o resto do app, quando uma nova leitura do nível é gravada. Implementado
+em `regimeAtual()` e no `RIOS.forEach()` de `renderMap()` (`js/app.js`),
+e no elemento `#map-regime-legend` (`index.html`).
+
+## Notificações push
+
+Um sininho (🔔/🔕) no cabeçalho, ao lado do botão de idioma, liga/desliga
+notificações push no aparelho — funciona mesmo com o app fechado ou o
+celular bloqueado (é o mesmo tipo de notificação de apps nativos). Tocar
+pede a permissão do navegador (uma vez só) e ativa; tocar de novo
+desativa. É por **aparelho + navegador**, não por conta: a mesma pessoa
+pode ativar no celular e no computador ao mesmo tempo, cada um recebe as
+notificações separadamente.
+
+Dispara em **qualquer mudança relevante**, sem precisar que ninguém
+esteja com o app aberto pra ver:
+- **Nível do rio**: toda vez que o regime muda de faixa (Seca severa /
+  Seca / Normal / Atenção / Alerta / Emergência) em relação à leitura
+  anterior — não a cada leitura diária, só quando a faixa muda de
+  verdade.
+- **Edição de município**: toda vez que alguém salva uma alteração de
+  preço, embarcação ou dias de saída do porto em Configurações.
+- **Qualidade do ar**: toda vez que um município entra ou sai da faixa
+  crítica (Muito ruim/Extremamente ruim), mesma escala da aba Clima.
+
+### Como funciona por baixo dos panos
+
+- **Cliente** (`js/app.js`, funções `ativarPush()`/`desativarPush()`/
+  `atualizarBotaoPush()`): usa a Web Push API padrão do navegador
+  (`PushManager`), com uma chave pública VAPID (`VAPID_PUBLIC_KEY`, em
+  `js/supabase-config.js` — pública por design, como a anon key do
+  Supabase) pra criar a inscrição. A inscrição (endpoint + chaves)
+  fica salva na tabela `push_subscriptions` do Supabase, uma linha por
+  aparelho/navegador que ativou. Ver `sw.js` (eventos `push` e
+  `notificationclick`) pra como a notificação aparece e o que acontece
+  ao tocar nela (foca uma aba já aberta do app, ou abre uma nova).
+- **Backend** (Vercel, `api/_lib/push.js`): quem manda a notificação de
+  verdade — nunca o navegador de quem ativou. Usa a biblioteca
+  `web-push` (Node) com a chave VAPID **privada**, que só existe como
+  variável de ambiente na Vercel, nunca no código do site.
+- **Gatilhos**:
+  - Nível do rio: o cron diário já existente (`api/cron/nivel-rio.js`)
+    compara o regime antes/depois de cada leitura e manda push se mudou.
+  - Edição de município: um **Database Webhook** do Supabase (configurado
+    no painel, não em código) chama `api/webhook-municipio.js` toda vez
+    que `municipios_info` é atualizada.
+  - Qualidade do ar: um novo cron diário, em horário diferente do de
+    nível do rio (`api/cron/qualidade-ar.js`), busca a qualidade do ar
+    de todos os municípios direto na Open-Meteo (a busca de dentro do
+    app roda só no navegador de cada pessoa e não fica salva em lugar
+    nenhum, por isso esse cron busca de novo, a partir do servidor) e
+    compara com a rodada anterior (guardada em `push_estado_ar`) pra só
+    notificar quando alguém entra ou sai da faixa crítica.
+
+### Configuração necessária (uma vez só)
+
+1. Rodar `supabase/migracao-push.sql` no SQL Editor do Supabase (cria
+   `push_subscriptions` e `push_estado_ar`, com RLS).
+2. Nas variáveis de ambiente do projeto na Vercel, adicionar (além das
+   que o cron do nível do rio já usa — `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`):
+   - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — par de chaves gerado
+     especialmente pra este projeto (a pública já está em
+     `js/supabase-config.js`; a privada correspondente foi entregue à
+     parte, nunca vai no repositório).
+   - `WEBHOOK_SECRET` — uma senha à sua escolha.
+3. No painel do Supabase, **Database → Webhooks → Create a new hook**:
+   tabela `municipios_info`, evento `Update`, tipo `HTTP Request`,
+   método `POST`, URL `https://SEU-DOMINIO.vercel.app/api/webhook-municipio`,
+   com o header `x-webhook-secret` igual ao `WEBHOOK_SECRET` do passo 2.
+4. `vercel.json` já inclui o segundo cron (`qualidade-ar`, uma vez por
+   dia — o plano Hobby da Vercel só permite crons diários); não precisa
+   de configuração extra além do deploy.
+
+Se essas variáveis não estiverem configuradas, o app continua
+funcionando normalmente (rotas, mapa, clima, nível do rio) — só as
+notificações push ficam inativas, sem travar nada.
+
 ## Códigos dos municípios (sigla)
 
 Cada município tem um código curto (`seq`) usado como identificador interno
@@ -347,12 +462,29 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `supabase/nivel_rio_backfill.sql` — carga do histórico completo de
   leituras do nível do rio
 - `api/cron/nivel-rio.js` — função que roda 1x por dia (agendada pela
-  Vercel, ver `vercel.json`) e busca o nível do dia
-- `vercel.json` — agenda a função acima (11h UTC / 7h em Manaus)
+  Vercel, ver `vercel.json`) e busca o nível do dia; também manda push se
+  o regime mudou de faixa (ver "Notificações push")
+- `api/cron/qualidade-ar.js` — função que roda 1x por dia e manda push se
+  algum município entrou/saiu da faixa crítica de qualidade do ar
+- `api/webhook-municipio.js` — chamada pelo Supabase (Database Webhook,
+  configurado no painel) toda vez que um município é editado; manda push
+- `api/_lib/supabase.js` — helper compartilhado pelas funções acima pra
+  chamar o Supabase com a chave `service_role`
+- `api/_lib/push.js` — envia notificações Web Push (biblioteca `web-push`)
+  pra todo mundo com inscrição salva em `push_subscriptions`
+- `api/_lib/regime.js` — cópia server-side da classificação de regime do
+  rio (espelha `NIVEL_REGIMES` de `js/app.js`), usada só pelo cron acima
+- `supabase/migracao-push.sql` — cria `push_subscriptions` (inscrições de
+  notificação push) e `push_estado_ar` (estado do cron de qualidade do ar)
+- `package.json` — declara a dependência `web-push`, usada pelas funções
+  serverless acima
+- `vercel.json` — agenda os dois crons (nível do rio às 11h UTC / 7h em
+  Manaus; qualidade do ar às 15h UTC / 11h em Manaus)
 
 ## Publicação
 
 Site estático (HTML/CSS/JS, sem build step); a Vercel serve os arquivos e
 toda a lógica de login e dados compartilhados roda direto do navegador pro
-Supabase. A pasta `api/` (coleta diária do nível do rio) é a única exceção:
-a Vercel detecta e roda como função de servidor automaticamente.
+Supabase. A pasta `api/` (coleta diária do nível do rio, qualidade do ar e
+notificações push) é a única exceção: a Vercel detecta e roda como função
+de servidor automaticamente (instalando a dependência de `package.json`).

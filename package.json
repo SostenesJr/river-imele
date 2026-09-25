@@ -1,0 +1,9 @@
+{
+  "name": "navlog-amazonia",
+  "private": true,
+  "version": "1.0.0",
+  "description": "NavLog Amazônia — site estático + funções serverless (Vercel) pra rotas fluviais, nível do rio, clima e notificações push",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
