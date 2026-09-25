@@ -617,7 +617,21 @@ html, body {
 #climabdy { max-width: 900px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 10px; }
 .clima-hdr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .clima-title { font-size: 12px; font-weight: 800; color: var(--mu); text-transform: uppercase; letter-spacing: .06em; }
-.clima-atualizado { font-size: 10.5px; color: var(--mu); }
+.clima-atualizado { font-size: 10.5px; color: var(--mu); display: inline-flex; align-items: center; gap: 6px; }
+
+/* botão "atualizar agora" (ao lado do "atualizado às HH:MM") e a notinha
+   sobre a fonte dos dados não ser um radar ao vivo — ver clima_fonte_nota */
+.clima-refresh-btn {
+  background: none; border: 1px solid var(--bd); color: var(--mu); border-radius: 6px;
+  width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; line-height: 1; padding: 0; transition: color .15s, border-color .15s;
+}
+.clima-refresh-btn:hover:not(:disabled) { color: var(--tx); border-color: var(--tx); }
+.clima-refresh-btn:disabled { opacity: .5; cursor: default; }
+.clima-refresh-spin { display: inline-block; animation: climaRefreshSpin .9s linear infinite; }
+@keyframes climaRefreshSpin { to { transform: rotate(360deg); } }
+.clima-fonte-nota { flex-basis: 100%; font-size: 10px; color: var(--mu); opacity: .7; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) { .clima-refresh-spin { animation: none !important; } }
 .clima-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
 .clima-card {
   background: color-mix(in srgb, var(--s1) 82%, transparent); border: 1px solid var(--bd); border-radius: 12px;

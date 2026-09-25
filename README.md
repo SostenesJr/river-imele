@@ -245,9 +245,20 @@ partir de `LATLNG.MAO`, nova entrada em `js/data.js`) e em
   PM10 (µg/m³) fica disponível ao passar o mouse/tocar no selo. É
   particularmente relevante na época de seca, quando a fumaça de queimada
   costuma piorar a qualidade do ar na região.
-- **Cache simples**: a busca só é refeita se ainda não tiver nenhum dado ou
-  se já fizer mais de 20 minutos da última — abrir e fechar a aba Clima
-  repetidas vezes não dispara uma chamada nova a cada vez.
+- **Cache simples**: a busca automática só é refeita se ainda não tiver
+  nenhum dado ou se já fizer mais de 10 minutos da última — abrir e fechar
+  a aba Clima repetidas vezes não dispara uma chamada nova a cada vez. Tem
+  também um **botão "atualizar agora"** (⟳, ao lado do "atualizado às"),
+  pra forçar uma busca nova na hora, sem esperar os 10 minutos.
+- **Não é um radar de chuva ao vivo**: a Open-Meteo (como qualquer serviço
+  de previsão do tempo) trabalha com **modelos meteorológicos** — os
+  valores de "agora" são a leitura mais recente desses modelos, não uma
+  medição direta de pluviômetro/radar local. Isso é normal em qualquer
+  fonte assim (inclusive apps de tempo famosos) e funciona bem pra
+  tendência geral, mas uma chuva forte e repentina, bem localizada (comum
+  na Amazônia) pode demorar alguns minutos pra aparecer no dado do
+  modelo — daí o aviso fixo embaixo do título da aba e o botão de
+  atualizar, pra pessoa nunca ficar refém só do intervalo automático.
 - **Se a chamada falhar** (sem internet, bloqueio de rede, API fora do ar),
   a aba mostra um aviso com botão "Tentar de novo" em vez de travar o
   resto do app — o card de nível do rio, na aba Notícias (que já vem do

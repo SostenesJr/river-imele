@@ -121,6 +121,7 @@ var I18N = {
     niv_alert_title_tpl: 'Nível do rio em {regime}',
 
     clima_title: 'Clima nos municípios', clima_hub_badge: 'CAPITAL · HUB', clima_atualizado_tpl: 'atualizado às {hora}',
+    clima_atualizar_agora: 'Atualizar agora', clima_fonte_nota: 'Dado de modelo meteorológico (Open-Meteo), não é radar ao vivo — chuva forte e repentina, bem localizada, pode demorar alguns minutos pra aparecer aqui. Toque em ⟳ pra buscar de novo agora.',
     clima_sensacao_tpl: 'sensação {v}°', clima_chuva_title: 'Chuva agora', clima_vento_title: 'Vento agora',
     clima_erro_html: 'Não foi possível carregar o clima agora. Verifique a internet e tente de novo.',
     clima_tentar_de_novo: 'Tentar de novo',
@@ -247,6 +248,7 @@ var I18N = {
     niv_alert_title_tpl: 'River level: {regime}',
 
     clima_title: 'Weather in the municipalities', clima_hub_badge: 'CAPITAL · HUB', clima_atualizado_tpl: 'updated at {hora}',
+    clima_atualizar_agora: 'Refresh now', clima_fonte_nota: 'Weather-model data (Open-Meteo), not a live radar feed — sudden, highly localized heavy rain may take a few minutes to show up here. Tap ⟳ to fetch again now.',
     clima_sensacao_tpl: 'feels like {v}°', clima_chuva_title: 'Rain now', clima_vento_title: 'Wind now',
     clima_erro_html: 'Could not load the weather right now. Check your connection and try again.',
     clima_tentar_de_novo: 'Try again',
@@ -373,6 +375,7 @@ var I18N = {
     niv_alert_title_tpl: 'Nivel del río en {regime}',
 
     clima_title: 'Clima en los municipios', clima_hub_badge: 'CAPITAL · HUB', clima_atualizado_tpl: 'actualizado a las {hora}',
+    clima_atualizar_agora: 'Actualizar ahora', clima_fonte_nota: 'Dato de modelo meteorológico (Open-Meteo), no es radar en vivo — una lluvia fuerte y repentina, muy localizada, puede tardar algunos minutos en aparecer aquí. Toca ⟳ para buscar de nuevo ahora.',
     clima_sensacao_tpl: 'sensación {v}°', clima_chuva_title: 'Lluvia ahora', clima_vento_title: 'Viento ahora',
     clima_erro_html: 'No se pudo cargar el clima ahora. Verifique su conexión e intente de nuevo.',
     clima_tentar_de_novo: 'Intentar de nuevo',
@@ -499,6 +502,7 @@ var I18N = {
     niv_alert_title_tpl: '河水位：{regime}',
 
     clima_title: '各市镇天气', clima_hub_badge: '首府 · 枢纽', clima_atualizado_tpl: '{hora} 更新',
+    clima_atualizar_agora: '立即刷新', clima_fonte_nota: '数据来自天气模型（Open-Meteo），不是实时雷达——非常局地的突发强降雨可能需要几分钟才会显示。点击 ⟳ 立即重新获取。',
     clima_sensacao_tpl: '体感 {v}°', clima_chuva_title: '当前降雨', clima_vento_title: '当前风速',
     clima_erro_html: '暂时无法加载天气数据。请检查网络连接后重试。',
     clima_tentar_de_novo: '重试',

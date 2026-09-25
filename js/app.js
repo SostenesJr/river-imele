@@ -622,7 +622,7 @@ var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo, aq
 var CLIMA_ATUALIZADO_EM = null; // epoch ms da última busca com sucesso
 var CLIMA_CARREGANDO = false;
 var CLIMA_ERRO = false;
-var CLIMA_INTERVALO_MS = 20 * 60 * 1000; // não busca de novo antes de 20min
+var CLIMA_INTERVALO_MS = 10 * 60 * 1000; // não busca de novo sozinho antes de 10min (chuva na Amazônia muda rápido)
 
 /* Códigos "WMO weather code" (padrão usado pela Open-Meteo) agrupados nas
    categorias que fazem sentido pro clima amazônico — não precisa de um
@@ -679,6 +679,7 @@ async function carregarClima() {
   if (CLIMA_CARREGANDO) return;
   CLIMA_CARREGANDO = true;
   CLIMA_ERRO = false;
+  if (CLIMA_ATUALIZADO_EM) bCLIMA(); // já tinha dado na tela — mostra o botão "atualizando" girando
   var lista = climaMunicipiosOrdenados();
   if (!lista.length) { CLIMA_CARREGANDO = false; return; }
   var lats = lista.map(function (m) { return m.lat; }).join(',');
@@ -782,7 +783,10 @@ function bCLIMA() {
   var lista = climaMunicipiosOrdenados();
   var horaFmt = new Date(CLIMA_ATUALIZADO_EM).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   body.innerHTML = '<div class="clima-hdr"><span class="clima-title">' + t('clima_title') + '</span>'
-    + '<span class="clima-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</span></div>'
+    + '<span class="clima-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt })
+    + '<button class="clima-refresh-btn" onclick="carregarClima()" title="' + t('clima_atualizar_agora') + '"'
+    + (CLIMA_CARREGANDO ? ' disabled' : '') + '>' + (CLIMA_CARREGANDO ? '<span class="clima-refresh-spin">⟳</span>' : '⟳') + '</button></span>'
+    + '<div class="clima-fonte-nota">' + t('clima_fonte_nota') + '</div></div>'
     + climaArAlertaHTML(lista)
     + '<div class="clima-grid">' + lista.map(climaCardHTML).join('') + '</div>';
 }
