@@ -438,10 +438,19 @@ html, body {
 }
 .sh-obs:focus { border-color: var(--ac); }
 
-/* ── BOTTOM SHEET (balão editável) ── */
+/* ── BOTTOM SHEET (balão editável) ──
+   touch-action: o gesto de beliscar (pinça) pra dar zoom foi desligado
+   aqui de propósito — sem isso, dar zoom em cima do balão dava zoom na
+   PÁGINA INTEIRA (alguns navegadores, sobretudo Safari/iOS, ignoram
+   user-scalable=no do <meta viewport> por acessibilidade), o que
+   deslocava/escondia a barra lateral fixa. O zoom continua livre só
+   dentro do mapa (#map-wrap não mexe em touch-action, ver comentário
+   lá). No lugar da pinça, o balão agora tem 3 tamanhos fixos (P/M/G,
+   .sh-size-ctl) que a pessoa escolhe explicitamente. */
 #sheet-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 500;
   display: none; align-items: flex-end; justify-content: center;
+  touch-action: none;
 }
 #sheet-overlay.on { display: flex; }
 #sheet {
@@ -451,8 +460,30 @@ html, body {
   border-radius: 16px 16px 0 0; border: 1px solid var(--bd); border-bottom: none;
   padding: 10px 16px calc(20px + var(--safe-bottom));
   overflow-y: auto; -webkit-overflow-scrolling: touch;
+  touch-action: pan-y; /* deixa rolar verticalmente, mas nada de pinça/zoom */
 }
 .shdl { width: 36px; height: 4px; background: var(--bd); border-radius: 2px; margin: 4px auto 12px; }
+
+/* Tamanho do balão — 3 opções fixas (P = tamanho normal/atual, M = 30%
+   maior, G = 50% maior), escaladas via CSS var (setSheetScale(), js/app.js).
+   transform:scale em vez de font-size porque escala TUDO dentro do balão
+   de uma vez só (textos, ícones, botões, campos) sem precisar converter
+   cada font-size/padding/width em px pra uma unidade relativa — e a
+   largura é compensada (100% / escala) pra continuar preenchendo a
+   largura do balão depois de escalado. */
+.sh-size-ctl { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.sh-size-btn {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: var(--s2); border: 1px solid var(--bd); color: var(--mu);
+  font-size: 12px; font-weight: 800; font-family: var(--font-sans); cursor: pointer;
+}
+.sh-size-btn.on { background: var(--ac); border-color: var(--ac); color: #fff; }
+#sheet-body {
+  transform: scale(var(--sh-scale, 1)); transform-origin: top left;
+  width: calc(100% / var(--sh-scale, 1));
+  transition: transform .2s ease;
+}
+@media (prefers-reduced-motion: reduce) { #sheet-body { transition: none; } }
 
 .sh-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .sh-seq { font-family: var(--font-mono); font-size: 30px; font-weight: 900; letter-spacing: 1px; max-width: 140px; overflow-wrap: break-word; line-height: 1.05; }

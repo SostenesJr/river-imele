@@ -74,6 +74,27 @@ function alternarTema() {
   aplicarTema(atual === 'light' ? 'dark' : 'light');
 }
 
+/* ── Tamanho do balão (bottom sheet) ──
+   3 tamanhos físicos fixos (P = normal, M = 30% maior, G = 50% maior),
+   no lugar do zoom por pinça (desligado no CSS, ver comentário em
+   #sheet-overlay/#sheet) — pinçar pra dar zoom em cima do balão estava
+   dando zoom na página inteira em alguns navegadores (Safari/iOS ignora
+   user-scalable=no por acessibilidade), o que deslocava a barra lateral
+   fixa pra fora da tela. Preferência de cada aparelho (localStorage),
+   igual tema/idioma. */
+function sheetScaleSalva() {
+  try { var v = parseFloat(localStorage.getItem('navlog-sheet-scale')); return v || 1; }
+  catch (e) { return 1; }
+}
+function setSheetScale(escala) {
+  var sheet = document.getElementById('sheet');
+  if (sheet) sheet.style.setProperty('--sh-scale', escala);
+  try { localStorage.setItem('navlog-sheet-scale', escala); } catch (e) { /* modo privado etc. */ }
+  document.querySelectorAll('.sh-size-btn').forEach(function (b) {
+    b.classList.toggle('on', parseFloat(b.dataset.sz) === escala);
+  });
+}
+
 /* ── Idioma da interface (PT/EN/ES/ZH) ──
    Preferência de cada aparelho (localStorage), igual o tema — não é dado
    da empresa. setIdiomaEstatico() (em i18n.js) troca o texto estático do
@@ -2324,6 +2345,17 @@ async function initApp() {
   setIdiomaEstatico(idiomaSalvo());
   atualizarHeroSub();
   requestAnimationFrame(atualizarIndicadorAbas);
+  setSheetScale(sheetScaleSalva());
+
+  // Reforço pro Safari/iOS: touch-action (CSS) já barra a pinça na maioria
+  // dos navegadores, mas o Safari tem um gesto próprio (gesturestart/
+  // gesturechange, fora do padrão) que às vezes escapa do touch-action —
+  // isso aqui garante que nem esse jeito dá zoom em cima do balão.
+  var sheetOverlayEl = document.getElementById('sheet-overlay');
+  if (sheetOverlayEl) {
+    sheetOverlayEl.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    sheetOverlayEl.addEventListener('gesturechange', function (e) { e.preventDefault(); });
+  }
 
   var sessionRes = await sb.auth.getSession();
   var session = sessionRes.data && sessionRes.data.session;

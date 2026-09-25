@@ -478,6 +478,47 @@ Implementado em `#hdr`/`.htabs`/`.htab`/`.htab-pill`/`.hdr-top`/
 de `#hdr` (`index.html`, substituiu o antigo cabeçalho de cima + o menu de
 abas de baixo, `#btabs`, removido).
 
+## Tamanho do balão de informações (P/M/G, sem zoom por pinça)
+
+O balão que abre ao tocar num município (visualização, edição e a
+calculadora de rota — todos reaproveitam o mesmo `#sheet`) tinha um
+problema: dar zoom por pinça em cima dele fazia zoom na **página inteira**
+em vez de só no conteúdo do balão. Isso acontece porque alguns navegadores
+(principalmente Safari/iOS) ignoram o `user-scalable=no` do
+`<meta viewport>` por acessibilidade — então a pinça continuava
+funcionando, só que na página toda, o que deslocava/escondia a barra
+lateral fixa (`#hdr`) pra fora da tela.
+
+Correção: o zoom por pinça foi desligado especificamente dentro do balão
+(`touch-action: none` em `#sheet-overlay`, `touch-action: pan-y` em
+`#sheet` — deixa rolar verticalmente, mas nada de beliscar; mais um
+reforço em JS pro gesto específico do Safari, `gesturestart`/
+`gesturechange`, que às vezes escapa do `touch-action`). No lugar da
+pinça livre, o balão ganhou **3 tamanhos físicos fixos**, escolhidos por
+3 botões (P/M/G) no topo do balão:
+
+- **P** — tamanho normal (o que já existia).
+- **M** — 30% maior.
+- **G** — 50% maior.
+
+Os 3 tamanhos escalam **tudo** dentro do balão de uma vez (textos, ícones,
+cards, campos de formulário) via `transform: scale()` em `#sheet-body`
+— não é o texto crescendo separado do resto, é o balão inteiro "físico"
+ficando maior, exatamente como no card de Configurações, no de
+Informações e no da calculadora de rota (os 3 usam o mesmo balão). A
+largura é compensada (`width: calc(100% / var(--sh-scale))`) pra
+continuar preenchendo a largura certa depois de escalado. O tamanho
+escolhido fica salvo por aparelho (`localStorage`, igual tema/idioma) e
+volta a valer da próxima vez que um balão for aberto. O zoom por pinça
+continua funcionando normalmente **só dentro do mapa** — não foi mexido
+lá.
+
+Implementado em `setSheetScale()`/`sheetScaleSalva()` (`js/app.js`,
+chamado no `initApp()` e nos 3 botões `.sh-size-btn`), no CSS de
+`#sheet-overlay`/`#sheet`/`.sh-size-ctl`/`.sh-size-btn`/`#sheet-body`
+(`css/style.css`) e no HTML de `.sh-size-ctl` dentro de `#sheet`
+(`index.html`).
+
 ## Alerta de embarcação mal avaliada
 
 Quando a avaliação de uma embarcação cadastrada num município está baixa

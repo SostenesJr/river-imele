@@ -188,6 +188,15 @@ if ('serviceWorker' in navigator) {
 <div id="sheet-overlay" onclick="fecharSheet(event)">
   <div id="sheet" onclick="event.stopPropagation()">
     <div class="shdl"></div>
+    <!-- Tamanho do balão (P/M/G) — pinça/zoom nativo do navegador foi
+         desligado dentro do balão (ver touch-action no CSS), então o
+         "aumentar" agora é isso aqui: 3 tamanhos fixos, físicos, em vez de
+         zoom livre que descolava a barra lateral da tela. -->
+    <div class="sh-size-ctl" id="sh-size-ctl">
+      <button class="sh-size-btn on" data-sz="1" onclick="setSheetScale(1)" title="Balão pequeno (tamanho normal)" data-i18n-title="sheet_size_p_title">P</button>
+      <button class="sh-size-btn" data-sz="1.3" onclick="setSheetScale(1.3)" title="Balão médio (30% maior)" data-i18n-title="sheet_size_m_title">M</button>
+      <button class="sh-size-btn" data-sz="1.5" onclick="setSheetScale(1.5)" title="Balão grande (50% maior)" data-i18n-title="sheet_size_g_title">G</button>
+    </div>
     <div id="sheet-body"></div>
   </div>
 </div>
