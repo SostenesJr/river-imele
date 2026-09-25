@@ -3,6 +3,12 @@
    Chave = codigo do node (mesmo valor de `seq`). Sem CEP.
    ============================================================ */
 const LATLNG = {
+  // Manaus (hub) — não é um dos 57 municípios das calhas (não tem `seq`
+  // em nenhuma ROTA), mas precisa de coordenada própria pra aparecer no
+  // clima/qualidade do ar do app junto com o resto (ver "MAO" em
+  // climaMunicipiosOrdenados(), js/app.js). Mesma coordenada já usada
+  // como `hubLL` no desenho do mapa.
+  MAO:{lat:-3.119,lng:-60.021},
   // Calha A · Baixo Amazonas
   AUT:{lat:-3.580,lng:-59.129}, URT:{lat:-2.838,lng:-57.747}, SSU:{lat:-2.655,lng:-57.698},
   URC:{lat:-2.532,lng:-57.755}, MAU:{lat:-3.388,lng:-57.720}, BVR:{lat:-2.974,lng:-57.575},

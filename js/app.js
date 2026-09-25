@@ -660,6 +660,12 @@ function aqiCategoria(aqi) {
    mesma ordem) quanto pra desenhar a grade depois. */
 function climaMunicipiosOrdenados() {
   var lista = [];
+  // Manaus primeiro: é o hub (não é um dos 57 municípios de nenhuma
+  // calha, por isso não vem do ROTAS.forEach abaixo), mas sem o clima
+  // dela o app não mostrava tempo/qualidade do ar da capital em lugar
+  // nenhum — cor igual à do marcador do hub no mapa (#14b8a6).
+  var llMAO = LATLNG.MAO;
+  if (llMAO) lista.push({ seq: 'MAO', nome: 'Manaus', cor: '#14b8a6', lat: llMAO.lat, lng: llMAO.lng });
   ROTAS.forEach(function (r) {
     r.municipios.forEach(function (m) {
       var ll = LATLNG[m.seq];
@@ -822,15 +828,23 @@ function abrirClimaView(seq) {
 function renderClimaView() {
   if (!climaViewSeq) return;
   var seq = climaViewSeq;
-  var hit = NODEIDX[seq]; if (!hit) return;
-  var r = hit.rota, m = hit.mun;
+  // Manaus (hub) não tem entrada em NODEIDX — não é um dos municípios de
+  // nenhuma calha (ver climaMunicipiosOrdenados()) — então monta o
+  // cabeçalho com um selo "capital/hub" em vez do de calha.
+  var hit = NODEIDX[seq];
+  if (!hit && seq !== 'MAO') return;
+  var r = hit ? hit.rota : null, m = hit ? hit.mun : { seq: 'MAO', nome: 'Manaus' };
   var d = CLIMA_POR_SEQ[seq];
   var horaFmt = CLIMA_ATUALIZADO_EM ? new Date(CLIMA_ATUALIZADO_EM).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
 
+  var corHdr = r ? r.cor : '#14b8a6';
+  var badgeHTML = r
+    ? '<div class="sh-badge" style="background:' + r.cor + '">' + t('calha_word').toUpperCase() + ' ' + r.nome.toUpperCase() + '</div>'
+    : '<div class="sh-badge" style="background:' + corHdr + '">' + t('clima_hub_badge') + '</div>';
   var html = '<div class="sh-hdr">'
-    + '<div class="sh-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
+    + '<div class="sh-seq" style="color:' + corHdr + ';' + seqFS(m.seq) + '">' + m.seq + '</div>'
     + '<div><div class="sh-nome">' + m.nome + '</div>'
-    + '<div class="sh-badge" style="background:' + r.cor + '">' + t('calha_word').toUpperCase() + ' ' + r.nome.toUpperCase() + '</div></div>'
+    + badgeHTML + '</div>'
     + '</div>';
 
   if (!d) {

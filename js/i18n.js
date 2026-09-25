@@ -120,7 +120,7 @@ var I18N = {
     alert_text_emergencia: 'Rio na cota de emergência (Defesa Civil de Manaus/SGB) — nível de inundação severa.',
     niv_alert_title_tpl: 'Nível do rio em {regime}',
 
-    clima_title: 'Clima nos municípios', clima_atualizado_tpl: 'atualizado às {hora}',
+    clima_title: 'Clima nos municípios', clima_hub_badge: 'CAPITAL · HUB', clima_atualizado_tpl: 'atualizado às {hora}',
     clima_sensacao_tpl: 'sensação {v}°', clima_chuva_title: 'Chuva agora', clima_vento_title: 'Vento agora',
     clima_erro_html: 'Não foi possível carregar o clima agora. Verifique a internet e tente de novo.',
     clima_tentar_de_novo: 'Tentar de novo',
@@ -246,7 +246,7 @@ var I18N = {
     alert_text_emergencia: 'The river is at the emergency stage (Manaus Civil Defense/SGB) — severe flood level.',
     niv_alert_title_tpl: 'River level: {regime}',
 
-    clima_title: 'Weather in the municipalities', clima_atualizado_tpl: 'updated at {hora}',
+    clima_title: 'Weather in the municipalities', clima_hub_badge: 'CAPITAL · HUB', clima_atualizado_tpl: 'updated at {hora}',
     clima_sensacao_tpl: 'feels like {v}°', clima_chuva_title: 'Rain now', clima_vento_title: 'Wind now',
     clima_erro_html: 'Could not load the weather right now. Check your connection and try again.',
     clima_tentar_de_novo: 'Try again',
@@ -372,7 +372,7 @@ var I18N = {
     alert_text_emergencia: 'El río está en la cota de emergencia (Defensa Civil de Manaus/SGB) — nivel de inundación severa.',
     niv_alert_title_tpl: 'Nivel del río en {regime}',
 
-    clima_title: 'Clima en los municipios', clima_atualizado_tpl: 'actualizado a las {hora}',
+    clima_title: 'Clima en los municipios', clima_hub_badge: 'CAPITAL · HUB', clima_atualizado_tpl: 'actualizado a las {hora}',
     clima_sensacao_tpl: 'sensación {v}°', clima_chuva_title: 'Lluvia ahora', clima_vento_title: 'Viento ahora',
     clima_erro_html: 'No se pudo cargar el clima ahora. Verifique su conexión e intente de nuevo.',
     clima_tentar_de_novo: 'Intentar de nuevo',
@@ -498,7 +498,7 @@ var I18N = {
     alert_text_emergencia: '河流处于紧急水位（马瑙斯民防局/SGB）— 严重洪水水平。',
     niv_alert_title_tpl: '河水位：{regime}',
 
-    clima_title: '各市镇天气', clima_atualizado_tpl: '{hora} 更新',
+    clima_title: '各市镇天气', clima_hub_badge: '首府 · 枢纽', clima_atualizado_tpl: '{hora} 更新',
     clima_sensacao_tpl: '体感 {v}°', clima_chuva_title: '当前降雨', clima_vento_title: '当前风速',
     clima_erro_html: '暂时无法加载天气数据。请检查网络连接后重试。',
     clima_tentar_de_novo: '重试',

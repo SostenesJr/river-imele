@@ -214,9 +214,17 @@ ficam em `NIVEL_REGIMES`/`NIVEL_ALERTA_TEXTOS`, no topo de `js/app.js`.
 
 A aba **Clima** (separada da aba Notícias, que ficou só com o nível do rio)
 mostra uma grade com o **clima atual** e a **qualidade do ar** de todos os
-municípios, um cartão por município, agrupados na mesma ordem das calhas.
-Cada cartão traz: ícone e temperatura/sensação térmica, chuva e vento
-atuais, e um selo de qualidade do ar.
+municípios, um cartão por município, agrupados na mesma ordem das calhas —
+**mais Manaus**, sempre o primeiro cartão da grade (selo "CAPITAL · HUB"
+em vez de calha, já que ela é o hub e não faz parte de nenhuma das 10
+calhas). Sem isso, a capital — de onde partem todas as rotas — não tinha
+clima/qualidade do ar em lugar nenhum do site. Cada cartão traz: ícone e
+temperatura/sensação térmica, chuva e vento atuais, e um selo de
+qualidade do ar; clicar abre o mesmo balão de detalhe dos outros
+municípios (com previsão de 5 dias). Implementado em
+`climaMunicipiosOrdenados()` (`js/app.js`, monta o cartão de Manaus a
+partir de `LATLNG.MAO`, nova entrada em `js/data.js`) e em
+`renderClimaView()` (trata o caso de Manaus não ter calha).
 
 - **Fonte**: [Open-Meteo](https://open-meteo.com/) — serviço público e
   gratuito, sem necessidade de conta nem chave de API. Duas APIs da mesma
@@ -446,6 +454,13 @@ esteja com o app aberto pra ver:
   `api/cron/clima-alertas.js` pros pesos exatos. **Não substitui** uma
   fonte oficial de risco de incêndio (pra isso, o INPE tem o Programa
   Queimadas).
+
+Os três alertas de clima (qualidade do ar, chuva forte, risco de queimada)
+cobrem **Manaus também**, automaticamente — o cron lê todas as
+coordenadas de `LATLNG` (`js/data.js`), sem depender das calhas, então a
+entrada `MAO` (adicionada junto com o clima de Manaus na aba Clima, ver
+"Clima nos municípios") já entra na conta sem precisar mexer em
+`api/cron/clima-alertas.js`.
 
 ### Como funciona por baixo dos panos
 
