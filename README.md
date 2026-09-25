@@ -317,7 +317,19 @@ esteja com o app aberto pra ver:
 - **Edição de município**: toda vez que alguém salva uma alteração de
   preço, embarcação ou dias de saída do porto em Configurações.
 - **Qualidade do ar**: toda vez que um município entra ou sai da faixa
-  crítica (Muito ruim/Extremamente ruim), mesma escala da aba Clima.
+  crítica (Muito ruim/Extremamente ruim), mesma escala da aba Clima —
+  geralmente fumaça de queimada na região.
+- **Chuva forte / risco de alagamento**: toda vez que um município entra
+  ou sai de chuva forte — pela chuva **acontecendo agora** (≥10mm na
+  última hora) ou pela chuva **prevista pra hoje** (≥50mm acumulados,
+  referência de risco de alagamento do INMET).
+- **Risco de queimada**: toda vez que um município entra ou sai de risco
+  alto, numa **estimativa aproximada** (a Open-Meteo não tem um índice
+  de incêndio pronto) que combina umidade relativa baixa, vento forte e
+  pouca chuva nos últimos 7 dias — ver `calcularRiscoQueimada()` em
+  `api/cron/clima-alertas.js` pros pesos exatos. **Não substitui** uma
+  fonte oficial de risco de incêndio (pra isso, o INPE tem o Programa
+  Queimadas).
 
 ### Como funciona por baixo dos panos
 
@@ -340,18 +352,22 @@ esteja com o app aberto pra ver:
   - Edição de município: um **Database Webhook** do Supabase (configurado
     no painel, não em código) chama `api/webhook-municipio.js` toda vez
     que `municipios_info` é atualizada.
-  - Qualidade do ar: um novo cron diário, em horário diferente do de
-    nível do rio (`api/cron/qualidade-ar.js`), busca a qualidade do ar
-    de todos os municípios direto na Open-Meteo (a busca de dentro do
-    app roda só no navegador de cada pessoa e não fica salva em lugar
+  - Qualidade do ar, chuva forte e risco de queimada: um segundo cron
+    diário, em horário diferente do de nível do rio
+    (`api/cron/clima-alertas.js`) — os três moram no MESMO cron porque
+    o plano Hobby da Vercel só permite 2 cron jobs. Busca o clima de
+    todos os municípios direto na Open-Meteo (a busca de dentro do app
+    roda só no navegador de cada pessoa e não fica salva em lugar
     nenhum, por isso esse cron busca de novo, a partir do servidor) e
-    compara com a rodada anterior (guardada em `push_estado_ar`) pra só
-    notificar quando alguém entra ou sai da faixa crítica.
+    compara cada um dos três alertas com a rodada anterior (guardados
+    em `push_estado`, uma linha por alerta) pra só notificar quando
+    algum município entra ou sai da faixa crítica de cada um.
 
 ### Configuração necessária (uma vez só)
 
-1. Rodar `supabase/migracao-push.sql` no SQL Editor do Supabase (cria
-   `push_subscriptions` e `push_estado_ar`, com RLS).
+1. Rodar, em sequência, `supabase/migracao-push.sql` e
+   `supabase/migracao-push2-alertas-clima.sql` no SQL Editor do
+   Supabase (cria `push_subscriptions` e `push_estado`, com RLS).
 2. Nas variáveis de ambiente do projeto na Vercel, adicionar (além das
    que o cron do nível do rio já usa — `SUPABASE_URL`,
    `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`):
@@ -364,13 +380,19 @@ esteja com o app aberto pra ver:
    tabela `municipios_info`, evento `Update`, tipo `HTTP Request`,
    método `POST`, URL `https://SEU-DOMINIO.vercel.app/api/webhook-municipio`,
    com o header `x-webhook-secret` igual ao `WEBHOOK_SECRET` do passo 2.
-4. `vercel.json` já inclui o segundo cron (`qualidade-ar`, uma vez por
+4. `vercel.json` já inclui o segundo cron (`clima-alertas`, uma vez por
    dia — o plano Hobby da Vercel só permite crons diários); não precisa
    de configuração extra além do deploy.
 
 Se essas variáveis não estiverem configuradas, o app continua
 funcionando normalmente (rotas, mapa, clima, nível do rio) — só as
 notificações push ficam inativas, sem travar nada.
+
+Os limiares de "crítico" de cada alerta (AQI ≥80, chuva ≥10mm/h ou
+≥50mm/dia, risco de queimada ≥55) ficam no topo de
+`api/cron/clima-alertas.js` — dá pra ajustar sem mexer no resto da
+lógica, se a experiência de uso mostrar que estão apertados ou frouxos
+demais pra realidade de cada município.
 
 ## Códigos dos municípios (sigla)
 
@@ -464,8 +486,9 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `api/cron/nivel-rio.js` — função que roda 1x por dia (agendada pela
   Vercel, ver `vercel.json`) e busca o nível do dia; também manda push se
   o regime mudou de faixa (ver "Notificações push")
-- `api/cron/qualidade-ar.js` — função que roda 1x por dia e manda push se
-  algum município entrou/saiu da faixa crítica de qualidade do ar
+- `api/cron/clima-alertas.js` — função que roda 1x por dia e manda push
+  se algum município entrou/saiu da faixa crítica de qualidade do ar,
+  chuva forte/alagamento ou risco de queimada (três alertas, um cron só)
 - `api/webhook-municipio.js` — chamada pelo Supabase (Database Webhook,
   configurado no painel) toda vez que um município é editado; manda push
 - `api/_lib/supabase.js` — helper compartilhado pelas funções acima pra
@@ -475,11 +498,14 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `api/_lib/regime.js` — cópia server-side da classificação de regime do
   rio (espelha `NIVEL_REGIMES` de `js/app.js`), usada só pelo cron acima
 - `supabase/migracao-push.sql` — cria `push_subscriptions` (inscrições de
-  notificação push) e `push_estado_ar` (estado do cron de qualidade do ar)
+  notificação push)
+- `supabase/migracao-push2-alertas-clima.sql` — cria `push_estado`
+  (estado genérico dos 3 alertas do cron `clima-alertas.js`), substitui
+  a `push_estado_ar` (mais estreita) criada no arquivo acima
 - `package.json` — declara a dependência `web-push`, usada pelas funções
   serverless acima
 - `vercel.json` — agenda os dois crons (nível do rio às 11h UTC / 7h em
-  Manaus; qualidade do ar às 15h UTC / 11h em Manaus)
+  Manaus; alertas climáticos às 15h UTC / 11h em Manaus)
 
 ## Publicação
 
