@@ -41,7 +41,7 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    via Realtime). "Restaurar original" devolve o valor de fábrica (o que veio
    da planilha), também pra todo mundo.
 4. **Mapa** — mapa real e interativo (Leaflet + tiles do OpenStreetMap/
-   CartoDB, ver "Mapa real (Leaflet + tiles)" abaixo), com zoom/pan de
+   Esri, ver "Mapa real (Leaflet + tiles)" abaixo), com zoom/pan de
    verdade (arrastar, roda do mouse, pinça no celular, botões +/−/⟳), os
    principais rios e as 10 rotas coloridas por calha desenhados por cima,
    filtro por rota e popup por município com KPIs (transit, distância, TT
@@ -360,11 +360,15 @@ Amazonas inteiro" até o nível de rua de um município, com zoom contínuo
 nativo, do mesmo jeito que qualquer mapa (Google Maps, OpenStreetMap etc.).
 
 - **Dois estilos de tile, com botão pra trocar**: o botão 🌗, na barra de
-  ferramentas do mapa, alterna entre tiles **escuros** (CartoDB Dark
-  Matter — o padrão, combina com o resto do app) e **claros**
-  (OpenStreetMap padrão). A escolha fica salva (`localStorage`,
-  `navlog-tile-estilo`) — cada aparelho lembra a própria preferência, do
-  mesmo jeito que o tema claro/escuro do app. Implementado em
+  ferramentas do mapa, alterna entre tiles **escuros** (Esri Dark Gray
+  Canvas — o padrão, combina com o resto do app; livre pra uso sem
+  conta/API key) e **claros** (OpenStreetMap padrão). O CartoDB Dark
+  Matter usado na primeira versão desta migração foi trocado pelo Esri
+  porque a CARTO passou a exigir conta/API key pra uso anônimo (o tile
+  ficava com um watermark "API KEY REQUIRED" cobrindo o mapa). A escolha
+  de estilo fica salva (`localStorage`, `navlog-tile-estilo`) — cada
+  aparelho lembra a própria preferência, do mesmo jeito que o tema
+  claro/escuro do app. Implementado em
   `initLeafletMapa()`/`toggleTileEstilo()` (`js/app.js`).
 - **Pan/zoom/pinça nativos do Leaflet**: arrastar (mouse/toque), zoom pela
   roda do mouse, pinça de dois dedos no celular e os botões +/−/⟳ da barra

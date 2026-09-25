@@ -1834,12 +1834,16 @@ function initLeafletMapa() {
     maxBounds: bounds.pad(0.7), maxBoundsViscosity: 0.55
   });
 
-  // claro: OpenStreetMap padrão · escuro (padrão do app): CartoDB Dark Matter
+  // claro: OpenStreetMap padrão · escuro (padrão do app): Esri Dark Gray
+  // Canvas. O CartoDB Dark Matter usado antes (basemaps.cartocdn.com) passou
+  // a exigir conta/API key da CARTO pra uso anônimo (apareceu um watermark
+  // "API KEY REQUIRED" cobrindo o mapa) — trocado pro Esri, que continua
+  // livre pra uso sem chave.
   LTILE_CLARO = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, subdomains: 'abc', attribution: '&copy; OpenStreetMap'
   });
-  LTILE_ESCURO = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO'
+  LTILE_ESCURO = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors, GIS User Community'
   });
   (MAPA_TILE_ESTILO === 'claro' ? LTILE_CLARO : LTILE_ESCURO).addTo(LMAP);
   var btnTile = document.getElementById('btn-tile-estilo');
