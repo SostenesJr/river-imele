@@ -289,6 +289,50 @@ em `climaPrevisaoHTML()` (`js/app.js`), reaproveitando o mesmo sistema de
 tradução da letra do dia da semana já usado nos dias de saída do porto
 (`DIAS_SEMANA_KEYS`/`diaLetra()`).
 
+## Radar de chuva ao vivo (RainViewer)
+
+Complementa a limitação explicada acima (Open-Meteo = modelo, não radar):
+agora o app também mostra o **radar/satélite de chuva de verdade**, vindo
+da [RainViewer](https://www.rainviewer.com/) — serviço público e gratuito,
+sem chave de API, que publica mosaicos de radar terrestre + satélite
+(onde não tem radar de solo, como boa parte do interior do Amazonas, ela
+completa com satélite) atualizados a cada ~5-10min. Duas formas de ver:
+
+- **Camada animada no mapa** (aba Mapa): botão "📡 Radar" no canto
+  inferior direito liga uma camada de nuvens de chuva por cima do mapa,
+  recortada no contorno do estado — com **play/pausa** e um rótulo
+  mostrando se o frame na tela é "agora", "Nmin atrás" (até ~2h de
+  histórico) ou "+Nmin · previsão" (nowcast de curtíssimo prazo, ~30-60min
+  à frente). Toca sozinha (troca de frame a cada 600ms) assim que é
+  ligada; pausa automaticamente se a pessoa sai da aba Mapa (economiza
+  rede/bateria) e continua de onde parou ao voltar. A projeção Web
+  Mercator usada pelos tiles da RainViewer é **exatamente a mesma** do
+  `proj(lat,lng)` que o app já usa pra desenhar rios/rotas/pinos — por
+  isso os tiles encaixam certinho no contorno do estado sem nenhuma
+  calibração manual (diferente do que foi preciso fazer com a foto de
+  satélite de fundo, que é só uma ilustração, não um raster
+  georreferenciado). Implementado no bloco `RADAR_*`/`radar*()` (topo de
+  `js/app.js`, logo antes de `renderMap()`) e no elemento `#map-radar-ctl`
+  (`index.html`).
+- **Mini radar no balão de cada município** (aba Clima → clicar num
+  cartão): uma janelinha 120×120 com o radar/satélite atual, **centrada
+  na cidade** (com um pino marcando o centro exato) — complementa o
+  número de chuva do Open-Meteo com uma conferência visual rápida no dado
+  real. Mostra só o frame mais recente (sem animar) e só busca a imagem
+  quando o balão é aberto, pra não gerar 57+ pedidos de uma vez.
+  Implementado em `climaRadarMiniHTML()`/`climaRadarMiniCarregar()`
+  (`js/app.js`), chamado no fim de `renderClimaView()`.
+- **Sem calibração/servidor próprio**: os tiles usam o esquema padrão de
+  mapas (`z/x/y`, Web Mercator) e são pedidos direto do navegador de quem
+  usa o app — não passa pelo Supabase nem por nenhum `/api` próprio, igual
+  a Open-Meteo. A lista de frames disponíveis (`weather-maps.json`) é
+  cacheada por 10 minutos (`RADAR_META_TTL_MS`) pra não buscar de novo
+  toda vez que a camada é ligada.
+- **Atribuição obrigatória**: os termos de uso gratuito da RainViewer
+  pedem crédito visível — por isso o texto "Radar + satélite: RainViewer"
+  aparece tanto no painel da camada do mapa quanto embaixo de cada mini
+  radar.
+
 ## Alerta de qualidade do ar ruim
 
 Igual ao regime do nível do rio (abaixo), a aba **Clima** mostra um

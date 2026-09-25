@@ -883,9 +883,29 @@ function renderClimaView() {
 
     + climaPrevisaoHTML(d.diario)
 
+    + climaRadarMiniHTML(seq)
+
     + (horaFmt ? '<div class="clima-view-atualizado">' + tf('clima_atualizado_tpl', { hora: horaFmt }) + '</div>' : '');
 
   document.getElementById('sheet-body').innerHTML = html;
+  var ll = LATLNG[seq];
+  if (ll) climaRadarMiniCarregar(seq, ll.lat, ll.lng);
+}
+
+// Bloco do "mini radar" (imagem real da RainViewer, centrada na cidade) —
+// complementa o número de chuva do Open-Meteo com uma olhada visual no
+// radar/satélite de verdade. Some sozinho (climaRadarMiniHTML devolve '')
+// se o município não tiver coordenada conhecida.
+function climaRadarMiniHTML(seq) {
+  var ll = LATLNG[seq];
+  if (!ll) return '';
+  return '<div class="sh-season">'
+    + '<div class="sh-season-hdr">' + t('clima_radar_mini_title') + '</div>'
+    + '<div class="clima-radar-thumb" id="climaRadarThumb-' + seq + '">'
+    + '<div class="clima-radar-loading">' + t('radar_carregando') + '</div>'
+    + '</div>'
+    + '<div class="clima-radar-attr">' + t('radar_fonte_nota') + '</div>'
+    + '</div>';
 }
 
 /* Faixa horizontal com a previsão dos próximos dias (a Open-Meteo já
@@ -1596,6 +1616,227 @@ function mapLabel(rotaNum, idx) { return rotaNum + idx; }
 // georreferenciado de verdade).
 var MAPA_FOTO_CALIB = { x: -9.0, y: 11.13, w: 822.3, h: 566.97 };
 
+/* ============================================================
+   RADAR DE CHUVA AO VIVO (RainViewer, api.rainviewer.com)
+   Diferente do Open-Meteo (modelo meteorológico, ver aba Clima), a
+   RainViewer publica mosaicos de radar+satélite atualizados a cada
+   ~5-10min — chuva "vista" de verdade agora, não um número calculado.
+   Cobre o mundo todo (onde não tem radar de solo, como boa parte do
+   Amazonas, ela completa com satélite). Gratuita, sem chave, e usa
+   projeção Web Mercator padrão — exatamente a mesma matemática do
+   proj(lat,lng) usado no mapa (ver LNG0/LNG1/LAT0/LAT1/merc() dentro de
+   renderMap()), então os tiles encaixam certinho sem calibração manual
+   nenhuma (diferente do que foi preciso fazer com a foto de fundo).
+   Duas coisas usam esse mesmo radar:
+   1) uma camada animada (play/liga-desliga) por cima do mapa da aba Mapa;
+   2) um "mini radar" (imagem estática, centrada na cidade) dentro do
+      balão de detalhe de cada município na aba Clima.
+   ============================================================ */
+var RADAR_Z = 6;                 // zoom fixo dos tiles da camada grande (cobre o AM inteiro)
+var RADAR_Z_MINI = 7;             // zoom do mini radar por município (mais perto)
+var RADAR_HOST = '';
+var RADAR_FRAMES = [];            // [{time,path}] cronológico: passado -> agora -> previsão (nowcast)
+var RADAR_IDX_AGORA = -1;         // índice do frame mais recente "real" (não é previsão)
+var RADAR_META_EM = 0;            // Date.now() da última busca da lista de frames
+var RADAR_META_TTL_MS = 10 * 60 * 1000;
+var RADAR_ATIVO = false;          // camada ligada no mapa?
+var RADAR_TOCANDO = true;
+var RADAR_IDX = -1;               // índice do frame atual (animação da camada do mapa)
+var RADAR_TIMER = null;
+var RADAR_ERRO = false;
+var RADAR_GRID = null;            // {xs:[...], ys:[...]} — grade de tiles do AM, calculada uma vez
+var RADAR_TILE_EL = {};           // "x_y" -> <image> SVG da camada do mapa (recriados a cada renderMap())
+
+function radarLon2Tile(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+function radarLat2Tile(lat, z) {
+  var r = lat * Math.PI / 180;
+  return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
+}
+function radarTile2Lon(x, z) { return x / Math.pow(2, z) * 360 - 180; }
+function radarTile2Lat(y, z) {
+  var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+  return Math.atan((Math.exp(n) - Math.exp(-n)) / 2) * 180 / Math.PI;
+}
+// fração (0..1) de onde a lng/lat cai dentro do próprio tile — usada só
+// pelo mini radar, pra centralizar o pino da cidade certinho na imagem.
+function radarFracX(lng, z) { var v = (lng + 180) / 360 * Math.pow(2, z); return v - Math.floor(v); }
+function radarFracY(lat, z) {
+  var r = lat * Math.PI / 180;
+  var v = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+  return v - Math.floor(v);
+}
+
+function radarCalcGrid() {
+  if (RADAR_GRID) return RADAR_GRID;
+  var x0 = radarLon2Tile(-74.5, RADAR_Z), x1 = radarLon2Tile(-53.5, RADAR_Z);
+  var y0 = radarLat2Tile(2.7, RADAR_Z), y1 = radarLat2Tile(-10.6, RADAR_Z);
+  var xs = [], ys = [];
+  for (var x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) xs.push(x);
+  for (var y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) ys.push(y);
+  RADAR_GRID = { xs: xs, ys: ys };
+  return RADAR_GRID;
+}
+// 256px, esquema de cor "2" (Universal Blue), opções "1_1" = suavizado + neve
+function radarTileURL(path, x, y, z) { return RADAR_HOST + path + '/256/' + z + '/' + x + '/' + y + '/2/1_1.png'; }
+
+function radarBuscarMeta(cb) {
+  if (RADAR_FRAMES.length && (Date.now() - RADAR_META_EM) < RADAR_META_TTL_MS) { cb && cb(); return; }
+  fetch('https://api.rainviewer.com/public/weather-maps.json').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (j) {
+    RADAR_HOST = j.host;
+    var past = (j.radar && j.radar.past) || [];
+    var nowcast = (j.radar && j.radar.nowcast) || [];
+    RADAR_FRAMES = past.concat(nowcast);
+    RADAR_IDX_AGORA = past.length ? past.length - 1 : 0;
+    if (RADAR_IDX < 0 || RADAR_IDX >= RADAR_FRAMES.length) RADAR_IDX = RADAR_IDX_AGORA;
+    RADAR_META_EM = Date.now();
+    RADAR_ERRO = false;
+    cb && cb();
+  }).catch(function (e) {
+    console.error('Erro ao buscar radar (RainViewer):', e);
+    RADAR_ERRO = true;
+    cb && cb();
+  });
+}
+
+// Desenha (ou limpa) a camada de tiles dentro do mapa — chamada de dentro
+// de renderMap() a cada vez que ele roda (svg.innerHTML='' apaga tudo, daí
+// precisar recriar), usando sempre o frame/estado atual guardado aqui em
+// cima (por isso a camada "sobrevive" visualmente a um renderMap() no meio
+// da animação — zoom, clique de rota, etc.).
+function radarDesenharCamada(amGroup, proj, NS) {
+  var grupo = document.createElementNS(NS, 'g');
+  grupo.setAttribute('id', 'radarLayer');
+  grupo.style.pointerEvents = 'none';
+  amGroup.appendChild(grupo);
+  RADAR_TILE_EL = {};
+  if (!RADAR_ATIVO) return grupo;
+  var grid = radarCalcGrid();
+  var frame = RADAR_FRAMES[RADAR_IDX];
+  grid.xs.forEach(function (x) {
+    grid.ys.forEach(function (y) {
+      var nw = proj(radarTile2Lat(y, RADAR_Z), radarTile2Lon(x, RADAR_Z));
+      var se = proj(radarTile2Lat(y + 1, RADAR_Z), radarTile2Lon(x + 1, RADAR_Z));
+      var img = document.createElementNS(NS, 'image');
+      img.setAttribute('x', nw.x); img.setAttribute('y', nw.y);
+      img.setAttribute('width', Math.abs(se.x - nw.x)); img.setAttribute('height', Math.abs(se.y - nw.y));
+      img.setAttribute('preserveAspectRatio', 'none');
+      img.setAttribute('opacity', '0.72');
+      if (frame) {
+        var url = radarTileURL(frame.path, x, y, RADAR_Z);
+        img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
+        img.setAttribute('href', url);
+      }
+      grupo.appendChild(img);
+      RADAR_TILE_EL[x + '_' + y] = img;
+    });
+  });
+  return grupo;
+}
+
+// troca só o "href" dos tiles já desenhados (sem re-render do mapa
+// inteiro) — é o que roda a cada passo da animação, então precisa ser leve
+function radarAtualizarFrameDOM() {
+  var frame = RADAR_FRAMES[RADAR_IDX];
+  if (!frame) return;
+  Object.keys(RADAR_TILE_EL).forEach(function (k) {
+    var xy = k.split('_');
+    var url = radarTileURL(frame.path, xy[0], xy[1], RADAR_Z);
+    var img = RADAR_TILE_EL[k];
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
+    img.setAttribute('href', url);
+  });
+  radarAtualizarUI();
+}
+
+function radarFrameLabel(frame) {
+  if (!frame) return '';
+  var diffMin = Math.round((frame.time - Date.now() / 1000) / 60);
+  if (Math.abs(diffMin) <= 2) return t('radar_agora');
+  if (diffMin < 0) return tf('radar_min_atras_tpl', { n: Math.abs(diffMin) });
+  return tf('radar_min_previsao_tpl', { n: diffMin });
+}
+
+// painel flutuante no canto do mapa (#map-radar-ctl, ver index.html) —
+// liga/desliga, play/pause e o rótulo do frame atual
+function radarAtualizarUI() {
+  var el = document.getElementById('map-radar-ctl');
+  if (!el) return;
+  if (!RADAR_ATIVO) {
+    el.innerHTML = '<button class="map-radar-toggle" onclick="radarToggleCamada()" title="' + t('radar_ligar_title') + '">📡 <span>' + t('radar_btn_label') + '</span></button>';
+    return;
+  }
+  var frame = RADAR_FRAMES[RADAR_IDX];
+  el.innerHTML = '<div class="map-radar-panel">'
+    + '<button class="map-radar-toggle on" onclick="radarToggleCamada()" title="' + t('radar_desligar_title') + '">📡</button>'
+    + '<button class="map-radar-play" onclick="radarTogglePlay()" title="' + (RADAR_TOCANDO ? t('radar_pausar_title') : t('radar_tocar_title')) + '">' + (RADAR_TOCANDO ? '⏸' : '▶') + '</button>'
+    + '<span class="map-radar-time">' + radarFrameLabel(frame) + '</span>'
+    + '</div>'
+    + '<div class="map-radar-attr">' + t('radar_fonte_nota') + '</div>';
+}
+
+function radarPlay() {
+  radarPararTimer();
+  RADAR_TOCANDO = true;
+  RADAR_TIMER = setInterval(function () {
+    if (!RADAR_FRAMES.length) return;
+    RADAR_IDX = (RADAR_IDX + 1) % RADAR_FRAMES.length;
+    radarAtualizarFrameDOM();
+  }, 600);
+  radarAtualizarUI();
+}
+function radarPararTimer() { if (RADAR_TIMER) { clearInterval(RADAR_TIMER); RADAR_TIMER = null; } }
+function radarStop() { RADAR_TOCANDO = false; radarPararTimer(); radarAtualizarUI(); }
+function radarTogglePlay() { if (RADAR_TOCANDO) radarStop(); else radarPlay(); }
+
+function radarToggleCamada() {
+  RADAR_ATIVO = !RADAR_ATIVO;
+  if (RADAR_ATIVO) {
+    radarBuscarMeta(function () {
+      renderMap();
+      if (RADAR_TOCANDO) radarPlay(); else radarAtualizarUI();
+    });
+  } else {
+    radarStop();
+    renderMap();
+  }
+}
+
+// ---- mini radar por município (balão de detalhe da aba Clima) ----
+// Mostra uma janelinha 120x120 do mesmo radar, centrada na cidade — sem
+// animar (só o frame mais recente "real"), pra não multiplicar pedidos.
+function climaRadarMiniURL(lat, lng) {
+  var z = RADAR_Z_MINI;
+  var x = radarLon2Tile(lng, z), y = radarLat2Tile(lat, z);
+  var frame = RADAR_FRAMES[RADAR_IDX_AGORA];
+  if (!frame) return null;
+  return {
+    url: radarTileURL(frame.path, x, y, z),
+    px: radarFracX(lng, z) * 256,
+    py: radarFracY(lat, z) * 256,
+    hora: frame.time
+  };
+}
+function climaRadarMiniCarregar(seq, lat, lng) {
+  var elId = 'climaRadarThumb-' + seq;
+  radarBuscarMeta(function () {
+    var el = document.getElementById(elId);
+    if (!el || climaViewSeq !== seq) return; // balão já fechou/trocou antes de terminar
+    if (RADAR_ERRO || !RADAR_FRAMES.length) {
+      el.innerHTML = '<div class="clima-radar-erro">' + t('clima_radar_indisponivel') + '</div>';
+      return;
+    }
+    var info = climaRadarMiniURL(lat, lng);
+    if (!info) { el.innerHTML = '<div class="clima-radar-erro">' + t('clima_radar_indisponivel') + '</div>'; return; }
+    el.innerHTML = '<div class="clima-radar-pin"></div>';
+    el.style.backgroundImage = 'url(' + info.url + ')';
+    // centraliza a cidade numa janela de 120x120 (60px = metade)
+    el.style.backgroundPosition = (-(info.px - 60)) + 'px ' + (-(info.py - 60)) + 'px';
+  });
+}
+
 function renderMap() {
   var svg = document.getElementById('msvg'); if (!svg) return;
   var animarEntrada = mapAnimateEntrance;
@@ -1687,6 +1928,11 @@ function renderMap() {
     fluxo.setAttribute('stroke-linecap', 'round'); fluxo.setAttribute('class', 'river-flow');
     amGroup.appendChild(fluxo);
   });
+
+  // Radar de chuva ao vivo (RainViewer) — por cima dos rios, mas ainda
+  // clipado no contorno do estado (amGroup); some sozinho se a camada
+  // estiver desligada (RADAR_ATIVO=false, o padrão). Ver bloco RADAR_* acima.
+  radarDesenharCamada(amGroup, proj, NS);
 
   // contorno do estado, por cima de tudo, pra dar nitidez à silhueta
   var border = document.createElementNS(NS, 'polygon');
@@ -2051,6 +2297,7 @@ function renderMap() {
   svg.appendChild(vinheta);
 
   applyMapTransform();
+  radarAtualizarUI();
 }
 
 /* ── Ícone animado percorrendo a calha selecionada no mapa ── */
@@ -2448,6 +2695,7 @@ function SS(name, btn) {
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
   if (name === 'm') { mapAnimateEntrance = true; buildMapFilters(); renderMap(); initMapInteractions(); }
+  else radarPararTimer(); // saiu da aba Mapa: pausa a animação do radar (economiza rede/bateria), a camada continua "ligada" pra quando voltar
   if (name === 'n') bNIVEL();
   if (name === 'w') {
     bCLIMA();
