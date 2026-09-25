@@ -347,13 +347,18 @@ de um pino e o relevo da foto embaixo dele podem acontecer, principalmente
 perto das bordas do estado.
 
 A foto original não cobria 100% do contorno oficial do estado (faltava um
-pedaço perto do canto nordeste) — o que apareceria como uma área branca
-"furando" o mapa. Corrigido tornando transparente só o fundo branco de
-verdade da foto (achado com preenchimento por inundação a partir das
-bordas da imagem, preservando texturas brancas que fazem parte da própria
-ilustração, como nuvens no meio da mata) e colocando atrás dela um verde
-de reserva (gradiente `fundoVerde`) — some qualquer parte sem cobertura,
-sem deixar branco aparecendo.
+pedaço perto do canto nordeste) — apareceria como uma área branca
+"furando" o mapa, destoando do resto. Em vez de só deixar transparente e
+mostrar um verde liso atrás (que também destoava, por ser um tom só,
+sem nenhuma textura), esse pedaço foi **repintado a partir da própria
+foto**: os pixels desse buraco foram reconstruídos com base na textura
+real de mata mais próxima dela na mesma imagem (técnica de inpainting,
+sempre evitando copiar pixels claros/brancos ou as linhas finas de
+fronteira como fonte, senão o remendo saía claro/acinzentado demais) e
+ajustados pra puxar pro mesmo tom médio de verde-escuro do resto da mata.
+Não é um trecho real de satélite (a foto não tinha esse dado ali pra
+começo de conversa), mas fica visualmente contínuo com o resto — sem
+nenhum "retângulo" óbvio de cor diferente.
 
 A foto é recortada exatamente no contorno do estado (mesmo `clipPath` que
 já limitava o fundo desenhado antes) e continua dentro do grupo que sofre
