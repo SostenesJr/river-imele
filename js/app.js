@@ -95,6 +95,7 @@ function aplicarIdioma(lang) {
   if (viewSeq) renderInfoView();
   if (editState) renderSheet();
   if (climaViewSeq) renderClimaView();
+  if (rotaCalcAberto) renderRotaCalc();
 }
 function alternarIdioma() {
   var i = LANGS.indexOf(LANG);
@@ -299,7 +300,8 @@ function rowToInfo(row) {
     ta: row.ta,
     ps: { seca: row.ps_seca, cheia: row.ps_cheia },
     emb: row.emb || [],
-    dias: row.dias || [] // dias da semana que SAI DO PORTO (por município, não por embarcação)
+    dias: row.dias || [], // dias da semana que SAI DO PORTO (por município, não por embarcação)
+    contato: { nome: row.contato_nome || '', tel: row.contato_tel || '' } // agente local/porto
   };
 }
 
@@ -318,6 +320,7 @@ function getInfo(seq) {
     || { ta: null, ps: { seca: null, cheia: null }, emb: [], dias: [] };
   var info = JSON.parse(JSON.stringify(fonte)); // clona pra nao vazar referencia
   if (!info.dias) info.dias = [];
+  if (!info.contato) info.contato = { nome: '', tel: '' };
   return info;
 }
 
@@ -329,7 +332,9 @@ async function setInfo(seq, info) {
     ps_seca: info.ps.seca,
     ps_cheia: info.ps.cheia,
     emb: info.emb,
-    dias: info.dias || []
+    dias: info.dias || [],
+    contato_nome: (info.contato && info.contato.nome) || null,
+    contato_tel: (info.contato && info.contato.tel) || null
   }, { onConflict: 'seq' });
   if (res.error) { alert(tf('erro_salvar_tpl', { msg: res.error.message })); throw res.error; }
   MUNINFO_LIVE[seq] = JSON.parse(JSON.stringify(info));
@@ -341,7 +346,18 @@ async function resetInfo(seq) {
   var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: [], dias: [] };
   original = JSON.parse(JSON.stringify(original));
   if (!original.dias) original.dias = [];
+  if (!original.contato) original.contato = { nome: '', tel: '' };
   await setInfo(seq, original);
+}
+
+/* ── Alerta de embarcação mal avaliada: quando TODAS as embarcações que
+   têm avaliação (nota 1-5) estão com nota baixa (1 ou 2), vale a pena
+   chamar atenção — pode ser hora de rever a operação naquele município.
+   Município sem nenhuma avaliação (nota) não conta como "ruim", só como
+   "ainda não avaliado". ── */
+function embAvaliacaoRuim(emb) {
+  var avaliadas = (emb || []).filter(function (it) { return it && it.nota; });
+  return avaliadas.length > 0 && avaliadas.every(function (it) { return it.nota <= 2; });
 }
 
 /* ── Observações pessoais por município — cada usuário só vê e edita
@@ -1051,9 +1067,10 @@ function bINFO() {
       var seg = SEGURANCA[m.seq];
       var dot = seg ? '<span class="chip-segdot" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + segMetaLabel(seg.tipo) + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
       var obsDot = getObs(m.seq) ? '<span class="chip-obsdot" title="' + t('obs_saved_dot_title') + '"></span>' : '';
+      var warnDot = embAvaliacaoRuim(getInfo(m.seq).emb) ? '<span class="chip-warndot" title="' + t('emb_avaliacao_baixa_title') + '">⚠️</span>' : '';
       return '<button class="chip" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" style="border-color:' + r.cor + '" onclick="abrirInfoView(\'' + m.seq + '\')">'
         + '<span class="chip-seq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
-        + dot + obsDot
+        + dot + obsDot + warnDot
         + '</button>';
     }).join('');
     return '<div class="rcard open" id="icard-' + r.num + '" style="--i:' + ri + '" data-txt="' + normKey(r.nome + ' ' + r.num) + '">'
@@ -1144,7 +1161,18 @@ function renderInfoView() {
 
     + '<div class="sh-season">'
     + '<label class="sh-sub" style="margin-top:0">' + t('emb_mais_usadas') + '</label>'
+    + (embAvaliacaoRuim(info.emb) ? '<div class="emb-warn-banner">⚠️ ' + t('emb_avaliacao_baixa_aviso') + '</div>' : '')
     + '<div class="sh-view-emblist">' + embListViewHTML(info.emb) + '</div>'
+    + '</div>'
+
+    + '<div class="sh-season">'
+    + '<div class="sh-season-hdr">' + t('contato_title') + '</div>'
+    + (info.contato && (info.contato.nome || info.contato.tel)
+        ? '<div class="sh-contato-view">'
+          + (info.contato.nome ? '<div class="sh-contato-nome">' + info.contato.nome.replace(/</g, '&lt;') + '</div>' : '')
+          + (info.contato.tel ? '<a class="sh-contato-tel" href="tel:' + info.contato.tel.replace(/[^0-9+]/g, '') + '">📞 ' + info.contato.tel.replace(/</g, '&lt;') + '</a>' : '')
+          + '</div>'
+        : '<div class="emb-empty">' + t('contato_nao_informado') + '</div>')
     + '</div>'
 
     + '<div class="sh-obs-wrap">'
@@ -1187,6 +1215,7 @@ function bCO() {
       var pEmb = principalEmb(info.emb);
       var seg = SEGURANCA[m.seq];
       var segIc = seg ? '<span class="iseg-ic" style="background:' + SEGURANCA_META[seg.tipo].cor + '" title="' + segMetaLabel(seg.tipo) + '">' + SEGURANCA_META[seg.tipo].icone + '</span>' : '';
+      var embWarn = embAvaliacaoRuim(info.emb) ? '<span class="itag itag-warn" title="' + t('emb_avaliacao_baixa_title') + '">⚠️ ' + t('emb_avaliacao_baixa_curto') + '</span>' : '';
       return '<div class="irow" data-seq="' + m.seq + '" data-txt="' + normKey(m.seq + ' ' + m.nome) + '" onclick="abrirConfig(\'' + m.seq + '\')">'
         + '<span class="mseq" style="color:' + r.cor + ';' + seqFS(m.seq) + '">' + m.seq + '</span>'
         + '<div class="iinfo">'
@@ -1195,6 +1224,7 @@ function bCO() {
         + '<span class="itag ise">🏜️ ' + fmtSaca(info.ps.seca) + '</span>'
         + '<span class="itag ich">🌊 ' + fmtSaca(info.ps.cheia) + '</span>'
         + '<span class="itag">🚢 ' + (pEmb ? pEmb.n : '—') + '</span>'
+        + embWarn
         + '</div></div>'
         + '<div class="ita">' + fmtTA(info.ta) + '</div>'
         + '<div class="ichv">›</div>'
@@ -1250,6 +1280,100 @@ function fecharSheet(e) {
   editState = null;
   viewSeq = null;
   climaViewSeq = null;
+  // rotaCalcAberto (a tela dentro do balão) fecha junto, mas ROTA_CALC
+  // (origem/destino escolhidos) fica guardado — é o que mantém a linha
+  // desenhada no mapa depois que o balão fecha.
+  rotaCalcAberto = false;
+}
+
+/* ── Rota entre dois municípios quaisquer (estimativa) ──
+   O app só tem, por dado, a distância/tempo de cada município ATÉ
+   MANAUS (m.km / m.tt — é assim que a planilha original foi montada,
+   não é uma distância "de um município pro outro"). Pra estimar a
+   distância entre DOIS municípios quaisquer sem inventar dado que não
+   existe, a regra é:
+   - Mesma calha (exceto a I, que se ramifica em Humaitá pra Apuí e
+     Labréa — não é uma linha reta): assume-se um trajeto contínuo ao
+     longo da própria calha, distância = |kmB - kmA|.
+   - Calhas diferentes (ou a calha I): assume-se que a carga passa por
+     Manaus pra trocar de calha (é como a operação funciona de verdade,
+     hub-and-spoke) — distância = kmA + kmB.
+   Por isso todo resultado é rotulado como ESTIMATIVA, com a explicação
+   do método sempre visível junto do resultado. */
+var ROTA_CALC = { origem: null, destino: null };
+var rotaCalcAberto = false;
+
+function parseDiasTT(tt) {
+  var m = String(tt || '').match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+function calcularRotaEstimada(seqA, seqB) {
+  var a = NODEIDX[seqA], b = NODEIDX[seqB];
+  if (!a || !b) return null;
+  if (seqA === seqB) return { distanciaKm: 0, diasEstimado: 0, viaHub: false, mesmaCalha: true };
+
+  var mesmaCalhaLinha = a.rota.num === b.rota.num && a.rota.num !== 'I';
+  var kmA = Number(a.mun.km) || 0, kmB = Number(b.mun.km) || 0;
+  var ttA = parseDiasTT(a.mun.tt), ttB = parseDiasTT(b.mun.tt);
+
+  var distanciaKm = mesmaCalhaLinha ? Math.abs(kmB - kmA) : (kmA + kmB);
+  var diasEstimado = (ttA !== null && ttB !== null)
+    ? (mesmaCalhaLinha ? Math.abs(ttB - ttA) : (ttA + ttB))
+    : null;
+
+  return { distanciaKm: distanciaKm, diasEstimado: diasEstimado, viaHub: !mesmaCalhaLinha, mesmaCalha: mesmaCalhaLinha };
+}
+
+function municipiosSelectOptionsHTML(selecionado) {
+  return ROTAS.map(function (r) {
+    var opts = r.municipios.map(function (m) {
+      return '<option value="' + m.seq + '"' + (m.seq === selecionado ? ' selected' : '') + '>' + m.nome + ' (' + m.seq + ')</option>';
+    }).join('');
+    return '<optgroup label="' + t('calha_word') + ' ' + r.nome + '">' + opts + '</optgroup>';
+  }).join('');
+}
+
+function abrirRotaCalc() {
+  rotaCalcAberto = true;
+  segAberto = true;
+  renderRotaCalc();
+  document.getElementById('sheet-overlay').classList.add('on');
+}
+
+function setRotaCalcOrigem(seq) { ROTA_CALC.origem = seq || null; renderRotaCalc(); renderMap(); }
+function setRotaCalcDestino(seq) { ROTA_CALC.destino = seq || null; renderRotaCalc(); renderMap(); }
+function limparRotaCalc() { ROTA_CALC.origem = null; ROTA_CALC.destino = null; renderRotaCalc(); renderMap(); }
+
+function renderRotaCalc() {
+  if (!rotaCalcAberto) return;
+  var res = (ROTA_CALC.origem && ROTA_CALC.destino) ? calcularRotaEstimada(ROTA_CALC.origem, ROTA_CALC.destino) : null;
+
+  var html =
+    '<div class="sh-hdr"><div><div class="sh-nome">' + t('rota_calc_title') + '</div>'
+    + '<div class="sh-badge" style="background:var(--ac)">' + t('rota_calc_badge') + '</div></div></div>'
+
+    + '<div class="sh-field"><label>' + t('rota_calc_origem_label') + '</label>'
+    + '<select id="rota-calc-origem" onchange="setRotaCalcOrigem(this.value)"><option value="">—</option>' + municipiosSelectOptionsHTML(ROTA_CALC.origem) + '</select></div>'
+
+    + '<div class="sh-field"><label>' + t('rota_calc_destino_label') + '</label>'
+    + '<select id="rota-calc-destino" onchange="setRotaCalcDestino(this.value)"><option value="">—</option>' + municipiosSelectOptionsHTML(ROTA_CALC.destino) + '</select></div>';
+
+  if (res) {
+    html += '<div class="sh-season">'
+      + '<div class="sh-view-grid" style="grid-template-columns:repeat(2,1fr)">'
+      + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('rota_calc_resultado_distancia') + '</div><div class="sh-view-kv">' + res.distanciaKm.toLocaleString('pt-BR') + ' km</div></div>'
+      + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('rota_calc_resultado_tempo') + '</div><div class="sh-view-kv">' + (res.diasEstimado === null ? '—' : tf('rota_calc_dias_tpl', { dias: res.diasEstimado })) + '</div></div>'
+      + '</div>'
+      + '<div class="rota-calc-nota">ℹ️ ' + (res.mesmaCalha && res.distanciaKm === 0 ? t('rota_calc_nota_mesmo') : (res.viaHub ? t('rota_calc_nota_via_hub') : t('rota_calc_nota_mesma_calha'))) + '</div>'
+      + '</div>';
+  } else {
+    html += '<div class="emb-empty">' + t('rota_calc_hint') + '</div>';
+  }
+
+  html += '<div class="sh-actions"><button class="sh-btn sh-reset" onclick="limparRotaCalc()">' + t('rota_calc_limpar_btn') + '</button></div>';
+
+  document.getElementById('sheet-body').innerHTML = html;
 }
 
 /* ── Classificação de segurança (Aduaneiro / Corredor de Escoamento) ── */
@@ -1344,8 +1468,17 @@ function renderSheet() {
 
     + '<div class="sh-season">'
     + '<label class="sh-sub" style="margin-top:0">' + t('emb_mais_usadas') + '</label>'
+    + (embAvaliacaoRuim(info.emb) ? '<div class="emb-warn-banner">⚠️ ' + t('emb_avaliacao_baixa_aviso') + '</div>' : '')
     + '<div id="emb-list">' + embHTML + '</div>'
     + '<button class="emb-add" onclick="addEmb()">' + t('emb_add_btn') + '</button>'
+    + '</div>'
+
+    + '<div class="sh-season">'
+    + '<div class="sh-season-hdr">' + t('contato_title') + '</div>'
+    + '<div class="sh-field"><label>' + t('contato_nome_label') + '</label>'
+    + '<input type="text" id="in-contato-nome" value="' + ((info.contato && info.contato.nome) || '').replace(/"/g, '&quot;') + '" placeholder="' + t('contato_nome_ph') + '" oninput="if(!editState.info.contato) editState.info.contato={nome:\'\',tel:\'\'}; editState.info.contato.nome=this.value"></div>'
+    + '<div class="sh-field"><label>' + t('contato_tel_label') + '</label>'
+    + '<input type="text" id="in-contato-tel" value="' + ((info.contato && info.contato.tel) || '').replace(/"/g, '&quot;') + '" placeholder="' + t('contato_tel_ph') + '" oninput="if(!editState.info.contato) editState.info.contato={nome:\'\',tel:\'\'}; editState.info.contato.tel=this.value"></div>'
     + '</div>'
 
     + '<div class="sh-actions">'
@@ -1462,7 +1595,15 @@ function renderMap() {
     + '<filter id="gw"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
     + '<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>'
     + '<radialGradient id="forestGrad" cx="45%" cy="40%" r="75%"><stop offset="0%" stop-color="#1c4a32"/><stop offset="55%" stop-color="#123825"/><stop offset="100%" stop-color="#0b241a"/></radialGradient>'
-    + '<clipPath id="amClip"><polygon points="' + bPts + '"/></clipPath>';
+    + '<clipPath id="amClip"><polygon points="' + bPts + '"/></clipPath>'
+    // "mapa 2.5D": luz rasante (diagonal, canto superior-esquerdo mais claro) —
+    // dá a sensação de relevo/inclinação sem mudar nenhuma coordenada real,
+    // então não interfere em nada do clique/arrasto do mapa.
+    + '<linearGradient id="rasante" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="45%" stop-color="#ffffff" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.22"/></linearGradient>'
+    // vinheta: escurece as bordas do mapa, reforçando a sensação de profundidade
+    // ("olhando de cima, de um pouco de distância") — fixa na tela, não se move
+    // com o pan/zoom do conteúdo, então também não mexe em nenhuma coordenada.
+    + '<radialGradient id="vinheta" cx="50%" cy="46%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.38"/></radialGradient>';
   svg.appendChild(defs);
 
   var g = document.createElementNS(NS, 'g'); g.id = 'mg';
@@ -1483,6 +1624,7 @@ function renderMap() {
     amGroup.appendChild(blob);
   });
   var grOverlay = document.createElementNS(NS, 'rect'); grOverlay.setAttribute('width', W); grOverlay.setAttribute('height', H); grOverlay.setAttribute('fill', 'url(#gr)'); grOverlay.setAttribute('opacity', '0.5'); amGroup.appendChild(grOverlay);
+  var rasanteOverlay = document.createElementNS(NS, 'rect'); rasanteOverlay.setAttribute('width', W); rasanteOverlay.setAttribute('height', H); rasanteOverlay.setAttribute('fill', 'url(#rasante)'); amGroup.appendChild(rasanteOverlay);
   // Regime atual do nível do rio (Seca/Normal/Atenção/Alerta/Emergência)
   // pintado como um "glow" por baixo do traçado azul de cada rio — o rio
   // continua com cara de água, só ganha uma auréola na cor do regime,
@@ -1503,7 +1645,8 @@ function renderMap() {
     var path = document.createElementNS(NS, 'polyline');
     path.setAttribute('points', pts.join(', ')); path.setAttribute('fill', 'none');
     path.setAttribute('stroke', '#2f9bd6'); path.setAttribute('stroke-width', rv.w);
-    path.setAttribute('opacity', '0.8'); path.setAttribute('stroke-linecap', 'round'); amGroup.appendChild(path);
+    path.setAttribute('opacity', '0.8'); path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('class', 'river-main'); amGroup.appendChild(path);
 
     // "correnteza": uma segunda linha por cima, com tracinhos claros que
     // correm ao longo do próprio rio — só decoração, bem sutil, não
@@ -1517,7 +1660,8 @@ function renderMap() {
 
   // contorno do estado, por cima de tudo, pra dar nitidez à silhueta
   var border = document.createElementNS(NS, 'polygon');
-  border.setAttribute('points', bPts); border.setAttribute('fill', 'none'); border.setAttribute('stroke', '#3b82c4'); border.setAttribute('stroke-width', '2'); g.appendChild(border);
+  border.setAttribute('points', bPts); border.setAttribute('fill', 'none'); border.setAttribute('stroke', '#3b82c4'); border.setAttribute('stroke-width', '2');
+  border.setAttribute('class', 'am-border'); g.appendChild(border);
 
   var hubLL = { lat: -3.119, lng: -60.021 };
   var hub = proj(hubLL.lat, hubLL.lng);
@@ -1832,6 +1976,28 @@ function renderMap() {
     pararAnimacaoRota();
   }
 
+  // Linha estimada entre dois municípios (calculadora de rota A→B,
+  // botão 🧭 no mapa) — traço reto e tracejado, deliberadamente
+  // diferente do traçado real dos rios/rotas, pra deixar claro que é
+  // uma linha ilustrativa (ver calcularRotaEstimada() pro método).
+  if (ROTA_CALC.origem && ROTA_CALC.destino && ROTA_CALC.origem !== ROTA_CALC.destino) {
+    var llA = LATLNG[ROTA_CALC.origem], llB = LATLNG[ROTA_CALC.destino];
+    if (llA && llB) {
+      var pA = proj(llA.lat, llA.lng), pB = proj(llB.lat, llB.lng);
+      var calcLine = document.createElementNS(NS, 'line');
+      calcLine.setAttribute('x1', pA.x); calcLine.setAttribute('y1', pA.y);
+      calcLine.setAttribute('x2', pB.x); calcLine.setAttribute('y2', pB.y);
+      calcLine.setAttribute('class', 'rota-calc-line');
+      g.appendChild(calcLine);
+      [pA, pB].forEach(function (p) {
+        var dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); dot.setAttribute('r', 6);
+        dot.setAttribute('class', 'rota-calc-dot');
+        g.appendChild(dot);
+      });
+    }
+  }
+
   // legenda do regime do rio (o mesmo "regime" usado pra pintar o glow
   // dos rios acima) — clicável, leva direto pra aba Notícias
   var legenda = document.getElementById('map-regime-legend');
@@ -1843,6 +2009,18 @@ function renderMap() {
       legenda.classList.add('h');
     }
   }
+
+  // vinheta do "mapa 2.5D": fica FORA do <g id="mg"> (irmã dele, não filha),
+  // então nunca recebe o transform de pan/zoom nem participa da matemática
+  // de arrasto/clique — é puramente visual, sempre cobrindo a tela inteira.
+  var vinheta = document.createElementNS(NS, 'rect');
+  vinheta.setAttribute('x', '-50'); vinheta.setAttribute('y', '-50');
+  vinheta.setAttribute('width', W + 100); vinheta.setAttribute('height', H + 100);
+  vinheta.setAttribute('fill', 'url(#vinheta)');
+  vinheta.setAttribute('pointer-events', 'none');
+  svg.appendChild(vinheta);
+
+  applyMapTransform();
 }
 
 /* ── Ícone animado percorrendo a calha selecionada no mapa ── */
@@ -2090,6 +2268,17 @@ function applyMapTransform() {
   T.s = Math.max(0.5, Math.min(8, T.s));
   var g = document.getElementById('mg');
   if (g) g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
+  // "mapa 2.5D": paralaxe do brilho atmosférico atrás do mapa (fora do SVG,
+  // no CSS de #map-wrap) — se desloca uma fração do pan, dando sensação de
+  // profundidade. Só mexe numa custom property lida pelo CSS; não toca em
+  // nenhuma coordenada usada por clique/arrasto/zoom.
+  var wrap = document.getElementById('map-wrap');
+  if (wrap) {
+    var px = Math.max(-32, Math.min(32, T.x * 0.03));
+    var py = Math.max(-32, Math.min(32, T.y * 0.03));
+    wrap.style.setProperty('--map-px', px.toFixed(1) + 'px');
+    wrap.style.setProperty('--map-py', py.toFixed(1) + 'px');
+  }
 }
 
 /* Muda o zoom (T.s) mantendo o CENTRO da tela fixo no mesmo ponto do mapa —

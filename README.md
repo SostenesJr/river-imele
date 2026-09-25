@@ -298,6 +298,79 @@ o resto do app, quando uma nova leitura do nível é gravada. Implementado
 em `regimeAtual()` e no `RIOS.forEach()` de `renderMap()` (`js/app.js`),
 e no elemento `#map-regime-legend` (`index.html`).
 
+## Mapa 2.5D (profundidade, luz e paralaxe)
+
+O mapa ganhou uma camada de efeitos visuais que dão sensação de
+profundidade/relevo, mantendo 100% da interação já existente (arrastar,
+pinçar, zoom, clicar num pino) intacta:
+
+- **Sombra sob os rios, rotas e pinos**: um leve drop-shadow (CSS) dá
+  sensação de camadas/relevo, como se o traçado "flutuasse" um pouco
+  acima do terreno.
+- **Luz rasante**: um gradiente diagonal (mais claro no canto superior-
+  esquerdo, mais escuro no canto oposto) desenhado dentro do próprio
+  mapa, sugerindo uma leve inclinação/iluminação sem mexer em nenhuma
+  coordenada real do mapa.
+- **Vinheta**: as bordas do mapa escurecem sutilmente, reforçando a
+  sensação de estar olhando o Amazonas de cima, a certa distância.
+- **Paralaxe ao arrastar/dar zoom**: um brilho atmosférico no fundo (fora
+  do próprio mapa, atrás dele) se desloca uma fração do movimento do
+  mapa, dando a sensação de camadas com profundidades diferentes.
+
+Por segurança, um efeito de câmera 3D de verdade (inclinar o mapa em
+perspectiva) **não** foi usado: ele mudaria a relação entre pixel na tela
+e posição real do mapa, o que arriscava desalinhar o arrastar/zoom/toque
+nos pinos — especialmente no celular. Os efeitos acima dão a sensação de
+profundidade sem esse risco. Implementado em `renderMap()` (filtros/
+gradientes `rasante`, `vinheta` e a classe `river-main`/`am-border`),
+`applyMapTransform()` (atualiza `--map-px`/`--map-py` a cada arrasto ou
+zoom) e no CSS de `#map-wrap`/`.mnode`/`.mline` (`css/style.css`).
+
+## Alerta de embarcação mal avaliada
+
+Quando a avaliação de uma embarcação cadastrada num município está baixa
+(⭐️ 1 ou 2), um aviso visual chama atenção antes mesmo de abrir o balão:
+um selo ⚠️ aparece no chip do município (abas Rotas/Configurações) e um
+banner de aviso aparece no topo da lista de embarcações, dentro do balão
+de Informações e do balão de edição. Ajuda a não recomendar sem querer
+uma embarcação com histórico ruim pro cliente. Implementado em
+`embAvaliacaoRuim()`, `bINFO()`, `bCO()`, `renderInfoView()` e
+`renderSheet()` (`js/app.js`).
+
+## Contato do município (agente local/porto)
+
+Cada município agora tem um campo de contato — nome e telefone de um
+agente local, porto ou ponto de referência — editável pelo balão de
+Configurações (aba **Configurações**) e visível (somente leitura, com o
+telefone já como link `tel:` pra ligar direto do celular) pelo balão de
+Informações. Fica guardado junto com o resto dos dados do município no
+Supabase (colunas `contato_nome`/`contato_tel`, ver
+`supabase/migracao-contato-municipio.sql`). Implementado em `rowToInfo()`,
+`getInfo()`, `setInfo()`, `resetInfo()`, `renderInfoView()` e
+`renderSheet()` (`js/app.js`).
+
+## Calculadora de rota (distância/tempo entre dois municípios quaisquer)
+
+Um botão 🧭 na barra de ferramentas do mapa abre uma calculadora que
+estima distância e tempo de viagem entre **dois municípios quaisquer**
+(não só a partir de Manaus): escolhe origem e destino em dois menus, e o
+resultado aparece com a rota desenhada no mapa (linha tracejada rosa,
+some quando o balão fecha só se o botão "Limpar" for usado). Como os
+dados de cada município só guardam a distância até Manaus (não a
+distância real entre dois pontos quaisquer), o cálculo é uma
+**estimativa**, sempre identificada como tal na tela, usando duas regras:
+
+- **Mesma calha, sem bifurcação**: subtrai a distância até Manaus de um
+  município da do outro (`|kmB − kmA|`).
+- **Calhas diferentes (ou passando pela bifurcação da Rota I)**: soma as
+  duas distâncias até Manaus (`kmA + kmB`), como se o trajeto passasse
+  pelo hub.
+
+O tempo estimado é somado a partir do tempo de trânsito (`tt`) cadastrado
+de cada município até Manaus. Implementado em `calcularRotaEstimada()`,
+`renderRotaCalc()`, `abrirRotaCalc()` e no bloco `ROTA_CALC` de
+`js/app.js`, com o botão em `index.html` (`.map-zoomctl .mcb`).
+
 ## Notificações push
 
 Um sininho (🔔/🔕) no cabeçalho, ao lado do botão de idioma, liga/desliga
@@ -502,6 +575,9 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `supabase/migracao-push2-alertas-clima.sql` — cria `push_estado`
   (estado genérico dos 3 alertas do cron `clima-alertas.js`), substitui
   a `push_estado_ar` (mais estreita) criada no arquivo acima
+- `supabase/migracao-contato-municipio.sql` — adiciona as colunas
+  `contato_nome`/`contato_tel` em `municipios_info` (contato do agente
+  local/porto por município)
 - `package.json` — declara a dependência `web-push`, usada pelas funções
   serverless acima
 - `vercel.json` — agenda os dois crons (nível do rio às 11h UTC / 7h em
