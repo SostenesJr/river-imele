@@ -1568,12 +1568,15 @@ function mapLabel(rotaNum, idx) { return rotaNum + idx; }
 /* "manchas" fixas de copa de floresta por cima do gradiente verde do fundo —
    posições e raios fixos (não aleatórios a cada render) pra dar uma textura
    orgânica ao "recorte" do estado, sem precisar carregar nenhuma imagem. */
-var FOREST_BLOBS = [
-  { x: 180, y: 160, r: 130, c: '#1f5f3f', o: .55 }, { x: 420, y: 120, r: 160, c: '#164a34', o: .5 },
-  { x: 650, y: 200, r: 140, c: '#1f5f3f', o: .45 }, { x: 300, y: 320, r: 180, c: '#0f3a28', o: .5 },
-  { x: 550, y: 380, r: 150, c: '#1f5f3f', o: .4 }, { x: 150, y: 420, r: 130, c: '#164a34', o: .5 },
-  { x: 720, y: 420, r: 120, c: '#0f3a28', o: .45 }, { x: 400, y: 480, r: 160, c: '#1a5238', o: .4 }
-];
+// Encaixe da foto de satélite (img/mapa-fundo.jpg, 1265x832px) no mesmo
+// sistema de coordenadas do proj(lat,lng): calculado comparando o
+// retângulo que envolve AM_BORDER (no espaço do proj()) com o retângulo
+// que envolve o contorno do estado na própria foto (pixels não-brancos),
+// e conferido contra o pino "MANAUS" já pintado na foto (ficou a ~5px de
+// diferença da posição calculada por proj(-3.119,-60.021), num mapa de
+// ~1170px de largura — dentro da margem de uma ilustração, não um raster
+// georreferenciado de verdade).
+var MAPA_FOTO_CALIB = { x: -9.0, y: 11.13, w: 822.3, h: 566.97 };
 
 function renderMap() {
   var svg = document.getElementById('msvg'); if (!svg) return;
@@ -1591,10 +1594,7 @@ function renderMap() {
 
   var defs = document.createElementNS(NS, 'defs');
   defs.innerHTML =
-    '<pattern id="gr" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0L0 0 0 30" fill="none" stroke="#0f172a" stroke-width=".4"/></pattern>'
-    + '<filter id="gw"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
-    + '<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>'
-    + '<radialGradient id="forestGrad" cx="45%" cy="40%" r="75%"><stop offset="0%" stop-color="#1c4a32"/><stop offset="55%" stop-color="#123825"/><stop offset="100%" stop-color="#0b241a"/></radialGradient>'
+    '<filter id="gw"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
     + '<clipPath id="amClip"><polygon points="' + bPts + '"/></clipPath>'
     // "mapa 2.5D": luz rasante (diagonal, canto superior-esquerdo mais claro) —
     // dá a sensação de relevo/inclinação sem mudar nenhuma coordenada real,
@@ -1603,7 +1603,14 @@ function renderMap() {
     // vinheta: escurece as bordas do mapa, reforçando a sensação de profundidade
     // ("olhando de cima, de um pouco de distância") — fixa na tela, não se move
     // com o pan/zoom do conteúdo, então também não mexe em nenhuma coordenada.
-    + '<radialGradient id="vinheta" cx="50%" cy="46%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.38"/></radialGradient>';
+    + '<radialGradient id="vinheta" cx="50%" cy="46%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.38"/></radialGradient>'
+    // fundo de reserva (tom de mata) por baixo da foto: o contorno oficial
+    // do estado (AM_BORDER) é um pouco maior que a área que a própria foto
+    // cobre (ela não desenha até o canto/reentrância nordeste) — sem isso,
+    // esse pedacinho aparecia em branco. Com a foto tendo ficado transparente
+    // bem ali (ver MAPA_FOTO_CALIB/mapa-fundo.png), esse verde aparece só
+    // nessa sobra, imperceptível encostado no resto da foto.
+    + '<radialGradient id="fundoVerde" cx="45%" cy="40%" r="75%"><stop offset="0%" stop-color="#1c4a32"/><stop offset="55%" stop-color="#123825"/><stop offset="100%" stop-color="#0b241a"/></radialGradient>';
   svg.appendChild(defs);
 
   var g = document.createElementNS(NS, 'g'); g.id = 'mg';
@@ -1613,17 +1620,22 @@ function renderMap() {
   // fundo (fora do estado): "água"/espaço escuro, igual o resto do app
   var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#070c14'); g.appendChild(bg);
 
-  // "imagem" ilustrada do Amazonas: gradiente + manchas de copa de floresta,
-  // recortados exatamente no contorno real do estado
+  // Imagem de satélite/relevo do Amazonas, encaixada nas MESMAS coordenadas
+  // (lat/lng -> x,y) usadas pelos rios/rotas/pinos: os números abaixo
+  // (MAPA_FOTO_CALIB) foram calculados uma vez só, comparando o contorno
+  // real do estado (AM_BORDER) e o pino "MANAUS" já desenhado na própria
+  // foto com a posição que nosso proj(lat,lng) calcula pra Manaus — por
+  // isso o pino da foto e o marcador do app caem quase exatamente no
+  // mesmo lugar. Recortada no contorno real do estado (mesmo amClip).
   var amGroup = document.createElementNS(NS, 'g'); amGroup.setAttribute('clip-path', 'url(#amClip)'); g.appendChild(amGroup);
-  var amBg = document.createElementNS(NS, 'rect'); amBg.setAttribute('width', W); amBg.setAttribute('height', H); amBg.setAttribute('fill', 'url(#forestGrad)'); amGroup.appendChild(amBg);
-  FOREST_BLOBS.forEach(function (b) {
-    var blob = document.createElementNS(NS, 'circle');
-    blob.setAttribute('cx', b.x); blob.setAttribute('cy', b.y); blob.setAttribute('r', b.r);
-    blob.setAttribute('fill', b.c); blob.setAttribute('opacity', b.o); blob.setAttribute('filter', 'url(#soft)');
-    amGroup.appendChild(blob);
-  });
-  var grOverlay = document.createElementNS(NS, 'rect'); grOverlay.setAttribute('width', W); grOverlay.setAttribute('height', H); grOverlay.setAttribute('fill', 'url(#gr)'); grOverlay.setAttribute('opacity', '0.5'); amGroup.appendChild(grOverlay);
+  var amFundo = document.createElementNS(NS, 'rect'); amFundo.setAttribute('width', W); amFundo.setAttribute('height', H); amFundo.setAttribute('fill', 'url(#fundoVerde)'); amGroup.appendChild(amFundo);
+  var amFoto = document.createElementNS(NS, 'image');
+  amFoto.setAttributeNS('http://www.w3.org/1999/xlink', 'href', 'img/mapa-fundo.png');
+  amFoto.setAttribute('href', 'img/mapa-fundo.png');
+  amFoto.setAttribute('x', MAPA_FOTO_CALIB.x); amFoto.setAttribute('y', MAPA_FOTO_CALIB.y);
+  amFoto.setAttribute('width', MAPA_FOTO_CALIB.w); amFoto.setAttribute('height', MAPA_FOTO_CALIB.h);
+  amFoto.setAttribute('preserveAspectRatio', 'none');
+  amGroup.appendChild(amFoto);
   var rasanteOverlay = document.createElementNS(NS, 'rect'); rasanteOverlay.setAttribute('width', W); rasanteOverlay.setAttribute('height', H); rasanteOverlay.setAttribute('fill', 'url(#rasante)'); amGroup.appendChild(rasanteOverlay);
   // Regime atual do nível do rio (Seca/Normal/Atenção/Alerta/Emergência)
   // pintado como um "glow" por baixo do traçado azul de cada rio — o rio

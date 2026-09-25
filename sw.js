@@ -7,7 +7,7 @@
    Muda o nome do cache (CACHE_NAME) sempre que fizer uma atualização
    visível no app, pra garantir que o service worker antigo seja
    substituído e o cache velho, limpo. */
-var CACHE_NAME = 'navlog-shell-v3';
+var CACHE_NAME = 'navlog-shell-v5';
 var SHELL_FILES = [
   '/index.html',
   '/login.html',
@@ -16,6 +16,7 @@ var SHELL_FILES = [
   '/js/app.js',
   '/js/data.js',
   '/js/supabase-config.js',
+  '/img/mapa-fundo.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
 ];

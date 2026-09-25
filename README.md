@@ -326,6 +326,44 @@ gradientes `rasante`, `vinheta` e a classe `river-main`/`am-border`),
 `applyMapTransform()` (atualiza `--map-px`/`--map-py` a cada arrasto ou
 zoom) e no CSS de `#map-wrap`/`.mnode`/`.mline` (`css/style.css`).
 
+## Foto de satélite como fundo do mapa
+
+O fundo "ilustrado" (gradiente verde + manchas de floresta desenhadas)
+foi trocado por uma foto real de satélite/relevo do Amazonas
+(`img/mapa-fundo.png`), encaixada exatamente nas mesmas coordenadas
+(lat/lng → x,y) que já posicionam os rios, as rotas e os pinos de cada
+município — ou seja, os pinos caem em cima do lugar certo na foto, não
+só num desenho aproximado.
+
+O encaixe (`MAPA_FOTO_CALIB` em `js/app.js`) foi calculado comparando o
+retângulo que envolve o contorno oficial do estado (`AM_BORDER`, já usado
+pelo mapa) com o retângulo da área não-branca da própria foto, e depois
+conferido contra o pino "MANAUS" que já vem pintado na foto: a posição
+calculada por `proj(-3.119, -60.021)` caiu a menos de 5px de diferença do
+pino real da foto, num mapa de ~1170px de largura — confirma que o
+encaixe ficou preciso. Ainda assim, por ser uma foto ilustrativa (não um
+raster georreferenciado oficial), pequenos desvios entre a posição exata
+de um pino e o relevo da foto embaixo dele podem acontecer, principalmente
+perto das bordas do estado.
+
+A foto original não cobria 100% do contorno oficial do estado (faltava um
+pedaço perto do canto nordeste) — o que apareceria como uma área branca
+"furando" o mapa. Corrigido tornando transparente só o fundo branco de
+verdade da foto (achado com preenchimento por inundação a partir das
+bordas da imagem, preservando texturas brancas que fazem parte da própria
+ilustração, como nuvens no meio da mata) e colocando atrás dela um verde
+de reserva (gradiente `fundoVerde`) — some qualquer parte sem cobertura,
+sem deixar branco aparecendo.
+
+A foto é recortada exatamente no contorno do estado (mesmo `clipPath` que
+já limitava o fundo desenhado antes) e continua dentro do grupo que sofre
+pan/zoom/arrasto — se movimenta e dá zoom junto com o resto do mapa,
+sem nenhuma mudança na lógica de interação. Adicionada também ao cache do
+service worker (`sw.js`, `SHELL_FILES`) pra continuar disponível offline,
+com o app instalado. Implementado em `renderMap()` (elemento `<image>` +
+`<rect fill="url(#fundoVerde)">` de reserva, dentro do `amGroup`, mesmo
+clip-path `amClip`) e na constante `MAPA_FOTO_CALIB` (`js/app.js`).
+
 ## Alerta de embarcação mal avaliada
 
 Quando a avaliação de uma embarcação cadastrada num município está baixa
@@ -552,6 +590,9 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
   vindo direto da rede em tempo real
 - `icons/` — ícones do app em vários tamanhos, usados pelo `manifest.json`
   e como favicon
+- `img/mapa-fundo.png` — foto de satélite/relevo do Amazonas usada como
+  fundo da aba Mapa, com o fundo branco original tornado transparente
+  (ver "Foto de satélite como fundo do mapa")
 - `supabase/nivel_rio.sql` — tabela do nível do rio (aba Notícias) e a
   leitura inicial pra coleta automática funcionar
 - `supabase/nivel_rio_backfill.sql` — carga do histórico completo de
