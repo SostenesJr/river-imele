@@ -427,9 +427,9 @@ padrão e que só desliza por cima do mapa quando aberta:
 - Dentro da gaveta, os filtros ficam empilhados verticalmente (antes era
   uma fileira horizontal com rolagem lateral) — mais fácil de ler e tocar
   numa gaveta estreita do que numa barra comprida.
-- Os botões de ferramenta (calculadora de rota, trocar tile, zoom) não
-  fecham a gaveta sozinhos, pra dar pra clicar em "+"/"−" várias vezes
-  seguidas sem o painel sumir a cada clique.
+- Os botões de ferramenta (trocar tile, zoom) não fecham a gaveta
+  sozinhos, pra dar pra clicar em "+"/"−" várias vezes seguidas sem o
+  painel sumir a cada clique.
 
 Implementado em `toggleMapToolbar()`/`fecharMapToolbar()` (`js/app.js`,
 chamado também no fim de `filtrarRota()`/`filtrarTipo()` e do clique em
@@ -478,11 +478,12 @@ Implementado em `#hdr`/`.htabs`/`.htab`/`.htab-pill`/`.hdr-top`/
 de `#hdr` (`index.html`, substituiu o antigo cabeçalho de cima + o menu de
 abas de baixo, `#btabs`, removido).
 
-## Tamanho do balão de informações (P/M/G, sem zoom por pinça)
+## Tamanho do balão de Informações/Configurações (P/M/G, sem zoom por pinça)
 
-O balão que abre ao tocar num município (visualização, edição e a
-calculadora de rota — todos reaproveitam o mesmo `#sheet`) tinha um
-problema: dar zoom por pinça em cima dele fazia zoom na **página inteira**
+O balão que abre ao tocar num município nas abas Informações/Configurações
+(visualização e edição — os dois
+reaproveitam o mesmo `#sheet`) tinha um problema: dar zoom por pinça em
+cima dele fazia zoom na **página inteira**
 em vez de só no conteúdo do balão. Isso acontece porque alguns navegadores
 (principalmente Safari/iOS) ignoram o `user-scalable=no` do
 `<meta viewport>` por acessibilidade — então a pinça continuava
@@ -504,20 +505,61 @@ pinça livre, o balão ganhou **3 tamanhos físicos fixos**, escolhidos por
 Os 3 tamanhos escalam **tudo** dentro do balão de uma vez (textos, ícones,
 cards, campos de formulário) via `transform: scale()` em `#sheet-body`
 — não é o texto crescendo separado do resto, é o balão inteiro "físico"
-ficando maior, exatamente como no card de Configurações, no de
-Informações e no da calculadora de rota (os 3 usam o mesmo balão). A
-largura é compensada (`width: calc(100% / var(--sh-scale))`) pra
+ficando maior, tanto no card de Informações quanto no de Configurações
+(os dois usam o mesmo balão). A largura é compensada
+(`width: calc(100% / var(--sh-scale))`) pra
 continuar preenchendo a largura certa depois de escalado. O tamanho
 escolhido fica salvo por aparelho (`localStorage`, igual tema/idioma) e
 volta a valer da próxima vez que um balão for aberto. O zoom por pinça
-continua funcionando normalmente **só dentro do mapa** — não foi mexido
-lá.
+continua funcionando normalmente no **mapa em si** (arrastar/beliscar pra
+navegar) — só foi desligado em cima destes balões. O popup que abre ao
+tocar num pino do mapa é um elemento diferente (`#map-popup`) e recebeu o
+mesmo tratamento separadamente — ver seção abaixo.
 
 Implementado em `setSheetScale()`/`sheetScaleSalva()` (`js/app.js`,
 chamado no `initApp()` e nos 3 botões `.sh-size-btn`), no CSS de
 `#sheet-overlay`/`#sheet`/`.sh-size-ctl`/`.sh-size-btn`/`#sheet-body`
 (`css/style.css`) e no HTML de `.sh-size-ctl` dentro de `#sheet`
 (`index.html`).
+
+## Tamanho do popup do mapa (P/M/G, sem zoom por pinça)
+
+O balão que abre ao tocar num **pino do mapa** (`#map-popup`) é um
+elemento diferente do balão de Informações/Configurações (seção acima) —
+mesmo problema, então recebeu a mesma correção: zoom por pinça desligado
+dentro dele (`touch-action: pan-y`, mais o mesmo reforço em JS pro gesto
+do Safari) e 3 botões fixos **P/M/G** (normal / 30% maior / 50% maior) no
+topo do popup, acima do conteúdo que escala (`.mp-body`, mesma técnica de
+`transform: scale()` + largura compensada usada em `#sheet-body`).
+
+Diferença em relação ao balão de Informações/Configurações: `#map-popup`
+não tinha altura máxima nem rolagem (a altura sempre foi só o conteúdo
+mesmo), então ao aumentar pra M/G ele pode ficar mais alto que a tela —
+por isso ganhou `max-height: 80vh` com `overflow-y: auto` junto dessa
+mudança, pra rolar dentro do próprio popup em vez de estourar pra fora
+dele. O botão fechar (✕) e os 3 botões de tamanho ficam fora de
+`.mp-body`, então não crescem/encolhem junto com o resto. A preferência
+de tamanho é salva separada da do outro balão (`localStorage`
+`navlog-mappopup-scale`) — são dois popups diferentes, abertos de jeitos
+diferentes (clicar num pino vs. abrir pela lista), cada um lembra o
+próprio tamanho.
+
+Implementado em `showMapPopup()`/`setMapPopupScale()`/
+`mapPopupScaleSalva()` (`js/app.js`), no CSS de `#map-popup`/
+`.mp-size-ctl`/`.mp-size-btn`/`.mp-body` (`css/style.css`).
+
+## Calculadora de rota removida
+
+O botão 🧭 (calculadora de distância/tempo estimado entre dois municípios
+quaisquer, ver histórico acima em "Filtros/ferramentas do mapa") foi
+removido — não estava sendo útil. Removidos o botão no `#map-toolbar`
+(`index.html`), as funções `abrirRotaCalc()`/`renderRotaCalc()`/
+`calcularRotaEstimada()`/`setRotaCalcOrigem()`/`setRotaCalcDestino()`/
+`limparRotaCalc()`/`municipiosSelectOptionsHTML()`/`parseDiasTT()` e a
+variável `ROTA_CALC` (`js/app.js`), a camada `LAYER_CALC` e o trecho que
+desenhava a linha tracejada estimada no mapa, o CSS `.rota-calc-line`/
+`.rota-calc-dot`/`.rota-calc-nota` (`css/style.css`) e as chaves
+`rota_calc_*` de tradução (`js/i18n.js`, nos 4 idiomas).
 
 ## Alerta de embarcação mal avaliada
 
@@ -541,28 +583,6 @@ Supabase (colunas `contato_nome`/`contato_tel`, ver
 `supabase/migracao-contato-municipio.sql`). Implementado em `rowToInfo()`,
 `getInfo()`, `setInfo()`, `resetInfo()`, `renderInfoView()` e
 `renderSheet()` (`js/app.js`).
-
-## Calculadora de rota (distância/tempo entre dois municípios quaisquer)
-
-Um botão 🧭 na barra de ferramentas do mapa abre uma calculadora que
-estima distância e tempo de viagem entre **dois municípios quaisquer**
-(não só a partir de Manaus): escolhe origem e destino em dois menus, e o
-resultado aparece com a rota desenhada no mapa (linha tracejada rosa,
-some quando o balão fecha só se o botão "Limpar" for usado). Como os
-dados de cada município só guardam a distância até Manaus (não a
-distância real entre dois pontos quaisquer), o cálculo é uma
-**estimativa**, sempre identificada como tal na tela, usando duas regras:
-
-- **Mesma calha, sem bifurcação**: subtrai a distância até Manaus de um
-  município da do outro (`|kmB − kmA|`).
-- **Calhas diferentes (ou passando pela bifurcação da Rota I)**: soma as
-  duas distâncias até Manaus (`kmA + kmB`), como se o trajeto passasse
-  pelo hub.
-
-O tempo estimado é somado a partir do tempo de trânsito (`tt`) cadastrado
-de cada município até Manaus. Implementado em `calcularRotaEstimada()`,
-`renderRotaCalc()`, `abrirRotaCalc()` e no bloco `ROTA_CALC` de
-`js/app.js`, com o botão em `index.html` (`.map-zoomctl .mcb`).
 
 ## Notificações push
 

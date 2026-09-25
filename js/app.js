@@ -116,7 +116,6 @@ function aplicarIdioma(lang) {
   if (viewSeq) renderInfoView();
   if (editState) renderSheet();
   if (climaViewSeq) renderClimaView();
-  if (rotaCalcAberto) renderRotaCalc();
 }
 function alternarIdioma() {
   var i = LANGS.indexOf(LANG);
@@ -1339,100 +1338,6 @@ function fecharSheet(e) {
   editState = null;
   viewSeq = null;
   climaViewSeq = null;
-  // rotaCalcAberto (a tela dentro do balão) fecha junto, mas ROTA_CALC
-  // (origem/destino escolhidos) fica guardado — é o que mantém a linha
-  // desenhada no mapa depois que o balão fecha.
-  rotaCalcAberto = false;
-}
-
-/* ── Rota entre dois municípios quaisquer (estimativa) ──
-   O app só tem, por dado, a distância/tempo de cada município ATÉ
-   MANAUS (m.km / m.tt — é assim que a planilha original foi montada,
-   não é uma distância "de um município pro outro"). Pra estimar a
-   distância entre DOIS municípios quaisquer sem inventar dado que não
-   existe, a regra é:
-   - Mesma calha (exceto a I, que se ramifica em Humaitá pra Apuí e
-     Labréa — não é uma linha reta): assume-se um trajeto contínuo ao
-     longo da própria calha, distância = |kmB - kmA|.
-   - Calhas diferentes (ou a calha I): assume-se que a carga passa por
-     Manaus pra trocar de calha (é como a operação funciona de verdade,
-     hub-and-spoke) — distância = kmA + kmB.
-   Por isso todo resultado é rotulado como ESTIMATIVA, com a explicação
-   do método sempre visível junto do resultado. */
-var ROTA_CALC = { origem: null, destino: null };
-var rotaCalcAberto = false;
-
-function parseDiasTT(tt) {
-  var m = String(tt || '').match(/(\d+(?:\.\d+)?)/);
-  return m ? parseFloat(m[1]) : null;
-}
-
-function calcularRotaEstimada(seqA, seqB) {
-  var a = NODEIDX[seqA], b = NODEIDX[seqB];
-  if (!a || !b) return null;
-  if (seqA === seqB) return { distanciaKm: 0, diasEstimado: 0, viaHub: false, mesmaCalha: true };
-
-  var mesmaCalhaLinha = a.rota.num === b.rota.num && a.rota.num !== 'I';
-  var kmA = Number(a.mun.km) || 0, kmB = Number(b.mun.km) || 0;
-  var ttA = parseDiasTT(a.mun.tt), ttB = parseDiasTT(b.mun.tt);
-
-  var distanciaKm = mesmaCalhaLinha ? Math.abs(kmB - kmA) : (kmA + kmB);
-  var diasEstimado = (ttA !== null && ttB !== null)
-    ? (mesmaCalhaLinha ? Math.abs(ttB - ttA) : (ttA + ttB))
-    : null;
-
-  return { distanciaKm: distanciaKm, diasEstimado: diasEstimado, viaHub: !mesmaCalhaLinha, mesmaCalha: mesmaCalhaLinha };
-}
-
-function municipiosSelectOptionsHTML(selecionado) {
-  return ROTAS.map(function (r) {
-    var opts = r.municipios.map(function (m) {
-      return '<option value="' + m.seq + '"' + (m.seq === selecionado ? ' selected' : '') + '>' + m.nome + ' (' + m.seq + ')</option>';
-    }).join('');
-    return '<optgroup label="' + t('calha_word') + ' ' + r.nome + '">' + opts + '</optgroup>';
-  }).join('');
-}
-
-function abrirRotaCalc() {
-  rotaCalcAberto = true;
-  segAberto = true;
-  renderRotaCalc();
-  document.getElementById('sheet-overlay').classList.add('on');
-}
-
-function setRotaCalcOrigem(seq) { ROTA_CALC.origem = seq || null; renderRotaCalc(); renderMap(); }
-function setRotaCalcDestino(seq) { ROTA_CALC.destino = seq || null; renderRotaCalc(); renderMap(); }
-function limparRotaCalc() { ROTA_CALC.origem = null; ROTA_CALC.destino = null; renderRotaCalc(); renderMap(); }
-
-function renderRotaCalc() {
-  if (!rotaCalcAberto) return;
-  var res = (ROTA_CALC.origem && ROTA_CALC.destino) ? calcularRotaEstimada(ROTA_CALC.origem, ROTA_CALC.destino) : null;
-
-  var html =
-    '<div class="sh-hdr"><div><div class="sh-nome">' + t('rota_calc_title') + '</div>'
-    + '<div class="sh-badge" style="background:var(--ac)">' + t('rota_calc_badge') + '</div></div></div>'
-
-    + '<div class="sh-field"><label>' + t('rota_calc_origem_label') + '</label>'
-    + '<select id="rota-calc-origem" onchange="setRotaCalcOrigem(this.value)"><option value="">—</option>' + municipiosSelectOptionsHTML(ROTA_CALC.origem) + '</select></div>'
-
-    + '<div class="sh-field"><label>' + t('rota_calc_destino_label') + '</label>'
-    + '<select id="rota-calc-destino" onchange="setRotaCalcDestino(this.value)"><option value="">—</option>' + municipiosSelectOptionsHTML(ROTA_CALC.destino) + '</select></div>';
-
-  if (res) {
-    html += '<div class="sh-season">'
-      + '<div class="sh-view-grid" style="grid-template-columns:repeat(2,1fr)">'
-      + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('rota_calc_resultado_distancia') + '</div><div class="sh-view-kv">' + res.distanciaKm.toLocaleString('pt-BR') + ' km</div></div>'
-      + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('rota_calc_resultado_tempo') + '</div><div class="sh-view-kv">' + (res.diasEstimado === null ? '—' : tf('rota_calc_dias_tpl', { dias: res.diasEstimado })) + '</div></div>'
-      + '</div>'
-      + '<div class="rota-calc-nota">ℹ️ ' + (res.mesmaCalha && res.distanciaKm === 0 ? t('rota_calc_nota_mesmo') : (res.viaHub ? t('rota_calc_nota_via_hub') : t('rota_calc_nota_mesma_calha'))) + '</div>'
-      + '</div>';
-  } else {
-    html += '<div class="emb-empty">' + t('rota_calc_hint') + '</div>';
-  }
-
-  html += '<div class="sh-actions"><button class="sh-btn sh-reset" onclick="limparRotaCalc()">' + t('rota_calc_limpar_btn') + '</button></div>';
-
-  document.getElementById('sheet-body').innerHTML = html;
 }
 
 /* ── Classificação de segurança (Aduaneiro / Corredor de Escoamento) ── */
@@ -1837,7 +1742,7 @@ function climaRadarMiniCarregar(seq, lat, lng) {
    ============================================================ */
 var LMAP = null;
 var LTILE_CLARO = null, LTILE_ESCURO = null;
-var LAYER_RIOS, LAYER_ROTAS, LAYER_NODES, LAYER_HUB, LAYER_CALC;
+var LAYER_RIOS, LAYER_ROTAS, LAYER_NODES, LAYER_HUB;
 var MAPA_TILE_ESTILO = (function () {
   try { return localStorage.getItem('navlog-tile-estilo') || 'escuro'; }
   catch (e) { return 'escuro'; } // modo privado etc. — segue no padrão
@@ -1874,7 +1779,6 @@ function initLeafletMapa() {
   LAYER_RIOS = L.layerGroup().addTo(LMAP);
   LAYER_ROTAS = L.layerGroup().addTo(LMAP);
   LAYER_HUB = L.layerGroup().addTo(LMAP);
-  LAYER_CALC = L.layerGroup().addTo(LMAP);
   LAYER_NODES = L.layerGroup().addTo(LMAP);
 
   LMAP.on('click', function () { fecharPopupMapa(); fecharMapToolbar(); });
@@ -1922,7 +1826,6 @@ function renderMap() {
   LAYER_RIOS.clearLayers();
   LAYER_ROTAS.clearLayers();
   LAYER_HUB.clearLayers();
-  LAYER_CALC.clearLayers();
   LAYER_NODES.clearLayers();
 
   var hubLL = { lat: -3.119, lng: -60.021 };
@@ -2112,20 +2015,6 @@ function renderMap() {
     });
   });
 
-  // Linha estimada entre dois municípios (calculadora de rota A→B,
-  // botão 🧭 no mapa) — traço reto e tracejado, deliberadamente
-  // diferente do traçado real dos rios/rotas, pra deixar claro que é
-  // uma linha ilustrativa (ver calcularRotaEstimada() pro método).
-  if (ROTA_CALC.origem && ROTA_CALC.destino && ROTA_CALC.origem !== ROTA_CALC.destino) {
-    var llA = LATLNG[ROTA_CALC.origem], llB = LATLNG[ROTA_CALC.destino];
-    if (llA && llB) {
-      L.polyline([[llA.lat, llA.lng], [llB.lat, llB.lng]], { className: 'rota-calc-line', interactive: false }).addTo(LAYER_CALC);
-      [llA, llB].forEach(function (p) {
-        L.circleMarker([p.lat, p.lng], { radius: 6, className: 'rota-calc-dot', interactive: false }).addTo(LAYER_CALC);
-      });
-    }
-  }
-
   // legenda do regime do rio (o mesmo "regime" usado pra pintar o glow
   // dos rios acima) — clicável, leva direto pra aba Notícias
   var legenda = document.getElementById('map-regime-legend');
@@ -2147,6 +2036,14 @@ function showMapPopup(hit, label) {
   if (!popup) {
     popup = document.createElement('div'); popup.id = 'map-popup';
     document.getElementById('sc-m').appendChild(popup);
+    // Zoom por pinça desligado aqui de propósito — igual no balão de
+    // Informações/Configurações (#sheet), beliscar em cima deste popup
+    // (dentro do mapa) estava dando zoom na PÁGINA INTEIRA em vez de só
+    // no popup, deslocando a barra lateral fixa. touch-action (CSS,
+    // ver #map-popup) já resolve a maioria dos navegadores; isso aqui é
+    // reforço pro gesto específico do Safari, que às vezes escapa dele.
+    popup.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    popup.addEventListener('gesturechange', function (e) { e.preventDefault(); });
   }
   var r = hit.rota; var m = hit.mun; var prev = hit.prev; var next = hit.next;
   var info = getInfo(m.seq);
@@ -2157,6 +2054,15 @@ function showMapPopup(hit, label) {
   popup.style.borderColor = seg ? segMeta.cor : r.cor;
   popup.innerHTML =
     '<button class="mp-close" onclick="fecharPopupMapa()">✕</button>'
+    // Tamanho do popup (P/M/G) — no lugar do zoom por pinça (ver comentário
+    // acima). Fica fora de .mp-body (que é o que escala), igual o botão
+    // fechar, pra não crescer/encolher junto com o conteúdo.
+    + '<div class="mp-size-ctl">'
+    + '<button class="mp-size-btn on" data-sz="1" onclick="setMapPopupScale(1)" title="' + t('sheet_size_p_title') + '">P</button>'
+    + '<button class="mp-size-btn" data-sz="1.3" onclick="setMapPopupScale(1.3)" title="' + t('sheet_size_m_title') + '">M</button>'
+    + '<button class="mp-size-btn" data-sz="1.5" onclick="setMapPopupScale(1.5)" title="' + t('sheet_size_g_title') + '">G</button>'
+    + '</div>'
+    + '<div class="mp-body">'
     + '<div class="mp-top">'
     + '<span class="mp-label" style="color:' + r.cor + '">' + label + '</span>'
     + '<span class="mp-rota" style="background:' + r.cor + '22;color:' + r.cor + '">' + r.nome.toUpperCase() + '</span></div>'
@@ -2176,9 +2082,29 @@ function showMapPopup(hit, label) {
     + '<div class="mp-nav">'
     + (prev ? '<span>⬅ ' + prev.nome + '</span>' : '<span class="mp-dim">⬅ ' + t('map_popup_inicio') + '</span>')
     + (next ? '<span>' + next.nome + ' ➡</span>' : '<span class="mp-dim">' + t('map_popup_fim') + ' ➡</span>')
+    + '</div>'
     + '</div>';
 
+  setMapPopupScale(mapPopupScaleSalva(), popup);
   popup.classList.add('on');
+}
+
+/* ── Tamanho do popup do mapa (P/M/G) — mesma ideia do balão de
+   Informações/Configurações (setSheetScale(), acima), só que com
+   preferência própria (localStorage separado): são dois popups
+   diferentes, abertos de jeitos diferentes (clicar num pino do mapa vs.
+   abrir pela lista/balão), então cada um lembra o próprio tamanho. */
+function mapPopupScaleSalva() {
+  try { var v = parseFloat(localStorage.getItem('navlog-mappopup-scale')); return v || 1; }
+  catch (e) { return 1; }
+}
+function setMapPopupScale(escala, popupEl) {
+  var popup = popupEl || document.getElementById('map-popup');
+  if (popup) popup.style.setProperty('--mp-scale', escala);
+  try { localStorage.setItem('navlog-mappopup-scale', escala); } catch (e) { /* modo privado etc. */ }
+  document.querySelectorAll('.mp-size-btn').forEach(function (b) {
+    b.classList.toggle('on', parseFloat(b.dataset.sz) === escala);
+  });
 }
 
 function verDetalheSeg(seq) {
