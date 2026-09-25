@@ -59,21 +59,28 @@ if ('serviceWorker' in navigator) {
 </head>
 <body>
 
+<!-- Barra de navegação lateral — única (mesma no celular e no desktop),
+     fixa na lateral esquerda o tempo todo, em cima de nenhum conteúdo (o
+     resto do app é empurrado com margin-left, ver #app). Reúne tudo que
+     antes ficava espalhado entre o cabeçalho de cima (desktop) e o menu de
+     abas embaixo (celular): as 6 abas, idioma, notificações, tema e sair. -->
 <div id="hdr">
-  <div class="dot"></div>
-  <div>
+  <div class="hdr-top">
+    <div class="dot"></div>
     <div class="lt">NAVLOG AMAZÔNIA</div>
   </div>
-  <div class="hdr-right">
-    <div class="htabs">
-      <span class="htab-pill" id="htab-pill"></span>
-      <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
-      <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
-      <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
-      <button class="htab" data-s="n" onclick="SS('n',this)"><span class="hti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
-      <button class="htab" data-s="w" onclick="SS('w',this)"><span class="hti">🌤️</span><span data-i18n="tab_clima">Clima</span></button>
-      <button class="htab htab-icon" data-s="c" onclick="SS('c',this)" title="Configurações" data-i18n-title="tab_config"><span class="hti">⚙️</span></button>
-    </div>
+
+  <div class="htabs">
+    <span class="htab-pill" id="htab-pill"></span>
+    <button class="htab on" data-s="r" onclick="SS('r',this)"><span class="hti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
+    <button class="htab" data-s="i" onclick="SS('i',this)"><span class="hti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
+    <button class="htab" data-s="m" onclick="SS('m',this)"><span class="hti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
+    <button class="htab" data-s="n" onclick="SS('n',this)"><span class="hti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
+    <button class="htab" data-s="w" onclick="SS('w',this)"><span class="hti">🌤️</span><span data-i18n="tab_clima">Clima</span></button>
+    <button class="htab" data-s="c" onclick="SS('c',this)" title="Configurações" data-i18n-title="tab_config"><span class="hti">⚙️</span><span data-i18n="tab_config">Configurações</span></button>
+  </div>
+
+  <div class="hdr-bottom">
     <span class="live-dot" id="live-dot" title="Conectando..."></span>
     <span class="user-badge" id="user-badge"></span>
     <div class="lang-wrap">
@@ -83,18 +90,6 @@ if ('serviceWorker' in navigator) {
     <button class="theme-btn" id="push-btn" onclick="togglePush()" title="Ativar notificações" data-i18n-title="push_btn_title_off">🔕</button>
     <button class="theme-btn" id="theme-btn" onclick="alternarTema()" title="Trocar tema claro/escuro" data-i18n-title="theme_btn_title">☀️</button>
     <button class="logout-btn" onclick="sair()" title="Sair" data-i18n-title="logout_title">⏻</button>
-  </div>
-</div>
-
-<div id="btabs">
-  <div class="brow">
-    <span class="btab-ind" id="btab-ind"></span>
-    <button class="btab on" id="bt-r" onclick="SS('r',null)"><span class="bti">📋</span><span data-i18n="tab_rotas">Rotas</span></button>
-    <button class="btab" id="bt-i" onclick="SS('i',null)"><span class="bti">🛳️</span><span data-i18n="tab_info">Informações</span></button>
-    <button class="btab" id="bt-m" onclick="SS('m',null)"><span class="bti">🗺️</span><span data-i18n="tab_mapa">Mapa</span></button>
-    <button class="btab" id="bt-n" onclick="SS('n',null)"><span class="bti">🌊</span><span data-i18n="tab_noticias">Notícias</span></button>
-    <button class="btab" id="bt-w" onclick="SS('w',null)"><span class="bti">🌤️</span><span data-i18n="tab_clima">Clima</span></button>
-    <button class="btab btab-icon" id="bt-c" onclick="SS('c',null)" title="Configurações" data-i18n-title="tab_config"><span class="bti">⚙️</span></button>
   </div>
 </div>
 

@@ -437,6 +437,47 @@ chamado também no fim de `filtrarRota()`/`filtrarTipo()` e do clique em
 `#map-toolbar`/`#map-filters` (`css/style.css`) e no HTML de `#sc-m`
 (`index.html`).
 
+## Navegação principal numa barra lateral única
+
+O topo (desktop) e o menu de abas embaixo (celular) que existiam separados
+foram unificados numa **única barra de navegação lateral** (`#hdr`), fixa na
+esquerda o tempo todo, igual em qualquer tamanho de tela — celular, tablet
+ou desktop. Ela reúne tudo que antes ficava espalhado:
+
+- As 6 abas do app (Rotas, Informações, Mapa, Notícias, Clima,
+  Configurações — esta última só aparece pra quem tem perfil admin).
+- Trocar idioma (PT/EN/ES/中文).
+- Ativar/desativar notificações push.
+- Trocar tema claro/escuro.
+- Sair da conta.
+
+Diferente da gaveta de filtros do mapa (seção acima), que desliza **por
+cima** do mapa porque é um painel temporário, esta barra **nunca cobre
+nenhum conteúdo**: o resto do app (`#app`) é empurrado com `left: calc(var
+(--sidenav-w) + var(--safe-left))`, então o conteúdo sempre começa depois
+do fim da barra, não por baixo dela. A largura da barra
+(`--sidenav-w`) é 72px no desktop e 62px em telas estreitas (celular) —
+mais estreita mas com o mesmo ícone + rótulo em todas as abas, não vira
+ícone-só.
+
+Outros detalhes:
+
+- O indicador da aba ativa (antes um "pill" que deslizava na horizontal)
+  agora desliza na vertical, acompanhando a altura/posição de cada botão
+  empilhado (`atualizarIndicadorAbas()`, `js/app.js`).
+- O e-mail da pessoa logada, que antes aparecia por extenso no cabeçalho,
+  virou um avatar redondo com a inicial (a barra é estreita demais pro
+  e-mail inteiro); passar o mouse/segurar mostra o e-mail completo no
+  tooltip (`title`).
+- O menu de idioma abre **para a direita**, fora da barra lateral
+  (`#hdr .lang-menu { left: calc(100% + 8px); }`), pra não ficar espremido
+  numa coluna de 62–72px.
+
+Implementado em `#hdr`/`.htabs`/`.htab`/`.htab-pill`/`.hdr-top`/
+`.hdr-bottom`/`.theme-btn`/`.user-badge`/`#app` (`css/style.css`) e no HTML
+de `#hdr` (`index.html`, substituiu o antigo cabeçalho de cima + o menu de
+abas de baixo, `#btabs`, removido).
+
 ## Alerta de embarcação mal avaliada
 
 Quando a avaliação de uma embarcação cadastrada num município está baixa

@@ -47,6 +47,11 @@ html.theme-transition, html.theme-transition * {
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* largura da barra de navegação lateral (#hdr) — usada tanto no CSS dela
+     quanto no left do conteúdo (#app), pra sempre bater certinho */
+  --sidenav-w: 72px;
 }
 
 /* TEMA CLARO — alternado pelo botão ☀️/🌙 no cabeçalho, guardado em
@@ -89,29 +94,42 @@ html, body {
   overscroll-behavior: none;
 }
 
-/* HEADER */
+/* BARRA LATERAL (navegação — antes dividida entre um cabeçalho em cima no
+   desktop e um menu de abas embaixo no celular; agora uma coisa só, fixa
+   na lateral esquerda, em qualquer tamanho de tela, sempre visível e nunca
+   por cima de conteúdo — ver #app, que é empurrado com margin-left pra
+   nunca ficar embaixo dela). */
 #hdr {
-  position: fixed; top: 0; left: 0; right: 0;
-  height: calc(50px + var(--safe-top));
-  padding-top: var(--safe-top);
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: calc(var(--sidenav-w) + var(--safe-left));
+  padding-left: var(--safe-left);
+  padding-top: var(--safe-top); padding-bottom: var(--safe-bottom);
   background:
-    linear-gradient(90deg, rgba(10,19,16,.94), rgba(10,19,16,.86) 60%, rgba(10,19,16,.7)),
+    linear-gradient(180deg, rgba(10,19,16,.94), rgba(10,19,16,.86) 60%, rgba(10,19,16,.7)),
     var(--hero-img) center 30% / cover no-repeat,
     var(--s1);
-  border-bottom: 1px solid var(--bd);
-  display: flex; align-items: center;
-  padding-left: 14px; padding-right: 14px; gap: 10px;
+  border-right: 1px solid var(--bd);
+  display: flex; flex-direction: column; align-items: stretch;
   z-index: 300;
+  /* Importante: overflow NÃO fica aqui (só dentro de .htabs, abaixo) — um
+     overflow-y:auto neste elemento também clipa o eixo X (regra do CSS:
+     um overflow-y diferente de "visible" vira "auto" nos dois eixos), o
+     que cortava o menu de idioma (.lang-menu), que abre PRA FORA da barra
+     lateral (left: calc(100% + 8px)). */
 }
+.hdr-top { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 6px 10px; flex-shrink: 0; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 7px var(--ac); animation: bk 2s infinite; flex-shrink: 0; }
 @keyframes bk { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
-.lt { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; line-height: 1.3; color: var(--hdr-tx); text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.lt { font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; line-height: 1.25; color: var(--hdr-tx); text-shadow: 0 1px 3px rgba(0,0,0,.6); text-align: center; }
 .lt2 { font-size: 9px; font-weight: 900; color: var(--gold); letter-spacing: .04em; }
+.hdr-logo { max-width: 34px; max-height: 34px; border-radius: 6px; object-fit: contain; }
 
-.hdr-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+/* idioma/notificações/tema/sair/status — antes ficavam numa fileira à
+   direita do cabeçalho; agora empilhados no fim da barra lateral. */
+.hdr-bottom { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 6px 14px; flex-shrink: 0; }
 
 .theme-btn {
-  flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
   background: var(--hdr-s2); border: 1px solid var(--hdr-bd); color: var(--hdr-tx);
   font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
@@ -133,6 +151,13 @@ html, body {
   display: none; flex-direction: column; gap: 2px;
 }
 .lang-menu.on { display: flex; }
+/* Dentro da barra lateral o botão de idioma fica bem na borda esquerda da
+   tela — um menu abrindo "à direita dele mesmo" (right:0, como no login,
+   que fica no canto oposto da tela) ficaria por baixo/fora da área
+   visível. Aqui o menu abre alinhado à esquerda do botão, saindo por cima
+   da barra e sobre o conteúdo (só enquanto aberto, e sempre fácil de
+   fechar clicando fora — ver toggleLangMenu() em js/app.js). */
+#hdr .lang-menu { top: 0; left: calc(100% + 8px); right: auto; }
 .lang-opt {
   display: block; width: 100%; text-align: left; background: none; border: none;
   border-radius: 7px; padding: 9px 11px; font-size: 13px; font-weight: 700;
@@ -150,80 +175,59 @@ html, body {
 .live-dot.offline { background: #ef4444; animation: none; }
 
 .user-badge {
-  flex-shrink: 0; font-size: 10px; color: var(--hdr-mu); font-weight: 700;
-  max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: none;
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--hdr-s2); border: 1px solid var(--hdr-bd); color: var(--ac);
+  font-size: 11px; font-weight: 800; display: none; align-items: center; justify-content: center;
 }
-@media (min-width: 480px) { .user-badge { display: inline-block; } }
+.user-badge:not(:empty) { display: flex; }
 
 .logout-btn {
-  flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
   background: var(--hdr-s2); border: 1px solid var(--hdr-bd); color: var(--hdr-mu);
   font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .logout-btn:active { border-color: var(--re); color: var(--re); }
 
-.htabs { display: flex; gap: 4px; position: relative; }
+/* As 6 abas do app — empilhadas na vertical (antes eram uma fileira
+   horizontal, só no cabeçalho de telas grandes; a versão pro celular era
+   um menu à parte embaixo, #btabs/.btab, removido). Cada botão continua
+   com ícone + rótulo, só que um em cima do outro (igual o antigo menu
+   inferior mobile já fazia) em vez de lado a lado, pra caber numa coluna
+   estreita em qualquer tamanho de tela. */
+.htabs { display: flex; flex-direction: column; gap: 3px; position: relative; flex: 1; padding: 2px 6px; overflow-y: auto; }
 .htab {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 13px; border-radius: 7px;
-  border: 1px solid var(--hdr-bd); background: var(--hdr-s2); color: var(--hdr-mu);
-  font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font-sans);
-  white-space: nowrap; position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 9px 3px; border-radius: 10px; width: 100%;
+  border: 1px solid transparent; background: transparent; color: var(--hdr-mu);
+  font-size: 9px; font-weight: 800; cursor: pointer; font-family: var(--font-sans);
+  white-space: normal; line-height: 1.15; text-align: center;
+  position: relative; z-index: 1;
   transition: color .15s;
 }
-.htab.on { background: transparent; border-color: transparent; color: #fff; }
-.hti { font-size: 13px; }
-.htab-icon { padding: 7px 10px; gap: 0; }
-.htab-icon .hti { font-size: 15px; }
+.htab.on { color: #fff; }
+.hti { font-size: 19px; line-height: 1; }
 /* "pill" que desliza atrás da aba ativa em vez dela simplesmente trocar de
    cor — a cor/borda em .htab.on acima só cuidam do texto, quem faz o fundo
-   é esse elemento, absoluto, medido e posicionado via JS (atualizarIndicadorAbas). */
+   é esse elemento, absoluto, medido e posicionado via JS (atualizarIndicadorAbas,
+   agora usando offsetTop/offsetHeight — a pilha é vertical, não mais horizontal). */
 .htab-pill {
-  position: absolute; top: 0; left: 0; height: 100%; border-radius: 7px;
+  position: absolute; top: 0; left: 0; width: 100%; border-radius: 10px;
   background: var(--ac); z-index: 0; pointer-events: none;
-  transition: transform .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1);
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), height .3s cubic-bezier(.2,.8,.2,1);
 }
 
-/* Selinho vermelho pulsante nas abas Notícias (desktop + mobile) quando o
-   nível do rio entra numa faixa crítica (ver NIVEL_REGIMES em app.js) —
-   assim quem está em outra aba também percebe. */
+/* Selinho vermelho pulsante na aba Notícias quando o nível do rio entra
+   numa faixa crítica (ver NIVEL_REGIMES em app.js) — assim quem está em
+   outra aba também percebe. */
 .tab-alert-dot {
-  position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%;
+  position: absolute; top: 4px; right: 10px; width: 9px; height: 9px; border-radius: 50%;
   background: #ef4444; border: 1.5px solid var(--hdr-s2); animation: alertDotPulse 1.6s infinite;
 }
-.btab .tab-alert-dot { border-color: var(--s1); top: 2px; right: 18px; }
 @keyframes alertDotPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(1.25); } }
 
-/* MENU INFERIOR MOBILE */
-#btabs {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  height: calc(58px + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
-  background: color-mix(in srgb, var(--s1) 80%, transparent);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  border-top: 1px solid var(--bd);
-  z-index: 300; display: none;
-}
-.brow { display: flex; height: 58px; position: relative; }
-.btab {
-  position: relative; z-index: 1;
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  cursor: pointer; border: none; background: transparent; color: var(--mu);
-  font-family: var(--font-sans); font-size: 10px; font-weight: 700; padding: 0; text-transform: uppercase;
-  transition: color .15s;
-}
-.btab.on { color: var(--ac); }
-.bti { font-size: 18px; line-height: 1; }
-.btab-icon .bti { font-size: 21px; }
-/* barrinha que desliza embaixo do ícone ativo, no topo do menu (medida e
-   posicionada via JS, mesmo esquema da .htab-pill acima). */
-.btab-ind {
-  position: absolute; top: 0; left: 0; height: 3px; border-radius: 0 0 4px 4px;
-  background: var(--ac); z-index: 0; pointer-events: none;
-  transition: transform .3s cubic-bezier(.2,.8,.2,1), width .3s cubic-bezier(.2,.8,.2,1);
-}
-
-/* CONTEUDO */
-#app { position: fixed; top: calc(50px + var(--safe-top)); left: 0; right: 0; bottom: 0; display: flex; overflow: hidden; }
+/* CONTEUDO — empurrado pra direita da barra lateral (nunca por baixo
+   dela), ocupando o resto da tela inteira. */
+#app { position: fixed; top: 0; left: calc(var(--sidenav-w) + var(--safe-left)); right: 0; bottom: 0; display: flex; overflow: hidden; }
 .scr { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
 .scr-map { position: relative; }
 .scr.h { display: none !important; }
@@ -364,7 +368,7 @@ html, body {
 
 @media (prefers-reduced-motion: reduce) {
   .rcard, .live-dot.live, .flash-update, .scr.scr-enter, .search-empty, .search-empty-ic { animation: none !important; }
-  .rbody, .rchv, .rnb, .rhead, .mrow, .irow, .live-dot, .htab-pill, .btab-ind { transition: none !important; }
+  .rbody, .rchv, .rnb, .rhead, .mrow, .irow, .live-dot, .htab-pill { transition: none !important; }
 }
 .iinfo { flex: 1; min-width: 0; }
 .iname { font-size: 13px; font-weight: 700; }
@@ -1009,9 +1013,13 @@ html, body {
 
 /* MOBILE (iOS / Android) */
 @media (max-width: 767px) {
-  #btabs { display: block; }
-  .htabs { display: none !important; }
-  #app { bottom: calc(58px + var(--safe-bottom)); }
+  /* Tela estreita: a barra lateral encolhe um pouco (menos padding/fonte)
+     pra sobrar mais espaço pro conteúdo, mas continua com ícone + rótulo
+     em todas as abas (não vira ícone-só) — mesmo critério de tamanho
+     mínimo tocável já usado no resto do app. */
+  :root { --sidenav-w: 62px; }
+  .htab { font-size: 8px; padding: 7px 2px; }
+  .hti { font-size: 17px; }
   .isub { max-width: 100%; }
   .sh-actions { position: sticky; bottom: -20px; background: color-mix(in srgb, var(--s1) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding-top: 6px; }
 }

@@ -21,11 +21,11 @@ async function carregarPerfil() {
 
 function souAdmin() { return !!(CURRENT_USER && CURRENT_USER.role === 'admin'); }
 
-/* Esconde a aba Configurações (desktop e mobile) pra quem não for admin,
+/* Esconde a aba Configurações na barra lateral pra quem não for admin,
    e tira a pessoa de lá se por acaso estiver com essa aba selecionada. */
 function aplicarGateAdmin() {
   var admin = souAdmin();
-  document.querySelectorAll('.htab[data-s="c"], #bt-c').forEach(function (el) {
+  document.querySelectorAll('.htab[data-s="c"]').forEach(function (el) {
     el.style.display = admin ? '' : 'none';
   });
   if (!admin && cur === 'c') SS('r', null);
@@ -462,12 +462,12 @@ function nivelAlertaHTML(regime) {
     + '<div class="niv-alert-tx">' + texto + '</div></div>'
     + '</div>';
 }
-/* Selinho vermelho pulsante numa aba (cabeçalho + menu mobile), visível
-   de qualquer aba, pra avisar sobre algo crítico sem precisar entrar na
-   aba em questão. "tab" é o código da aba ('n' pro nível do rio, 'w' pra
-   qualidade do ar); tituloKey é a chave de tradução do tooltip. */
+/* Selinho vermelho pulsante numa aba da barra lateral, visível de qualquer
+   aba, pra avisar sobre algo crítico sem precisar entrar na aba em questão.
+   "tab" é o código da aba ('n' pro nível do rio, 'w' pra qualidade do ar);
+   tituloKey é a chave de tradução do tooltip. */
 function atualizarAlertaAba(tab, critico, tituloKey) {
-  document.querySelectorAll('.htab[data-s="' + tab + '"], #bt-' + tab).forEach(function (el) {
+  document.querySelectorAll('.htab[data-s="' + tab + '"]').forEach(function (el) {
     var existente = el.querySelector('.tab-alert-dot');
     if (critico && !existente) el.insertAdjacentHTML('beforeend', '<span class="tab-alert-dot" title="' + t(tituloKey || 'alert_dot_title') + '"></span>');
     if (!critico && existente) existente.remove();
@@ -2234,23 +2234,19 @@ function zR() {
 /* ============================================================
    NAVEGAÇÃO ENTRE ABAS
    ============================================================ */
-/* "pill" deslizante atrás da aba ativa (desktop, cabeçalho) e barrinha
-   deslizante embaixo do ícone ativo (mobile, menu inferior) — desliza até
-   a posição/largura certa em vez de só trocar a cor na hora. Recalculada
-   a cada troca de aba, no resize e quando o idioma muda (o texto da aba
-   muda de largura em cada idioma). */
+/* "pill" deslizante atrás da aba ativa, na barra lateral — desliza até a
+   posição/altura certa em vez de só trocar a cor na hora. Recalculada a
+   cada troca de aba, no resize e quando o idioma muda (o rótulo da aba
+   muda de altura, por causa da quebra de linha, em cada idioma). Antes
+   também existia uma versão horizontal (translateX/width) pro menu de
+   abas de cima e outra pro menu inferior mobile (#btabs, removido) — a
+   barra lateral é uma pilha vertical só, então agora é só translateY/height. */
 function atualizarIndicadorAbas() {
   var ativoH = document.querySelector('.htab.on');
   var pill = document.getElementById('htab-pill');
   if (ativoH && pill) {
-    pill.style.width = ativoH.offsetWidth + 'px';
-    pill.style.transform = 'translateX(' + ativoH.offsetLeft + 'px)';
-  }
-  var ativoB = document.querySelector('.btab.on');
-  var ind = document.getElementById('btab-ind');
-  if (ativoB && ind) {
-    ind.style.width = ativoB.offsetWidth + 'px';
-    ind.style.transform = 'translateX(' + ativoB.offsetLeft + 'px)';
+    pill.style.height = ativoH.offsetHeight + 'px';
+    pill.style.transform = 'translateY(' + ativoH.offsetTop + 'px)';
   }
 }
 window.addEventListener('resize', function () {
@@ -2265,7 +2261,6 @@ function SS(name, btn) {
     if (el) el.classList.toggle('h', s !== name);
   });
   document.querySelectorAll('.htab').forEach(function (b) { b.classList.toggle('on', b.dataset.s === name); });
-  ['r', 'i', 'c', 'm', 'n', 'w'].forEach(function (s) { var bt = document.getElementById('bt-' + s); if (bt) bt.classList.toggle('on', s === name); });
 
   // conteúdo da aba recém-aberta entra com um fade + leve deslocamento
   // (reflow força reiniciar a animação, igual o truque usado em flashSeq)
@@ -2335,8 +2330,15 @@ async function initApp() {
   if (!session) { window.location.replace('/login.html'); return; }
   CURRENT_USER = session.user;
 
+  // barra lateral é estreita (72px) — o e-mail inteiro não cabe legível
+  // numa coluna dessa largura, então vira um "avatar" com a inicial, com o
+  // e-mail completo aparecendo no title (tooltip ao passar o mouse/segurar).
   var badge = document.getElementById('user-badge');
-  if (badge) badge.textContent = CURRENT_USER.email || '';
+  if (badge) {
+    var email = CURRENT_USER.email || '';
+    badge.textContent = email ? email.charAt(0).toUpperCase() : '?';
+    badge.title = email;
+  }
 
   await carregarPerfil();
   await carregarConfigEmpresa();
