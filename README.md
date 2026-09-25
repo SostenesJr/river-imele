@@ -40,39 +40,29 @@ como um aplicativo de verdade, com ícone próprio, sem barra de endereço.
    qualquer aparelho, na hora** (inclusive pra quem já está com o app aberto,
    via Realtime). "Restaurar original" devolve o valor de fábrica (o que veio
    da planilha), também pra todo mundo.
-4. **Mapa** — mapa ilustrado e 100% estático do Amazonas (desenhado em SVG,
-   sem depender de internet nem de nenhum serviço de tiles externo), com o
-   contorno real do estado, os principais rios e as 10 rotas coloridas por
-   calha desenhadas por cima, filtro por rota, zoom/arraste próprios (botões,
-   scroll e pinça no celular) e popup por município com KPIs (transit,
-   distância, TT Amazon) e embarcações principais. As 8 calhas fluviais (A a
-   G, J) têm a linha da rota desenhada **acompanhando o traçado do próprio
-   rio** (o fio azul do mapa) em vez de ligar os municípios em linha reta —
-   pra Madeira/Purus/Juruá (rotas C/G/J), que nascem longe de Manaus, a linha
-   primeiro desce/sobe o rio principal até a foz do afluente, só depois entra
-   nele. Município que não fica exatamente na beira do rio (a "entrada" dele
-   é por um igarapé/afluente menor, que o mapa não desenha) ganha um fio fino
+4. **Mapa** — mapa real e interativo (Leaflet + tiles do OpenStreetMap/
+   CartoDB, ver "Mapa real (Leaflet + tiles)" abaixo), com zoom/pan de
+   verdade (arrastar, roda do mouse, pinça no celular, botões +/−/⟳), os
+   principais rios e as 10 rotas coloridas por calha desenhados por cima,
+   filtro por rota e popup por município com KPIs (transit, distância, TT
+   Amazon) e embarcações principais. As 8 calhas fluviais (A a G, J) têm a
+   linha da rota desenhada **acompanhando o traçado do próprio rio** (o fio
+   azul do mapa) em vez de ligar os municípios em linha reta — pra Madeira/
+   Purus/Juruá (rotas C/G/J), que nascem longe de Manaus, a linha primeiro
+   desce/sobe o rio principal até a foz do afluente, só depois entra nele.
+   Município que não fica exatamente na beira do rio (a "entrada" dele é por
+   um igarapé/afluente menor, que o mapa não desenha) ganha um fio fino
    pontilhado ligando o ponto do rio mais próximo até ele, pra deixar claro
    que o acesso também é fluvial. As duas calhas rodoviárias (H e I) não têm
    rio pra seguir, então continuam com uma curva suave entre os municípios;
-   a I também teve a topologia corrigida — a carga vai direto de Manaus até
-   Humaitá e só lá se reparte nas duas pontas (Apuí e Lábrea), em vez do
-   traçado antigo em fila única. Em todas as linhas o traço ficou mais fino
-   do que a versão original, e o trecho que chega a um município classificado
-   como **Aduaneiro** ou **Corredor de Escoamento** (posto de fiscalização/
-   polícia) é desenhado tracejado. Os rios (e os fios finos que ligam um
-   município fora da beira até o rio) têm uma leve animação de correnteza —
-   tracinhos claros correndo bem devagar por cima do traçado, decorativo e
-   discreto. Ao selecionar uma calha específica, uma embarcação (🚤) ou
-   ônibus (🚌, nas calhas rodoviárias) anima percorrendo a rota do hub
-   (Manaus) até os municípios, seguindo a mesma linha, com um rastro que vai
-   sumindo atrás do ícone; cada município ganha um "ping" (anel que se
-   expande e some) no instante em que o ícone passa por ele, e em Humaitá
-   (rota I) esse ping é maior/duplo, marcando o momento em que a carga se
-   reparte pras duas pontas. Municípios classificados como **Aduaneiro** ou
-   **Corredor de Escoamento** ganham ainda um selo diferenciado, uma aura
-   vermelha pulsante (ponto de atenção/fiscalização), filtro próprio e um
-   link "ver detalhes" que abre o balão somente-leitura da aba Informações.
+   a I também tem a topologia corrigida — a carga vai direto de Manaus até
+   Humaitá e só lá se reparte nas duas pontas (Apuí e Lábrea). O trecho que
+   chega a um município classificado como **Aduaneiro** ou **Corredor de
+   Escoamento** (posto de fiscalização/polícia) é desenhado tracejado.
+   Municípios classificados como **Aduaneiro** ou **Corredor de Escoamento**
+   ganham ainda um selo diferenciado, uma aura vermelha pulsante (ponto de
+   atenção/fiscalização), filtro próprio e um link "ver detalhes" que abre o
+   balão somente-leitura da aba Informações.
 5. **Notícias** — nível do Rio Negro em Manaus (referência: Porto de
    Manaus), atualizado automaticamente 1x por dia: valor atual em metros, se
    está enchendo ou vazando (com a variação do dia em cm), um **selo de
@@ -361,76 +351,58 @@ o resto do app, quando uma nova leitura do nível é gravada. Implementado
 em `regimeAtual()` e no `RIOS.forEach()` de `renderMap()` (`js/app.js`),
 e no elemento `#map-regime-legend` (`index.html`).
 
-## Mapa 2.5D (profundidade, luz e paralaxe)
+## Mapa real (Leaflet + tiles)
 
-O mapa ganhou uma camada de efeitos visuais que dão sensação de
-profundidade/relevo, mantendo 100% da interação já existente (arrastar,
-pinçar, zoom, clicar num pino) intacta:
+O mapa da aba **Mapa** deixou de ser uma ilustração estática em SVG (com
+zoom/arraste feitos à mão) e passou a ser um mapa de verdade, construído
+com [Leaflet](https://leafletjs.com/) sobre tiles reais — dá pra ir de "o
+Amazonas inteiro" até o nível de rua de um município, com zoom contínuo
+nativo, do mesmo jeito que qualquer mapa (Google Maps, OpenStreetMap etc.).
 
-- **Sombra sob os rios, rotas e pinos**: um leve drop-shadow (CSS) dá
-  sensação de camadas/relevo, como se o traçado "flutuasse" um pouco
-  acima do terreno.
-- **Luz rasante**: um gradiente diagonal (mais claro no canto superior-
-  esquerdo, mais escuro no canto oposto) desenhado dentro do próprio
-  mapa, sugerindo uma leve inclinação/iluminação sem mexer em nenhuma
-  coordenada real do mapa.
-- **Vinheta**: as bordas do mapa escurecem sutilmente, reforçando a
-  sensação de estar olhando o Amazonas de cima, a certa distância.
-- **Paralaxe ao arrastar/dar zoom**: um brilho atmosférico no fundo (fora
-  do próprio mapa, atrás dele) se desloca uma fração do movimento do
-  mapa, dando a sensação de camadas com profundidades diferentes.
+- **Dois estilos de tile, com botão pra trocar**: o botão 🌗, na barra de
+  ferramentas do mapa, alterna entre tiles **escuros** (CartoDB Dark
+  Matter — o padrão, combina com o resto do app) e **claros**
+  (OpenStreetMap padrão). A escolha fica salva (`localStorage`,
+  `navlog-tile-estilo`) — cada aparelho lembra a própria preferência, do
+  mesmo jeito que o tema claro/escuro do app. Implementado em
+  `initLeafletMapa()`/`toggleTileEstilo()` (`js/app.js`).
+- **Pan/zoom/pinça nativos do Leaflet**: arrastar (mouse/toque), zoom pela
+  roda do mouse, pinça de dois dedos no celular e os botões +/−/⟳ da barra
+  de ferramentas — tudo isso já vem de graça do Leaflet, sem nenhum código
+  próprio de arrasto/beliscar (o antigo sistema manual, com a matriz de
+  transformação `T.x/T.y/T.s`, foi removido inteiro).
+- **Rios, rotas e pinos continuam os mesmos dados de sempre** (`RIOS`,
+  `ROTAS`, `LATLNG` em `js/data.js`), incluindo a lógica de "seguir o
+  traçado do rio" (`idxMaisPerto`/`trechoRio`) — só que desenhados como
+  camadas do Leaflet (`L.polyline`/`L.marker` com ícone HTML) em vez de
+  `<path>`/`<rect>` de SVG feitos na mão. O selo de cada município
+  (código da rota, ex. `D3`) agora é um `L.divIcon` (HTML/CSS puro),
+  então o tamanho acompanha o texto sozinho e fica do mesmo tamanho em
+  qualquer nível de zoom — não precisa mais recalcular a largura a partir
+  do comprimento do rótulo.
+- **O radar de chuva ao vivo (RainViewer)**, quando ligado, também virou
+  uma camada normal do Leaflet (`L.tileLayer`, mesmo esquema `{z}/{x}/{y}`
+  de qualquer camada de mapa) em vez da grade de imagens SVG posicionadas
+  na mão que era necessária antes.
+- **O que foi removido nesta migração** (efeitos decorativos que só faziam
+  sentido em cima do mapa ilustrado antigo, e não tinham como continuar
+  com tiles reais por baixo): a animação de uma embarcação/ônibus
+  percorrendo a rota selecionada, a entrada animada (fade + escala) dos
+  pinos/linhas ao abrir a aba Mapa, o fundo de foto de satélite
+  (`img/mapa-fundo.png`) e os efeitos de "mapa 2.5D" (luz rasante,
+  vinheta e paralaxe) — o próprio mapa real substitui a necessidade
+  desses efeitos ilustrativos. Tudo o mais (regime do rio colorindo os
+  rios, fio d'água, tracejado em ponto de fiscalização, filtros, popup,
+  calculadora de rota, radar) continua funcionando igual.
 
-Por segurança, um efeito de câmera 3D de verdade (inclinar o mapa em
-perspectiva) **não** foi usado: ele mudaria a relação entre pixel na tela
-e posição real do mapa, o que arriscava desalinhar o arrastar/zoom/toque
-nos pinos — especialmente no celular. Os efeitos acima dão a sensação de
-profundidade sem esse risco. Implementado em `renderMap()` (filtros/
-gradientes `rasante`, `vinheta` e a classe `river-main`/`am-border`),
-`applyMapTransform()` (atualiza `--map-px`/`--map-py` a cada arrasto ou
-zoom) e no CSS de `#map-wrap`/`.mnode`/`.mline` (`css/style.css`).
-
-## Foto de satélite como fundo do mapa
-
-O fundo "ilustrado" (gradiente verde + manchas de floresta desenhadas)
-foi trocado por uma foto real de satélite/relevo do Amazonas
-(`img/mapa-fundo.png`), encaixada exatamente nas mesmas coordenadas
-(lat/lng → x,y) que já posicionam os rios, as rotas e os pinos de cada
-município — ou seja, os pinos caem em cima do lugar certo na foto, não
-só num desenho aproximado.
-
-O encaixe (`MAPA_FOTO_CALIB` em `js/app.js`) foi calculado comparando o
-retângulo que envolve o contorno oficial do estado (`AM_BORDER`, já usado
-pelo mapa) com o retângulo da área não-branca da própria foto, e depois
-conferido contra o pino "MANAUS" que já vem pintado na foto: a posição
-calculada por `proj(-3.119, -60.021)` caiu a menos de 5px de diferença do
-pino real da foto, num mapa de ~1170px de largura — confirma que o
-encaixe ficou preciso. Ainda assim, por ser uma foto ilustrativa (não um
-raster georreferenciado oficial), pequenos desvios entre a posição exata
-de um pino e o relevo da foto embaixo dele podem acontecer, principalmente
-perto das bordas do estado.
-
-A foto original não cobria 100% do contorno oficial do estado (faltava um
-pedaço perto do canto nordeste) — apareceria como uma área branca
-"furando" o mapa, destoando do resto. Em vez de só deixar transparente e
-mostrar um verde liso atrás (que também destoava, por ser um tom só,
-sem nenhuma textura), esse pedaço foi **repintado a partir da própria
-foto**: os pixels desse buraco foram reconstruídos com base na textura
-real de mata mais próxima dela na mesma imagem (técnica de inpainting,
-sempre evitando copiar pixels claros/brancos ou as linhas finas de
-fronteira como fonte, senão o remendo saía claro/acinzentado demais) e
-ajustados pra puxar pro mesmo tom médio de verde-escuro do resto da mata.
-Não é um trecho real de satélite (a foto não tinha esse dado ali pra
-começo de conversa), mas fica visualmente contínuo com o resto — sem
-nenhum "retângulo" óbvio de cor diferente.
-
-A foto é recortada exatamente no contorno do estado (mesmo `clipPath` que
-já limitava o fundo desenhado antes) e continua dentro do grupo que sofre
-pan/zoom/arrasto — se movimenta e dá zoom junto com o resto do mapa,
-sem nenhuma mudança na lógica de interação. Adicionada também ao cache do
-service worker (`sw.js`, `SHELL_FILES`) pra continuar disponível offline,
-com o app instalado. Implementado em `renderMap()` (elemento `<image>` +
-`<rect fill="url(#fundoVerde)">` de reserva, dentro do `amGroup`, mesmo
-clip-path `amClip`) e na constante `MAPA_FOTO_CALIB` (`js/app.js`).
+Como o Leaflet mede o tamanho do container na hora em que é criado, e a
+aba Mapa fica com `display:none` até ser aberta pela primeira vez, o app
+chama `LMAP.invalidateSize()` toda vez que a aba Mapa é aberta (dentro de
+`SS()`, `js/app.js`) — sem isso o mapa nasceria com um tamanho errado
+(cortado/deslocado) até a janela ser redimensionada. Implementado em
+`initLeafletMapa()`, `renderMap()`, `toggleTileEstilo()`, `zI()`/`zO()`/
+`zR()` (`js/app.js`), no CSS de `.leaflet-*`/`.lm-node*`/`.lm-hub*`
+(`css/style.css`) e nas tags do Leaflet (CDN cdnjs) em `index.html`.
 
 ## Alerta de embarcação mal avaliada
 
@@ -666,7 +638,9 @@ A fonte do nível do rio é portodemanaus.com.br. O histórico carregado
 - `icons/` — ícones do app em vários tamanhos, usados pelo `manifest.json`
   e como favicon
 - `img/mapa-fundo.png` — foto de satélite/relevo do Amazonas usada como
-  fundo da aba Mapa, com o fundo branco original tornado transparente
+  fundo da aba Mapa na versão antiga (SVG ilustrado); não é mais usada
+  desde a migração pro mapa real (Leaflet + tiles, ver "Mapa real (Leaflet
+  + tiles)" acima), mas o arquivo continua no projeto por segurança
   (ver "Foto de satélite como fundo do mapa")
 - `supabase/nivel_rio.sql` — tabela do nível do rio (aba Notícias) e a
   leitura inicial pra coleta automática funcionar

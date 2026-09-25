@@ -1588,7 +1588,6 @@ function resetSheetAtual() {
 /* ============================================================
    ABA 3 — MAPA
    ============================================================ */
-var T = { s: 1, x: 0, y: 0 };
 var rotaFiltrada = null;
 var tipoFiltrado = null; // null | 'aduaneiro' | 'corredor'
 var mapAnimateEntrance = true; // true = próxima renderMap() anima entrada dos nós/linhas
@@ -1644,8 +1643,6 @@ var RADAR_TOCANDO = true;
 var RADAR_IDX = -1;               // índice do frame atual (animação da camada do mapa)
 var RADAR_TIMER = null;
 var RADAR_ERRO = false;
-var RADAR_GRID = null;            // {xs:[...], ys:[...]} — grade de tiles do AM, calculada uma vez
-var RADAR_TILE_EL = {};           // "x_y" -> <image> SVG da camada do mapa (recriados a cada renderMap())
 
 function radarLon2Tile(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
 function radarLat2Tile(lat, z) {
@@ -1666,16 +1663,6 @@ function radarFracY(lat, z) {
   return v - Math.floor(v);
 }
 
-function radarCalcGrid() {
-  if (RADAR_GRID) return RADAR_GRID;
-  var x0 = radarLon2Tile(-74.5, RADAR_Z), x1 = radarLon2Tile(-53.5, RADAR_Z);
-  var y0 = radarLat2Tile(2.7, RADAR_Z), y1 = radarLat2Tile(-10.6, RADAR_Z);
-  var xs = [], ys = [];
-  for (var x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) xs.push(x);
-  for (var y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) ys.push(y);
-  RADAR_GRID = { xs: xs, ys: ys };
-  return RADAR_GRID;
-}
 // 256px, esquema de cor "2" (Universal Blue), opções "1_1" = suavizado + neve
 function radarTileURL(path, x, y, z) { return RADAR_HOST + path + '/256/' + z + '/' + x + '/' + y + '/2/1_1.png'; }
 
@@ -1701,53 +1688,31 @@ function radarBuscarMeta(cb) {
   });
 }
 
-// Desenha (ou limpa) a camada de tiles dentro do mapa — chamada de dentro
-// de renderMap() a cada vez que ele roda (svg.innerHTML='' apaga tudo, daí
-// precisar recriar), usando sempre o frame/estado atual guardado aqui em
-// cima (por isso a camada "sobrevive" visualmente a um renderMap() no meio
-// da animação — zoom, clique de rota, etc.).
-function radarDesenharCamada(amGroup, proj, NS) {
-  var grupo = document.createElementNS(NS, 'g');
-  grupo.setAttribute('id', 'radarLayer');
-  grupo.style.pointerEvents = 'none';
-  amGroup.appendChild(grupo);
-  RADAR_TILE_EL = {};
-  if (!RADAR_ATIVO) return grupo;
-  var grid = radarCalcGrid();
-  var frame = RADAR_FRAMES[RADAR_IDX];
-  grid.xs.forEach(function (x) {
-    grid.ys.forEach(function (y) {
-      var nw = proj(radarTile2Lat(y, RADAR_Z), radarTile2Lon(x, RADAR_Z));
-      var se = proj(radarTile2Lat(y + 1, RADAR_Z), radarTile2Lon(x + 1, RADAR_Z));
-      var img = document.createElementNS(NS, 'image');
-      img.setAttribute('x', nw.x); img.setAttribute('y', nw.y);
-      img.setAttribute('width', Math.abs(se.x - nw.x)); img.setAttribute('height', Math.abs(se.y - nw.y));
-      img.setAttribute('preserveAspectRatio', 'none');
-      img.setAttribute('opacity', '0.72');
-      if (frame) {
-        var url = radarTileURL(frame.path, x, y, RADAR_Z);
-        img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
-        img.setAttribute('href', url);
-      }
-      grupo.appendChild(img);
-      RADAR_TILE_EL[x + '_' + y] = img;
-    });
-  });
-  return grupo;
-}
-
-// troca só o "href" dos tiles já desenhados (sem re-render do mapa
-// inteiro) — é o que roda a cada passo da animação, então precisa ser leve
-function radarAtualizarFrameDOM() {
+// Liga/atualiza/desliga a camada de radar no mapa — agora que o mapa é um
+// Leaflet de verdade (ver initLeafletMapa()), isso é só um L.tileLayer
+// normal (mesmo esquema z/x/y que qualquer camada de mapa), em vez da
+// grade de <image> desenhada à mão que era preciso quando o mapa era um
+// SVG ilustrado sem tiles próprios — bem mais simples.
+var RADAR_LEAFLET_LAYER = null;
+function radarAtualizarCamadaLeaflet() {
+  if (!LMAP) return;
+  if (!RADAR_ATIVO) {
+    if (RADAR_LEAFLET_LAYER) { LMAP.removeLayer(RADAR_LEAFLET_LAYER); RADAR_LEAFLET_LAYER = null; }
+    return;
+  }
   var frame = RADAR_FRAMES[RADAR_IDX];
   if (!frame) return;
-  Object.keys(RADAR_TILE_EL).forEach(function (k) {
-    var xy = k.split('_');
-    var url = radarTileURL(frame.path, xy[0], xy[1], RADAR_Z);
-    var img = RADAR_TILE_EL[k];
-    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
-    img.setAttribute('href', url);
-  });
+  var url = RADAR_HOST + frame.path + '/256/{z}/{x}/{y}/2/1_1.png';
+  if (!RADAR_LEAFLET_LAYER) {
+    RADAR_LEAFLET_LAYER = L.tileLayer(url, { opacity: 0.72, zIndex: 450, pane: 'overlayPane' }).addTo(LMAP);
+  } else {
+    RADAR_LEAFLET_LAYER.setUrl(url);
+  }
+}
+// troca o frame já em tela (chamado a cada passo da animação — precisa
+// ser leve) e atualiza o painel (horário/play-pause)
+function radarAtualizarFrameDOM() {
+  radarAtualizarCamadaLeaflet();
   radarAtualizarUI();
 }
 
@@ -1795,12 +1760,12 @@ function radarToggleCamada() {
   RADAR_ATIVO = !RADAR_ATIVO;
   if (RADAR_ATIVO) {
     radarBuscarMeta(function () {
-      renderMap();
+      radarAtualizarCamadaLeaflet();
       if (RADAR_TOCANDO) radarPlay(); else radarAtualizarUI();
     });
   } else {
     radarStop();
-    renderMap();
+    radarAtualizarCamadaLeaflet();
   }
 }
 
@@ -1837,65 +1802,85 @@ function climaRadarMiniCarregar(seq, lat, lng) {
   });
 }
 
+/* ============================================================
+   MOTOR DO MAPA (Leaflet + tiles reais — OpenStreetMap/CartoDB)
+   Antes o mapa era um SVG ilustrado, desenhado à mão, com pan/zoom/pinça
+   escritos do zero (ver histórico). Agora é um Leaflet de verdade: tiles
+   reais (dá pra ir de "estado inteiro" até "rua de um município" com zoom
+   nativo), e o pan/zoom/pinça já vêm de graça do próprio Leaflet — todo o
+   T.x/T.y/T.s e o código de arrastar/beliscar foi removido.
+   As rotas/rios/pinos continuam sendo OS MESMOS dados de sempre
+   (RIOS/ROTAS/LATLNG, a lógica de "seguir o rio" em idxMaisPerto/
+   trechoRio) — só passaram a ser desenhados como camadas do Leaflet
+   (L.polyline/L.marker) em vez de path/rect de SVG feitos na mão.
+   ============================================================ */
+var LMAP = null;
+var LTILE_CLARO = null, LTILE_ESCURO = null;
+var LAYER_RIOS, LAYER_ROTAS, LAYER_NODES, LAYER_HUB, LAYER_CALC;
+var MAPA_TILE_ESTILO = (function () {
+  try { return localStorage.getItem('navlog-tile-estilo') || 'escuro'; }
+  catch (e) { return 'escuro'; } // modo privado etc. — segue no padrão
+})();
+var AM_LNG0 = -74.5, AM_LNG1 = -53.5, AM_LAT0 = -10.6, AM_LAT1 = 2.7;
+
+function initLeafletMapa() {
+  if (LMAP) return;
+  var el = document.getElementById('msvg'); if (!el || typeof L === 'undefined') return;
+
+  var bounds = L.latLngBounds([AM_LAT0, AM_LNG0], [AM_LAT1, AM_LNG1]);
+  LMAP = L.map(el, {
+    center: [-4.4, -63.8], zoom: 6, minZoom: 5, maxZoom: 15,
+    zoomControl: false, attributionControl: true,
+    maxBounds: bounds.pad(0.7), maxBoundsViscosity: 0.55
+  });
+
+  // claro: OpenStreetMap padrão · escuro (padrão do app): CartoDB Dark Matter
+  LTILE_CLARO = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, subdomains: 'abc', attribution: '&copy; OpenStreetMap'
+  });
+  LTILE_ESCURO = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO'
+  });
+  (MAPA_TILE_ESTILO === 'claro' ? LTILE_CLARO : LTILE_ESCURO).addTo(LMAP);
+  var btnTile = document.getElementById('btn-tile-estilo');
+  if (btnTile) btnTile.classList.toggle('tile-toggle-active', MAPA_TILE_ESTILO === 'claro');
+
+  // ordem = ordem de empilhamento (rios embaixo, pinos por cima)
+  LAYER_RIOS = L.layerGroup().addTo(LMAP);
+  LAYER_ROTAS = L.layerGroup().addTo(LMAP);
+  LAYER_HUB = L.layerGroup().addTo(LMAP);
+  LAYER_CALC = L.layerGroup().addTo(LMAP);
+  LAYER_NODES = L.layerGroup().addTo(LMAP);
+
+  LMAP.on('click', function () { fecharPopupMapa(); });
+}
+
+/* Alterna entre o tile claro (OpenStreetMap) e escuro (CartoDB Dark Matter,
+   o padrão) — a escolha fica salva (localStorage) pra continuar igual da
+   próxima vez que a pessoa abrir o app. */
+function toggleTileEstilo() {
+  MAPA_TILE_ESTILO = (MAPA_TILE_ESTILO === 'claro') ? 'escuro' : 'claro';
+  try { localStorage.setItem('navlog-tile-estilo', MAPA_TILE_ESTILO); } catch (e) { /* modo privado etc. */ }
+  if (!LMAP) return;
+  [LTILE_CLARO, LTILE_ESCURO].forEach(function (l) { if (l && LMAP.hasLayer(l)) LMAP.removeLayer(l); });
+  (MAPA_TILE_ESTILO === 'claro' ? LTILE_CLARO : LTILE_ESCURO).addTo(LMAP);
+  var btn = document.getElementById('btn-tile-estilo');
+  if (btn) btn.classList.toggle('tile-toggle-active', MAPA_TILE_ESTILO === 'claro');
+}
+
 function renderMap() {
-  var svg = document.getElementById('msvg'); if (!svg) return;
-  var animarEntrada = mapAnimateEntrance;
-  mapAnimateEntrance = false;
-  svg.innerHTML = '';
-  var NS = 'http://www.w3.org/2000/svg';
-  var W = 900, H = 600;
-  var LNG0 = -74.5, LNG1 = -53.5, LAT0 = -10.6, LAT1 = 2.7;
-  function merc(lat) { return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)); }
-  var m0 = merc(LAT0), m1 = merc(LAT1);
-  function proj(lat, lng) { return { x: (lng - LNG0) / (LNG1 - LNG0) * W, y: (m1 - merc(lat)) / (m1 - m0) * H }; }
+  initLeafletMapa();
+  if (!LMAP) return;
+  mapAnimateEntrance = false; // entrada animada dos nós/linhas era um recurso do SVG — não existe mais com tiles reais
 
-  var bPts = AM_BORDER.map(function (c) { var p = proj(c[0], c[1]); return p.x + ',' + p.y; }).join(' ');
+  LAYER_RIOS.clearLayers();
+  LAYER_ROTAS.clearLayers();
+  LAYER_HUB.clearLayers();
+  LAYER_CALC.clearLayers();
+  LAYER_NODES.clearLayers();
 
-  var defs = document.createElementNS(NS, 'defs');
-  defs.innerHTML =
-    '<filter id="gw"><feGaussianBlur stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
-    + '<clipPath id="amClip"><polygon points="' + bPts + '"/></clipPath>'
-    // "mapa 2.5D": luz rasante (diagonal, canto superior-esquerdo mais claro) —
-    // dá a sensação de relevo/inclinação sem mudar nenhuma coordenada real,
-    // então não interfere em nada do clique/arrasto do mapa.
-    + '<linearGradient id="rasante" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="45%" stop-color="#ffffff" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.22"/></linearGradient>'
-    // vinheta: escurece as bordas do mapa, reforçando a sensação de profundidade
-    // ("olhando de cima, de um pouco de distância") — fixa na tela, não se move
-    // com o pan/zoom do conteúdo, então também não mexe em nenhuma coordenada.
-    + '<radialGradient id="vinheta" cx="50%" cy="46%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.38"/></radialGradient>'
-    // fundo de reserva (tom de mata) por baixo da foto: o contorno oficial
-    // do estado (AM_BORDER) é um pouco maior que a área que a própria foto
-    // cobre (ela não desenha até o canto/reentrância nordeste) — sem isso,
-    // esse pedacinho aparecia em branco. Com a foto tendo ficado transparente
-    // bem ali (ver MAPA_FOTO_CALIB/mapa-fundo.png), esse verde aparece só
-    // nessa sobra, imperceptível encostado no resto da foto.
-    + '<radialGradient id="fundoVerde" cx="45%" cy="40%" r="75%"><stop offset="0%" stop-color="#1c4a32"/><stop offset="55%" stop-color="#123825"/><stop offset="100%" stop-color="#0b241a"/></radialGradient>';
-  svg.appendChild(defs);
+  var hubLL = { lat: -3.119, lng: -60.021 };
 
-  var g = document.createElementNS(NS, 'g'); g.id = 'mg';
-  g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
-  svg.appendChild(g); // anexa já aqui: getTotalLength() (usado no desenho das linhas) exige o elemento renderizado
-
-  // fundo (fora do estado): "água"/espaço escuro, igual o resto do app
-  var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#070c14'); g.appendChild(bg);
-
-  // Imagem de satélite/relevo do Amazonas, encaixada nas MESMAS coordenadas
-  // (lat/lng -> x,y) usadas pelos rios/rotas/pinos: os números abaixo
-  // (MAPA_FOTO_CALIB) foram calculados uma vez só, comparando o contorno
-  // real do estado (AM_BORDER) e o pino "MANAUS" já desenhado na própria
-  // foto com a posição que nosso proj(lat,lng) calcula pra Manaus — por
-  // isso o pino da foto e o marcador do app caem quase exatamente no
-  // mesmo lugar. Recortada no contorno real do estado (mesmo amClip).
-  var amGroup = document.createElementNS(NS, 'g'); amGroup.setAttribute('clip-path', 'url(#amClip)'); g.appendChild(amGroup);
-  var amFundo = document.createElementNS(NS, 'rect'); amFundo.setAttribute('width', W); amFundo.setAttribute('height', H); amFundo.setAttribute('fill', 'url(#fundoVerde)'); amGroup.appendChild(amFundo);
-  var amFoto = document.createElementNS(NS, 'image');
-  amFoto.setAttributeNS('http://www.w3.org/1999/xlink', 'href', 'img/mapa-fundo.png');
-  amFoto.setAttribute('href', 'img/mapa-fundo.png');
-  amFoto.setAttribute('x', MAPA_FOTO_CALIB.x); amFoto.setAttribute('y', MAPA_FOTO_CALIB.y);
-  amFoto.setAttribute('width', MAPA_FOTO_CALIB.w); amFoto.setAttribute('height', MAPA_FOTO_CALIB.h);
-  amFoto.setAttribute('preserveAspectRatio', 'none');
-  amGroup.appendChild(amFoto);
-  var rasanteOverlay = document.createElementNS(NS, 'rect'); rasanteOverlay.setAttribute('width', W); rasanteOverlay.setAttribute('height', H); rasanteOverlay.setAttribute('fill', 'url(#rasante)'); amGroup.appendChild(rasanteOverlay);
   // Regime atual do nível do rio (Seca/Normal/Atenção/Alerta/Emergência)
   // pintado como um "glow" por baixo do traçado azul de cada rio — o rio
   // continua com cara de água, só ganha uma auréola na cor do regime,
@@ -1903,78 +1888,29 @@ function renderMap() {
   var regime = regimeAtual();
 
   RIOS.forEach(function (rv) {
-    var pts = rv.coords.map(function (c) { var p = proj(c[0], c[1]); return p.x + ' ' + p.y; });
+    var latlngs = rv.coords; // já são [lat,lng] — o Leaflet usa direto, sem proj() nenhum
     if (regime) {
-      var glow = document.createElementNS(NS, 'polyline');
-      glow.setAttribute('points', pts.join(', ')); glow.setAttribute('fill', 'none');
-      glow.setAttribute('stroke', regime.cor); glow.setAttribute('stroke-width', String(rv.w + 5));
-      glow.setAttribute('opacity', '0.35'); glow.setAttribute('stroke-linecap', 'round');
-      glow.setAttribute('class', 'river-regime-glow' + (regime.critico ? ' river-regime-critico' : ''));
-      glow.style.setProperty('--regime-glow', regime.cor);
-      amGroup.appendChild(glow);
+      L.polyline(latlngs, {
+        color: regime.cor, weight: rv.w + 5, opacity: 0.35, lineCap: 'round',
+        className: regime.critico ? 'river-regime-critico' : '', interactive: false
+      }).addTo(LAYER_RIOS);
     }
-    var path = document.createElementNS(NS, 'polyline');
-    path.setAttribute('points', pts.join(', ')); path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#2f9bd6'); path.setAttribute('stroke-width', rv.w);
-    path.setAttribute('opacity', '0.8'); path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('class', 'river-main'); amGroup.appendChild(path);
-
-    // "correnteza": uma segunda linha por cima, com tracinhos claros que
-    // correm ao longo do próprio rio — só decoração, bem sutil, não
-    // atrapalha a leitura do traçado nem das rotas desenhadas por cima.
-    var fluxo = document.createElementNS(NS, 'polyline');
-    fluxo.setAttribute('points', pts.join(', ')); fluxo.setAttribute('fill', 'none');
-    fluxo.setAttribute('stroke', '#bfe6ff'); fluxo.setAttribute('stroke-width', String(Math.max(1, rv.w * 0.4)));
-    fluxo.setAttribute('stroke-linecap', 'round'); fluxo.setAttribute('class', 'river-flow');
-    amGroup.appendChild(fluxo);
+    L.polyline(latlngs, { color: '#2f9bd6', weight: rv.w, opacity: 0.8, lineCap: 'round', className: 'river-main', interactive: false }).addTo(LAYER_RIOS);
   });
 
-  // Radar de chuva ao vivo (RainViewer) — por cima dos rios, mas ainda
-  // clipado no contorno do estado (amGroup); some sozinho se a camada
-  // estiver desligada (RADAR_ATIVO=false, o padrão). Ver bloco RADAR_* acima.
-  radarDesenharCamada(amGroup, proj, NS);
-
-  // contorno do estado, por cima de tudo, pra dar nitidez à silhueta
-  var border = document.createElementNS(NS, 'polygon');
-  border.setAttribute('points', bPts); border.setAttribute('fill', 'none'); border.setAttribute('stroke', '#3b82c4'); border.setAttribute('stroke-width', '2');
-  border.setAttribute('class', 'am-border'); g.appendChild(border);
-
-  var hubLL = { lat: -3.119, lng: -60.021 };
-  var hub = proj(hubLL.lat, hubLL.lng);
-  ['hub-ring', 'hub-ring hub-ring2'].forEach(function (cls) {
-    var ring = document.createElementNS(NS, 'circle');
-    ring.setAttribute('cx', hub.x); ring.setAttribute('cy', hub.y); ring.setAttribute('r', '8');
-    ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', '#14b8a6'); ring.setAttribute('stroke-width', '1.5');
-    ring.setAttribute('class', cls); g.appendChild(ring);
+  // hub (Manaus) — mesmo "ping" de sempre, agora em HTML/CSS (.lm-hub*) em
+  // vez de círculos de SVG; fica com o mesmo tamanho em qualquer zoom.
+  var hubIcon = L.divIcon({
+    className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+    html: '<div class="lm-hub"><div class="lm-hub-ring"></div><div class="lm-hub-ring lm-hub-ring2"></div><div class="lm-hub-dot"></div><div class="lm-hub-label">MANAUS</div></div>'
   });
-  var hc = document.createElementNS(NS, 'circle');
-  hc.setAttribute('cx', hub.x); hc.setAttribute('cy', hub.y); hc.setAttribute('r', '8'); hc.setAttribute('fill', '#14b8a6'); hc.setAttribute('filter', 'url(#gw)'); g.appendChild(hc);
-  var hl = document.createElementNS(NS, 'text');
-  hl.setAttribute('x', hub.x + 11); hl.setAttribute('y', hub.y + 4); hl.setAttribute('font-size', '9');
-  hl.setAttribute('fill', '#14b8a6'); hl.setAttribute('font-weight', '900'); hl.setAttribute('font-family', 'monospace'); hl.textContent = 'MANAUS'; g.appendChild(hl);
-
-  var iz = 1 / T.s;
-  var routeLineEls = {}; // num da calha -> path "de medida" (pra animar a embarcação/ônibus por cima)
-  var routeMarcosEls = {}; // num da calha -> [{seq, len}] (pra "pingar" o pino de cada município quando a animação passa por ele)
-
-  /* Catmull-Rom -> Bézier: pontos de controle do trecho p1->p2 levando em
-     conta os vizinhos p0/p3, pra linha curvar suave em vez de quebrar reto
-     em cada município — usado só nas rotas rodoviárias (H/I), que não têm
-     rio pra seguir. ("tensao" é o divisor padrão de Catmull-Rom, controla
-     o quanto a curva "estica" — 6 é o valor usual, mais suave sem exagerar.) */
-  function crControlPoints(p0, p1, p2, p3) {
-    var tensao = 6;
-    return {
-      c1x: p1.x + (p2.x - p0.x) / tensao, c1y: p1.y + (p2.y - p0.y) / tensao,
-      c2x: p2.x - (p3.x - p1.x) / tensao, c2y: p2.y - (p3.y - p1.y) / tensao
-    };
-  }
+  L.marker([hubLL.lat, hubLL.lng], { icon: hubIcon, interactive: false, zIndexOffset: 500 }).addTo(LAYER_HUB);
 
   /* Rotas fluviais: em vez de traçar reto (ou uma curva "solta") entre os
      municípios, a linha da rota acompanha o próprio traçado do rio (o fio
      azul já desenhado acima), andando pelos pontos do rio mais perto de
      cada município. Mapeamento calha -> rio; H e I ficam de fora (são
-     rodoviárias, não têm rio pra seguir) e usam o traçado por Bézier acima. */
+     rodoviárias, não têm rio pra seguir) e usam a curva Catmull-Rom abaixo. */
   var RIOS_POR_NOME = {}; RIOS.forEach(function (rv) { RIOS_POR_NOME[rv.name] = rv; });
   var RIO_TRONCO = RIOS_POR_NOME['Amazonas/Solimoes'];
   var ROTA_RIO = { A: 'Amazonas/Solimoes', B: 'Amazonas/Solimoes', C: 'Madeira', D: 'Amazonas/Solimoes', E: 'Amazonas/Solimoes', F: 'Rio Negro', G: 'Purus', J: 'Jurua' };
@@ -2004,72 +1940,37 @@ function renderMap() {
     else { for (var i = iA; i >= iB; i--) pts.push(river.coords[i]); }
     return pts;
   }
-
-  ROTAS.forEach(function (r, ri) {
-    var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
-    var largura = (algumAtivo && !tipoFiltrado) ? '1.6' : '0.7';
-    var opacidade = tipoFiltrado ? '0.1' : (algumAtivo ? '0.6' : '0.06');
-    var nomeRio = ROTA_RIO[r.num];
-    var dCompleto = '';
-    var trechoIdx = 0; // conta trechos desenhados nesta rota, só pro atraso da animação de entrada
-    var marcos = []; // [{seq, len}] em ordem: comprimento acumulado da curva até cada município, pra "pingar" o pino quando a animação (barco/ônibus) passa por ele
-
-    function registrarMarco(destinoM) {
-      if (!destinoM) return;
-      var tmp = document.createElementNS(NS, 'path'); tmp.setAttribute('d', dCompleto);
-      marcos.push({ seq: destinoM.seq, len: tmp.getTotalLength() });
+  /* Catmull-Rom -> pontos intermediários: o Leaflet só sabe desenhar
+     segmentos retos entre os pontos de um polyline, então pra rota
+     rodoviária (H/I) continuar curvando suave em cada município (como a
+     antiga curva Bézier do SVG), geramos pontos extras ao longo da mesma
+     curva, em vez de control points. */
+  function catmullRomPontos(p0, p1, p2, p3, n) {
+    var tensao = 6, pts = [];
+    var c1lng = p1.lng + (p2.lng - p0.lng) / tensao, c1lat = p1.lat + (p2.lat - p0.lat) / tensao;
+    var c2lng = p2.lng - (p3.lng - p1.lng) / tensao, c2lat = p2.lat - (p3.lat - p1.lat) / tensao;
+    for (var i = 0; i <= n; i++) {
+      var s = i / n, is = 1 - s;
+      var lng = is * is * is * p1.lng + 3 * is * is * s * c1lng + 3 * is * s * s * c2lng + s * s * s * p2.lng;
+      var lat = is * is * is * p1.lat + 3 * is * is * s * c1lat + 3 * is * s * s * c2lat + s * s * s * p2.lat;
+      pts.push([lat, lng]);
     }
+    return pts;
+  }
+
+  ROTAS.forEach(function (r) {
+    var algumAtivo = r.municipios.some(function (m) { return nodeAtivo(m, r.num); });
+    var largura = (algumAtivo && !tipoFiltrado) ? 3 : 1.3;
+    var opacidade = tipoFiltrado ? 0.1 : (algumAtivo ? 0.85 : 0.08);
+    var nomeRio = ROTA_RIO[r.num];
 
     function desenharTrecho(pontosLL, destinoM) {
       if (!pontosLL || pontosLL.length < 2) return;
-      var pts = pontosLL.map(function (c) { return proj(c[0], c[1]); });
-      var d = 'M ' + pts[0].x + ',' + pts[0].y;
-      for (var i = 1; i < pts.length; i++) d += ' L ' + pts[i].x + ',' + pts[i].y;
-      dCompleto += (dCompleto ? ' ' : '') + d; // path com vários subpaths M ainda soma certo no getTotalLength/getPointAtLength
-      registrarMarco(destinoM);
-
       var seg = destinoM ? SEGURANCA[destinoM.seq] : null;
-      var trecho = document.createElementNS(NS, 'path');
-      trecho.setAttribute('d', d); trecho.setAttribute('fill', 'none');
-      trecho.setAttribute('class', 'mline');
-      trecho.setAttribute('stroke', r.cor); trecho.setAttribute('stroke-width', largura);
-      trecho.setAttribute('opacity', opacidade); trecho.setAttribute('stroke-linecap', 'round');
-      trecho.setAttribute('stroke-linejoin', 'round');
-      if (seg) trecho.setAttribute('stroke-dasharray', '6,5');
-      g.appendChild(trecho);
-
-      if (animarEntrada) {
-        var len = trecho.getTotalLength();
-        trecho.style.setProperty('--len', len);
-        trecho.style.strokeDasharray = seg ? '6,5' : String(len);
-        trecho.classList.add('mline-draw');
-        trecho.style.animationDelay = ((ri * 9 + trechoIdx) * 35) + 'ms';
-        trechoIdx++;
-      }
-    }
-
-    function desenharTrechoBezier(p0, p1, p2, p3, destinoM, idxAnim) {
-      var cp = crControlPoints(p0, p1, p2, p3);
-      var d = 'M ' + p1.x + ',' + p1.y + ' C ' + cp.c1x + ',' + cp.c1y + ' ' + cp.c2x + ',' + cp.c2y + ' ' + p2.x + ',' + p2.y;
-      dCompleto += (dCompleto ? ' ' : '') + d;
-      registrarMarco(destinoM);
-
-      var seg = destinoM ? SEGURANCA[destinoM.seq] : null;
-      var trecho = document.createElementNS(NS, 'path');
-      trecho.setAttribute('d', d); trecho.setAttribute('fill', 'none');
-      trecho.setAttribute('class', 'mline');
-      trecho.setAttribute('stroke', r.cor); trecho.setAttribute('stroke-width', largura);
-      trecho.setAttribute('opacity', opacidade); trecho.setAttribute('stroke-linecap', 'round');
-      if (seg) trecho.setAttribute('stroke-dasharray', '6,5');
-      g.appendChild(trecho);
-
-      if (animarEntrada) {
-        var len = trecho.getTotalLength();
-        trecho.style.setProperty('--len', len);
-        trecho.style.strokeDasharray = seg ? '6,5' : String(len);
-        trecho.classList.add('mline-draw');
-        trecho.style.animationDelay = ((ri * 9 + idxAnim) * 35) + 'ms';
-      }
+      L.polyline(pontosLL, {
+        color: r.cor, weight: largura, opacity: opacidade, className: 'mline',
+        dashArray: seg ? '7,6' : null, lineCap: 'round', lineJoin: 'round', interactive: false
+      }).addTo(LAYER_ROTAS);
     }
 
     if (nomeRio) {
@@ -2108,26 +2009,21 @@ function renderMap() {
         // "fio d'água": município fora da beira do rio (entrada por
         // igarapé/afluente) — liga o ponto do rio mais próximo até ele.
         if (dock.dist > LIMITE_BEIRA_RIO) {
-          var pReal = proj(ll.lat, ll.lng);
-          var pDock = proj(river.coords[dock.idx][0], river.coords[dock.idx][1]);
-          var fio = document.createElementNS(NS, 'path');
-          fio.setAttribute('d', 'M ' + pReal.x + ',' + pReal.y + ' L ' + pDock.x + ',' + pDock.y);
-          fio.setAttribute('fill', 'none'); fio.setAttribute('stroke', '#2f9bd6');
-          fio.setAttribute('stroke-width', '0.6'); fio.setAttribute('stroke-dasharray', '1.5,2.5');
-          fio.setAttribute('stroke-linecap', 'round'); fio.setAttribute('opacity', opacidade);
-          fio.setAttribute('class', 'fio-agua'); // gotejamento animado (ver CSS) — mostra que a "entrada" ali também é água
-          g.appendChild(fio);
+          L.polyline([[ll.lat, ll.lng], river.coords[dock.idx]], {
+            color: '#2f9bd6', weight: 1.3, opacity: opacidade, dashArray: '1.5,4',
+            lineCap: 'round', className: 'fio-agua', interactive: false
+          }).addTo(LAYER_ROTAS);
         }
       });
     } else {
-      // ---- rota rodoviária (H/I), sem rio pra seguir: Bézier suave entre
+      // ---- rota rodoviária (H/I), sem rio pra seguir: curva suave entre
       // os pontos, respeitando ramificação (campo `de`, ex. Humaitá na I) ----
       var pares = r.municipios.map(function (m) {
-        var ll = LATLNG[m.seq]; return ll ? { m: m, p: proj(ll.lat, ll.lng) } : null;
+        var ll = LATLNG[m.seq]; return ll ? { m: m, p: ll } : null;
       }).filter(Boolean);
       if (pares.length) {
         var porSeq = {}; pares.forEach(function (it) { porSeq[it.m.seq] = it; });
-        var hubItem = { m: null, p: hub };
+        var hubItem = { m: null, p: hubLL };
         function paiDe(it, idx) {
           if (it.m.de) return porSeq[it.m.de] || hubItem;
           return idx === 0 ? hubItem : pares[idx - 1];
@@ -2141,116 +2037,34 @@ function renderMap() {
           var pai = paiDe(it, idx);
           var avo = pai === hubItem ? hubItem : paiDe(pai, pares.indexOf(pai));
           var filho = filhoUnicoDe(it);
-          var p0 = avo.p, p1 = pai.p, p2 = it.p, p3 = filho ? filho.p : it.p;
-          desenharTrechoBezier(p0, p1, p2, p3, it.m, idx);
+          var pts = catmullRomPontos(avo.p, pai.p, it.p, filho ? filho.p : it.p, 12);
+          desenharTrecho(pts, it.m);
         });
       }
     }
-
-    // path invisível com a rota inteira (hub -> últimos municípios), só pra
-    // medir posição/distância — usado pra animar o barco/ônibus por cima.
-    var medida = document.createElementNS(NS, 'path');
-    medida.setAttribute('d', dCompleto); medida.setAttribute('fill', 'none'); medida.setAttribute('stroke', 'none');
-    g.appendChild(medida);
-    routeLineEls[r.num] = medida;
-    routeMarcosEls[r.num] = marcos;
   });
 
-  var nodeCounter = 0;
+  // ---- pinos dos municípios: balões HTML (.lm-node), mesmo tamanho em
+  // qualquer zoom, sem precisar calcular largura a partir do texto (o CSS
+  // já cuida disso com padding). ----
   ROTAS.forEach(function (r) {
     r.municipios.forEach(function (m, idx) {
       var ll = LATLNG[m.seq]; if (!ll) return;
       var ativo = nodeAtivo(m, r.num);
       var seg = SEGURANCA[m.seq];
-      var p = proj(ll.lat, ll.lng);
       var label = mapLabel(r.num, idx + 1);
-      var grp = document.createElementNS(NS, 'g');
-      grp.setAttribute('class', 'mnode' + (animarEntrada ? ' mnode-in' : ''));
-      grp.setAttribute('data-ativo', ativo ? '1' : '0');
-      grp.setAttribute('data-mnode-seq', m.seq);
-      grp.setAttribute('data-px', p.x); grp.setAttribute('data-py', p.y);
-      if (animarEntrada) { grp.style.setProperty('--i', nodeCounter); nodeCounter++; }
-      grp.style.cursor = ativo ? 'pointer' : 'default';
-      grp.style.opacity = ativo ? '1' : '0.08';
-
-      var baseW = (label.length <= 2 ? 20 : label.length === 3 ? 24 : 28);
-      var labelW = baseW * iz;
-      var labelH = 15 * iz;
-
-      // aura vermelha: ponto de atenção (aduaneiro / corredor de escoamento) —
-      // fica atrás do balão, pulsando, pra chamar atenção mesmo antes de abrir.
-      if (seg) {
-        var alertRing = document.createElementNS(NS, 'rect');
-        alertRing.setAttribute('x', p.x - labelW / 2); alertRing.setAttribute('y', p.y - labelH / 2);
-        alertRing.setAttribute('width', String(labelW)); alertRing.setAttribute('height', String(labelH));
-        alertRing.setAttribute('rx', String(4 * iz));
-        alertRing.setAttribute('class', 'mnode-alert-ring');
-        var ringDelay = document.createElementNS(NS, 'title'); ringDelay.textContent = t('seg_ponto_atencao') + ' ' + segMetaLabel(seg.tipo);
-        alertRing.appendChild(ringDelay);
-        grp.appendChild(alertRing);
-      }
-
-      var bb = document.createElementNS(NS, 'rect');
-      bb.setAttribute('x', p.x - labelW / 2); bb.setAttribute('y', p.y - labelH / 2);
-      bb.setAttribute('width', String(labelW)); bb.setAttribute('height', String(labelH));
-      bb.setAttribute('rx', String(3 * iz));
-      bb.setAttribute('fill', ativo ? r.cor : '#1a1e26');
       var segCor = seg ? SEGURANCA_META[seg.tipo].cor : r.cor;
-      bb.setAttribute('stroke', seg ? segCor : r.cor);
-      bb.setAttribute('stroke-width', String((seg ? 1.6 : (ativo ? 0 : 0.6)) * iz));
-      bb.setAttribute('stroke-dasharray', seg ? (2 * iz) + ',' + (1.4 * iz) : 'none');
-      bb.setAttribute('opacity', '0.92');
-      if (ativo) bb.setAttribute('filter', 'url(#gw)');
-      grp.appendChild(bb);
-
-      var hitW = 30 * iz, hitH = 26 * iz;
-      var hitArea = document.createElementNS(NS, 'rect');
-      hitArea.setAttribute('x', p.x - hitW / 2); hitArea.setAttribute('y', p.y - hitH / 2);
-      hitArea.setAttribute('width', String(hitW)); hitArea.setAttribute('height', String(hitH));
-      hitArea.setAttribute('fill', 'transparent');
-      grp.appendChild(hitArea);
-
-      var nt = document.createElementNS(NS, 'text');
-      nt.setAttribute('x', p.x); nt.setAttribute('y', p.y + 3 * iz);
-      nt.setAttribute('text-anchor', 'middle'); nt.setAttribute('font-size', String(8 * iz));
-      nt.setAttribute('font-weight', '900'); nt.setAttribute('fill', ativo ? '#fff' : r.cor);
-      nt.setAttribute('font-family', 'monospace');
-      nt.setAttribute('pointer-events', 'none');
-      nt.textContent = label; grp.appendChild(nt);
-
-      if (seg) {
-        var bx = p.x + labelW / 2, by = p.y - labelH / 2;
-        var bcirc = document.createElementNS(NS, 'circle');
-        bcirc.setAttribute('cx', bx); bcirc.setAttribute('cy', by); bcirc.setAttribute('r', String(5.5 * iz));
-        bcirc.setAttribute('fill', segCor);
-        bcirc.setAttribute('stroke', '#070c14'); bcirc.setAttribute('stroke-width', String(1.2 * iz));
-        bcirc.setAttribute('opacity', ativo ? '1' : '0.35');
-        grp.appendChild(bcirc);
-        var bicon = document.createElementNS(NS, 'text');
-        bicon.setAttribute('x', bx); bicon.setAttribute('y', by + 2.6 * iz);
-        bicon.setAttribute('text-anchor', 'middle'); bicon.setAttribute('font-size', String(6.5 * iz));
-        bicon.setAttribute('pointer-events', 'none'); bicon.setAttribute('opacity', ativo ? '1' : '0.35');
-        bicon.textContent = SEGURANCA_META[seg.tipo].icone;
-        grp.appendChild(bicon);
-      }
-
-      if (ativo) {
-        grp.addEventListener('click', function (e) {
-          e.stopPropagation();
-          showMapPopup(NODEIDX[m.seq], label);
-        });
-      }
-      g.appendChild(grp);
+      var html = '<div class="lm-node-wrap">'
+        + '<div class="lm-node' + (seg ? ' lm-node-alert' : '') + '" data-ativo="' + (ativo ? 1 : 0) + '"'
+        + ' style="background:' + (ativo ? r.cor : '#1a1e26') + ';border:1.5px ' + (seg ? 'dashed' : 'solid') + ' ' + (seg ? segCor : r.cor) + ';color:' + (ativo ? '#fff' : r.cor) + ';opacity:' + (ativo ? 1 : 0.35) + '">' + label + '</div>'
+        + (seg ? '<div class="lm-node-seg-dot" style="background:' + segCor + '" title="' + segMetaLabel(seg.tipo) + '">' + SEGURANCA_META[seg.tipo].icone + '</div>' : '')
+        + '</div>';
+      var icon = L.divIcon({ className: '', html: html, iconSize: null, iconAnchor: [16, 10] });
+      var marker = L.marker([ll.lat, ll.lng], { icon: icon, interactive: ativo, keyboard: false });
+      if (ativo) marker.on('click', function () { showMapPopup(NODEIDX[m.seq], label); });
+      marker.addTo(LAYER_NODES);
     });
   });
-
-  // Se tem uma calha específica selecionada (não "TODAS"), anima uma
-  // embarcação (ou ônibus, pras calhas rodoviárias) percorrendo a rota.
-  if (rotaFiltrada && routeLineEls[rotaFiltrada]) {
-    iniciarAnimacaoRota(rotaFiltrada, routeLineEls[rotaFiltrada], iz, routeMarcosEls[rotaFiltrada]);
-  } else {
-    pararAnimacaoRota();
-  }
 
   // Linha estimada entre dois municípios (calculadora de rota A→B,
   // botão 🧭 no mapa) — traço reto e tracejado, deliberadamente
@@ -2259,17 +2073,9 @@ function renderMap() {
   if (ROTA_CALC.origem && ROTA_CALC.destino && ROTA_CALC.origem !== ROTA_CALC.destino) {
     var llA = LATLNG[ROTA_CALC.origem], llB = LATLNG[ROTA_CALC.destino];
     if (llA && llB) {
-      var pA = proj(llA.lat, llA.lng), pB = proj(llB.lat, llB.lng);
-      var calcLine = document.createElementNS(NS, 'line');
-      calcLine.setAttribute('x1', pA.x); calcLine.setAttribute('y1', pA.y);
-      calcLine.setAttribute('x2', pB.x); calcLine.setAttribute('y2', pB.y);
-      calcLine.setAttribute('class', 'rota-calc-line');
-      g.appendChild(calcLine);
-      [pA, pB].forEach(function (p) {
-        var dot = document.createElementNS(NS, 'circle');
-        dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); dot.setAttribute('r', 6);
-        dot.setAttribute('class', 'rota-calc-dot');
-        g.appendChild(dot);
+      L.polyline([[llA.lat, llA.lng], [llB.lat, llB.lng]], { className: 'rota-calc-line', interactive: false }).addTo(LAYER_CALC);
+      [llA, llB].forEach(function (p) {
+        L.circleMarker([p.lat, p.lng], { radius: 6, className: 'rota-calc-dot', interactive: false }).addTo(LAYER_CALC);
       });
     }
   }
@@ -2286,153 +2092,8 @@ function renderMap() {
     }
   }
 
-  // vinheta do "mapa 2.5D": fica FORA do <g id="mg"> (irmã dele, não filha),
-  // então nunca recebe o transform de pan/zoom nem participa da matemática
-  // de arrasto/clique — é puramente visual, sempre cobrindo a tela inteira.
-  var vinheta = document.createElementNS(NS, 'rect');
-  vinheta.setAttribute('x', '-50'); vinheta.setAttribute('y', '-50');
-  vinheta.setAttribute('width', W + 100); vinheta.setAttribute('height', H + 100);
-  vinheta.setAttribute('fill', 'url(#vinheta)');
-  vinheta.setAttribute('pointer-events', 'none');
-  svg.appendChild(vinheta);
-
-  applyMapTransform();
+  radarAtualizarCamadaLeaflet();
   radarAtualizarUI();
-}
-
-/* ── Ícone animado percorrendo a calha selecionada no mapa ── */
-var routeAnim = { raf: null, num: null };
-
-function pararAnimacaoRota() {
-  if (routeAnim.raf) cancelAnimationFrame(routeAnim.raf);
-  routeAnim.raf = null;
-  routeAnim.num = null;
-  var el = document.getElementById('route-anim-icon');
-  if (el && el.parentNode) el.parentNode.removeChild(el);
-}
-
-function iniciarAnimacaoRota(num, line, iz, marcos) {
-  pararAnimacaoRota();
-  var g = document.getElementById('mg'); if (!g || !line) return;
-  var len = line.getTotalLength(); if (!len) return;
-
-  var r = ROTAS.filter(function (x) { return x.num === num; })[0]; if (!r) return;
-  var rodoviaria = isRodoviaria(r);
-  var NS = 'http://www.w3.org/2000/svg';
-
-  // grupo "pai": embrulha o rastro (atrás) + o ícone (na frente), assim um
-  // único #route-anim-icon dá conta de remover tudo de uma vez (ver
-  // pararAnimacaoRota()).
-  var wrap = document.createElementNS(NS, 'g');
-  wrap.id = 'route-anim-icon';
-
-  // rastro: alguns pontinhos "puxando" o ícone, encolhendo e sumindo —
-  // dá sensação de movimento/esteira na água (ou poeira, no caso do ônibus).
-  var TRAIL_N = 6, TRAIL_STEP = 0.016;
-  var trailEls = [];
-  for (var ti = 1; ti <= TRAIL_N; ti++) {
-    var td = document.createElementNS(NS, 'circle');
-    td.setAttribute('r', String(Math.max(0.6, 3.2 - ti * 0.42) * iz));
-    td.setAttribute('fill', r.cor);
-    td.setAttribute('opacity', String(Math.max(0, 0.5 - ti * 0.075)));
-    wrap.appendChild(td);
-    trailEls.push(td);
-  }
-
-  // grupo com um halo escuro atrás (pra destacar em cima de qualquer cor de linha/fundo) + o emoji
-  var icon = document.createElementNS(NS, 'g');
-  icon.setAttribute('class', 'route-anim-icon');
-
-  var halo = document.createElementNS(NS, 'circle');
-  halo.setAttribute('r', String(11 * iz));
-  halo.setAttribute('fill', '#070c14');
-  halo.setAttribute('stroke', r.cor);
-  halo.setAttribute('stroke-width', String(1.2 * iz));
-  halo.setAttribute('opacity', '0.92');
-  icon.appendChild(halo);
-
-  var glyph = document.createElementNS(NS, 'text');
-  glyph.setAttribute('class', 'route-anim-glyph');
-  glyph.setAttribute('text-anchor', 'middle');
-  glyph.setAttribute('dominant-baseline', 'central');
-  glyph.setAttribute('y', String(1 * iz));
-  glyph.setAttribute('font-size', String(15 * iz));
-  glyph.setAttribute('font-family', "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif");
-  glyph.setAttribute('fill', '#fff'); // usado como cor só se a fonte não tiver o emoji colorido (fallback)
-  glyph.textContent = rodoviaria ? '🚌' : '🚤';
-  icon.appendChild(glyph);
-
-  wrap.appendChild(icon);
-  g.appendChild(wrap);
-
-  routeAnim.num = num;
-
-  // "ping" no pino do município quando a animação passa por ele — e, na
-  // rota I (única com bifurcação, ver campo `de` em data.js), um destaque
-  // diferente em Humaitá no instante em que a carga se reparte pras duas
-  // pontas (Apuí/Lábrea).
-  var marcosEstado = (marcos || []).map(function (mk) { return { seq: mk.seq, len: mk.len, feito: false }; });
-  function pingMunicipio(seq) {
-    var alvo = document.querySelector('[data-mnode-seq="' + seq + '"]');
-    if (!alvo) return;
-    var px = alvo.getAttribute('data-px'), py = alvo.getAttribute('data-py');
-    if (px == null || py == null) return;
-    var bifurcacao = (num === 'I' && seq === 'HUM');
-    var ring = document.createElementNS(NS, 'circle');
-    ring.setAttribute('cx', px); ring.setAttribute('cy', py);
-    ring.setAttribute('r', String((bifurcacao ? 7 : 9) * iz));
-    ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', r.cor);
-    ring.setAttribute('stroke-width', String((bifurcacao ? 2.2 : 1.6) * iz));
-    ring.setAttribute('class', bifurcacao ? 'mnode-ping mnode-ping-split' : 'mnode-ping');
-    g.appendChild(ring);
-    setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, bifurcacao ? 900 : 650);
-    if (bifurcacao) {
-      // segundo anel, um pouco atrasado, pra reforçar a ideia de "duas frentes"
-      var ring2 = ring.cloneNode();
-      ring2.style.animationDelay = '140ms';
-      g.appendChild(ring2);
-      setTimeout(function () { if (ring2.parentNode) ring2.parentNode.removeChild(ring2); }, 1050);
-    }
-  }
-  function verificarMarcos(lenAtual) {
-    marcosEstado.forEach(function (mk) {
-      if (!mk.feito && lenAtual >= mk.len - 0.5) { mk.feito = true; pingMunicipio(mk.seq); }
-    });
-  }
-  function resetarMarcos() { marcosEstado.forEach(function (mk) { mk.feito = false; }); }
-
-  function posicionar(t) {
-    var pt = line.getPointAtLength(t * len);
-    icon.setAttribute('transform', 'translate(' + pt.x + ',' + pt.y + ')');
-    trailEls.forEach(function (td, i) {
-      var tt = Math.max(0, t - TRAIL_STEP * (i + 1));
-      var p2 = line.getPointAtLength(tt * len);
-      td.setAttribute('cx', p2.x); td.setAttribute('cy', p2.y);
-    });
-  }
-
-  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) {
-    posicionar(0.5); // sem movimento: só mostra o ícone parado no meio da rota
-    return;
-  }
-
-  var duration = 4200; // ms pra ir do porto/garagem até o fim da calha
-  var pausa = 900;     // ms parado no fim antes de reiniciar o percurso
-  var startTime = null, elapsedAnterior = 0;
-
-  function frame(ts) {
-    if (routeAnim.num !== num) return; // outra rota foi selecionada / animação foi parada
-    if (!startTime) startTime = ts;
-    var elapsed = (ts - startTime) % (duration + pausa);
-    if (elapsed < elapsedAnterior) resetarMarcos(); // voltou pro começo: reseta os pings pra próxima volta
-    elapsedAnterior = elapsed;
-    var t = Math.min(elapsed / duration, 1);
-    posicionar(t);
-    verificarMarcos(t * len);
-    routeAnim.raf = requestAnimationFrame(frame);
-  }
-  routeAnim.raf = requestAnimationFrame(frame);
 }
 
 function showMapPopup(hit, label) {
@@ -2534,115 +2195,14 @@ function buildMapFilters() {
   });
 }
 
-/* Arrastar (mouse/touch) e beliscar (pinça, 2 dedos) pra dar zoom/pan no
-   mapa — tudo manual em cima do transform do <g id="mg">, sem depender de
-   nenhuma lib externa. */
-var mapDrag = { active: false, x: 0, y: 0, moved: false };
-var mapPinch = { active: false, dist: 0, s0: 1 };
-var mapInteractionsBound = false;
-
-function applyMapTransform() {
-  T.s = Math.max(0.5, Math.min(8, T.s));
-  var g = document.getElementById('mg');
-  if (g) g.setAttribute('transform', 'translate(' + T.x + ',' + T.y + ') scale(' + T.s + ')');
-  // "mapa 2.5D": paralaxe do brilho atmosférico atrás do mapa (fora do SVG,
-  // no CSS de #map-wrap) — se desloca uma fração do pan, dando sensação de
-  // profundidade. Só mexe numa custom property lida pelo CSS; não toca em
-  // nenhuma coordenada usada por clique/arrasto/zoom.
-  var wrap = document.getElementById('map-wrap');
-  if (wrap) {
-    var px = Math.max(-32, Math.min(32, T.x * 0.03));
-    var py = Math.max(-32, Math.min(32, T.y * 0.03));
-    wrap.style.setProperty('--map-px', px.toFixed(1) + 'px');
-    wrap.style.setProperty('--map-py', py.toFixed(1) + 'px');
-  }
-}
-
-/* Muda o zoom (T.s) mantendo o CENTRO da tela fixo no mesmo ponto do mapa —
-   sem isso, dar zoom (botão, roda do mouse ou pinça) ia deslocando o mapa
-   pro canto superior esquerdo a cada vez (porque a escala do <g> é aplicada
-   a partir da origem 0,0). 450,300 é sempre o centro do viewBox (900x600),
-   que é sempre o centro visível da tela (o SVG usa xMidYMid), então "manter
-   o ponto que está em 450,300 fixo" == "manter o mapa centralizado". */
-function zoomAroundCenter(newS) {
-  newS = Math.max(0.5, Math.min(8, newS));
-  var r = newS / T.s;
-  T.x = 450 - r * (450 - T.x);
-  T.y = 300 - r * (300 - T.y);
-  T.s = newS;
-}
-
-function initMapInteractions() {
-  var svg = document.getElementById('msvg');
-  if (!svg || mapInteractionsBound) return;
-  mapInteractionsBound = true;
-
-  svg.addEventListener('mousedown', function (e) {
-    mapDrag.active = true; mapDrag.moved = false; mapDrag.x = e.clientX; mapDrag.y = e.clientY;
-  });
-  window.addEventListener('mousemove', function (e) {
-    if (!mapDrag.active) return;
-    var dx = e.clientX - mapDrag.x, dy = e.clientY - mapDrag.y;
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) mapDrag.moved = true;
-    T.x += dx; T.y += dy; mapDrag.x = e.clientX; mapDrag.y = e.clientY;
-    applyMapTransform();
-  });
-  window.addEventListener('mouseup', function () { mapDrag.active = false; });
-
-  /* touchstart/touchmove NÃO podem ser passive aqui: sem chamar
-     preventDefault(), o navegador do celular também tentava fazer o
-     "pinch-zoom" nativo da página inteira ao mesmo tempo que o nosso zoom
-     próprio do mapa — daí a página inteira deslizava/dava zoom, e a barra
-     de filtros parecia "sumir" (só tinha saído da área visível). Com
-     preventDefault(), só o mapa reage ao gesto. */
-  svg.addEventListener('touchstart', function (e) {
-    if (e.touches.length === 1) {
-      mapDrag.active = true; mapDrag.moved = false;
-      mapDrag.x = e.touches[0].clientX; mapDrag.y = e.touches[0].clientY;
-    } else if (e.touches.length === 2) {
-      e.preventDefault();
-      mapDrag.active = false;
-      mapPinch.active = true;
-      var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
-      mapPinch.dist = Math.hypot(dx, dy); mapPinch.s0 = T.s;
-    }
-  }, { passive: false });
-  svg.addEventListener('touchmove', function (e) {
-    if (mapPinch.active && e.touches.length === 2) {
-      e.preventDefault();
-      var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;
-      var d = Math.hypot(dx, dy);
-      // pinça: zoom centralizado na tela, pra não "puxar" o mapa pro canto
-      zoomAroundCenter(mapPinch.s0 * (d / mapPinch.dist));
-      applyMapTransform();
-    } else if (mapDrag.active && e.touches.length === 1) {
-      e.preventDefault();
-      var tdx = e.touches[0].clientX - mapDrag.x, tdy = e.touches[0].clientY - mapDrag.y;
-      if (Math.abs(tdx) > 2 || Math.abs(tdy) > 2) mapDrag.moved = true;
-      T.x += tdx; T.y += tdy;
-      mapDrag.x = e.touches[0].clientX; mapDrag.y = e.touches[0].clientY;
-      applyMapTransform();
-    }
-  }, { passive: false });
-  svg.addEventListener('touchend', function (e) {
-    mapDrag.active = false;
-    if (e.touches.length < 2) mapPinch.active = false;
-  });
-
-  svg.addEventListener('wheel', function (e) {
-    e.preventDefault();
-    var delta = e.deltaY < 0 ? 1.12 : (1 / 1.12);
-    zoomAroundCenter(T.s * delta); // zoom com a roda do mouse também fica centralizado
-    applyMapTransform();
-  }, { passive: false });
-}
-
-function zI() { zoomAroundCenter(T.s * 1.3); renderMap(); }
-function zO() { zoomAroundCenter(T.s / 1.3); renderMap(); }
+/* Pan/zoom/pinça agora são o próprio Leaflet (mouse, roda, toque com um ou
+   dois dedos) — não precisa de nenhum código próprio pra isso. Só os botões
+   +/−/⟳ da barra de ferramentas continuam chamando funções daqui. */
+function zI() { if (LMAP) LMAP.zoomIn(); }
+function zO() { if (LMAP) LMAP.zoomOut(); }
 function zR() {
-  T = { s: 1, x: 0, y: 0 };
   rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa();
-  mapAnimateEntrance = true;
+  if (LMAP) LMAP.setView([-4.4, -63.8], 6);
   renderMap();
 }
 
@@ -2694,7 +2254,14 @@ function SS(name, btn) {
 
   if (name === 'i') bINFO();
   if (name === 'c') bCO();
-  if (name === 'm') { mapAnimateEntrance = true; buildMapFilters(); renderMap(); initMapInteractions(); }
+  if (name === 'm') {
+    buildMapFilters(); renderMap();
+    // o Leaflet mede o tamanho do container na hora que é criado — como a
+    // aba Mapa ficava com display:none até este clique, sem isso o mapa
+    // nascia com um tamanho errado (geralmente cortado/deslocado) até
+    // alguém redimensionar a janela. invalidateSize() corrige na hora.
+    if (LMAP) setTimeout(function () { LMAP.invalidateSize(); }, 0);
+  }
   else radarPararTimer(); // saiu da aba Mapa: pausa a animação do radar (economiza rede/bateria), a camada continua "ligada" pra quando voltar
   if (name === 'n') bNIVEL();
   if (name === 'w') {

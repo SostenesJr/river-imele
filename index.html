@@ -12,6 +12,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NavLog">
 <link rel="stylesheet" href="css/style.css">
+<!-- Leaflet: motor do mapa real (tiles OpenStreetMap/CartoDB, zoom/pan de
+     verdade) — ver README, seção "Mapa real (Leaflet + tiles)". -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>html:not(.authed) body { visibility: hidden; }</style>
 <script>
 (function () {
@@ -143,13 +147,14 @@ if ('serviceWorker' in navigator) {
       <div id="map-filters"></div>
       <div class="map-zoomctl">
         <button class="mcb" onclick="abrirRotaCalc()" title="Distância entre dois municípios" data-i18n-title="rota_calc_btn_title">🧭</button>
+        <button class="mcb" onclick="toggleTileEstilo()" id="btn-tile-estilo" title="Alternar mapa claro/escuro" data-i18n-title="tile_toggle_title">🌗</button>
         <button class="mcb" onclick="zI()">+</button>
         <button class="mcb" onclick="zO()">−</button>
         <button class="mcb" onclick="zR()">⟳</button>
       </div>
     </div>
     <div id="map-wrap">
-      <svg id="msvg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="msvg"></div>
       <div id="map-regime-legend" class="h" onclick="SS('n',null)"></div>
       <div id="map-radar-ctl"></div>
     </div>
