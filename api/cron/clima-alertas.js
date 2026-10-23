@@ -28,12 +28,28 @@
       exatos. Serve como um alerta de atenção, não como fonte oficial
       de risco de incêndio (pra isso, ver o INPE — Programa Queimadas).
 
-   Cada um dos três alertas só manda notificação quando a LISTA de
-   municípios críticos MUDA (alguém entra ou sai dela) — não a cada
+   Cada um dos três alertas acima só manda notificação quando a LISTA
+   de municípios críticos MUDA (alguém entra ou sai dela) — não a cada
    rodada do cron, senão notificaria repetido todo dia com a mesma
    situação. O estado de cada alerta fica salvo em public.push_estado
    (ver supabase/migracao-push2-alertas-clima.sql), uma linha por
    alerta (chave 'ar_criticos' / 'chuva_criticos' / 'queimada_criticos').
+
+   4) Alerta de emergência (seca/cheia/geral) por município — raspagem
+      automática do feed de notícias da Agência Brasil (agência de
+      imprensa oficial do governo federal), filtrando por palavra-chave
+      de desastre + nome do município. Diferente dos três alertas acima
+      (que são 100% automáticos, sem revisão humana), este NUNCA chega
+      direto ao cliente: cada acerto fica como CANDIDATO
+      (`alerta.confirmado:false`) na coluna `alerta` de
+      `municipios_info`, visível só pro admin em Configurações, até
+      alguém confirmar ou descartar manualmente (ver
+      `alertaMunicipioEditHTML()`/`confirmarAlerta()`/`limparAlerta()`
+      em js/app.js). Só depois de confirmado é que aparece na aba
+      Informações, pra todo mundo — ver README, seção "Alerta de
+      emergência por município". Precisa que
+      supabase/migracao-alerta-emergencia.sql já tenha sido rodado
+      (colunas `alerta`/`alerta_dispensados`).
 
    Variáveis de ambiente necessárias: as mesmas do cron do nível do rio
    (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET opcional) mais
@@ -50,6 +66,17 @@ var AQI_CRITICO_A_PARTIR_DE = 80;       // "Muito ruim" (80–100) e "Extremamen
 var CHUVA_HORA_CRITICA_MM = 10;         // chuva na última hora — "forte" (escala INMET: 5–25mm/h)
 var CHUVA_DIA_CRITICA_MM = 50;          // chuva acumulada prevista pra hoje — "muito forte"/risco de alagamento
 var QUEIMADA_RISCO_CRITICO = 55;        // score 0–100 (ver calcularRiscoQueimada) — "Alto"/"Muito alto"
+
+var AGENCIA_BRASIL_RSS_URL = 'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml';
+// Palavras-chave de desastre (normalizadas: minúsculo, sem acento) que
+// classificam o TIPO do alerta quando aparecem perto do nome de um
+// município na mesma notícia. Lista pequena de propósito — é só um
+// filtro grosseiro pra gerar CANDIDATOS; a precisão final vem da
+// revisão humana (admin confirma/descarta em Configurações), não desta
+// lista.
+var ALERTA_KEYWORDS_SECA = ['seca', 'estiagem'];
+var ALERTA_KEYWORDS_CHEIA = ['enchente', 'cheia', 'inundacao', 'alagamento', 'transbordamento'];
+var ALERTA_KEYWORDS_GERAL = ['calamidade', 'emergencia'];
 
 /* Os crons da Vercel chamam a rota com GET simples, sem corpo — então,
    em vez de duplicar a lista de coordenadas aqui (57 municípios, teria
@@ -69,6 +96,103 @@ async function carregarLatLng(req) {
   if (!m) throw new Error('não encontrei "const LATLNG = {...}" em js/data.js (o arquivo pode ter mudado de formato)');
   // eslint-disable-next-line no-new-func
   return new Function('return ' + m[1])();
+}
+
+/* Mesma ideia de carregarLatLng() acima, mas extraindo `const ROTAS =
+   [...]` do próprio js/data.js pra pegar o NOME completo de cada
+   município (ex. 'Autazes', 'Sao Sebastiao do Uatuma') — só usado pela
+   checagem 4 (notícias), pra casar o texto da notícia com o município
+   pelo nome, já que LATLNG só tem o código de 3 letras. Inclui também
+   Manaus (MAO), que não faz parte de nenhuma ROTA. */
+async function carregarMunicipiosNomes(req) {
+  var host = req.headers['x-forwarded-host'] || req.headers['host'];
+  var proto = req.headers['x-forwarded-proto'] || 'https';
+  var url = proto + '://' + host + '/js/data.js';
+  var r = await fetch(url);
+  if (!r.ok) throw new Error('Falha ao buscar ' + url + ' pra extrair ROTAS: HTTP ' + r.status);
+  var texto = await r.text();
+  var m = texto.match(/const ROTAS\s*=\s*(\[[\s\S]*?\]);/);
+  if (!m) throw new Error('não encontrei "const ROTAS = [...]" em js/data.js (o arquivo pode ter mudado de formato)');
+  // eslint-disable-next-line no-new-func
+  var rotas = new Function('return ' + m[1])();
+  var lista = [{ seq: 'MAO', nome: 'Manaus' }];
+  rotas.forEach(function (rota) {
+    (rota.municipios || []).forEach(function (mu) { lista.push({ seq: mu.seq, nome: mu.nome }); });
+  });
+  return lista;
+}
+
+/* minúsculo + sem acento, pra comparar texto de notícia com nome de
+   município sem depender de acentuação bater certinho dos dois lados */
+function normalizarTexto(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function classificarAlertaTipo(textoNorm) {
+  if (ALERTA_KEYWORDS_SECA.some(function (k) { return textoNorm.indexOf(k) !== -1; })) return 'seca';
+  if (ALERTA_KEYWORDS_CHEIA.some(function (k) { return textoNorm.indexOf(k) !== -1; })) return 'cheia';
+  if (ALERTA_KEYWORDS_GERAL.some(function (k) { return textoNorm.indexOf(k) !== -1; })) return 'geral';
+  return null;
+}
+
+/* Extrai o conteúdo de uma tag XML simples (<tag>texto</tag> ou
+   <tag><![CDATA[texto]]></tag>) de dentro de um bloco de texto —
+   parser "na mão" de propósito (feed pequeno, não vale a pena trazer
+   uma dependência de XML só pra isso). */
+function extrairTagXML(bloco, tag) {
+  var re = new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)<\\/' + tag + '>', 'i');
+  var m = bloco.match(re);
+  if (!m) return '';
+  var v = m[1];
+  var cdata = v.match(/<!\[CDATA\[([\s\S]*?)\]\]>/);
+  if (cdata) v = cdata[1];
+  return v.trim();
+}
+
+/* Busca o feed RSS da Agência Brasil (agência de notícias oficial do
+   governo federal) e devolve uma lista simples [{titulo, descricao,
+   link, data}] — `data` já convertida pra 'YYYY-MM-DD' (hoje, se o
+   pubDate não vier num formato reconhecível). NÃO é um feed de alertas
+   oficiais nem específico do Amazonas — é notícia geral do Brasil,
+   por isso a filtragem por palavra-chave + nome de município
+   (detectarCandidatosAlerta(), abaixo) e a confirmação manual depois. */
+async function buscarNoticiasAgenciaBrasil() {
+  var r = await fetch(AGENCIA_BRASIL_RSS_URL, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NavLogAmazonia/1.0)' } });
+  if (!r.ok) throw new Error('Falha ao buscar ' + AGENCIA_BRASIL_RSS_URL + ': HTTP ' + r.status);
+  var xml = await r.text();
+  var blocos = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  var hojeISO = new Date().toISOString().slice(0, 10);
+  return blocos.map(function (bloco) {
+    var titulo = extrairTagXML(bloco, 'title');
+    var descricao = extrairTagXML(bloco, 'description');
+    var link = extrairTagXML(bloco, 'link');
+    var pubDate = extrairTagXML(bloco, 'pubDate');
+    var dataObj = pubDate ? new Date(pubDate) : null;
+    var data = (dataObj && !isNaN(dataObj.getTime())) ? dataObj.toISOString().slice(0, 10) : hojeISO;
+    return { titulo: titulo, descricao: descricao, link: link, data: data };
+  }).filter(function (item) { return item.titulo && item.link; });
+}
+
+/* Casa cada notícia com cada município (pelo NOME, não pelo código) —
+   só conta como candidato quando a mesma notícia tem uma palavra-chave
+   de desastre E o nome do município, os dois juntos. Fica só com o
+   PRIMEIRO município+notícia que bater por município (não sobrescreve
+   dentro da mesma rodada). */
+function detectarCandidatosAlerta(municipios, itens) {
+  var candidatos = {};
+  itens.forEach(function (item) {
+    var textoNorm = normalizarTexto(item.titulo + ' ' + item.descricao);
+    var tipo = classificarAlertaTipo(textoNorm);
+    if (!tipo) return;
+    municipios.forEach(function (mu) {
+      if (candidatos[mu.seq]) return;
+      var nomeNorm = normalizarTexto(mu.nome);
+      if (nomeNorm.length < 4) return; // nome curto demais — risco alto de falso positivo
+      if (textoNorm.indexOf(nomeNorm) === -1) return;
+      candidatos[mu.seq] = { tipo: tipo, titulo: item.titulo, texto: item.descricao.slice(0, 280), fonte_url: item.link, desde: item.data };
+    });
+  });
+  return candidatos;
 }
 
 /* Estimativa (0–100) de risco de queimada — NÃO é um índice
@@ -215,11 +339,67 @@ module.exports = async function handler(req, res) {
       return partes.join(' · ') || 'O risco de queimada mudou em um ou mais municípios.';
     }, '#w', 'navlog-risco-queimada');
 
+    // ---- 4) Notícias (Agência Brasil) — candidatos de alerta de emergência ----
+    // Nunca falha o cron inteiro: se a raspagem de notícias der qualquer
+    // problema (feed fora do ar, formato mudou), os 3 alertas acima já
+    // rodaram normalmente — só essa 4ª checagem fica pra próxima rodada.
+    var noticiasResumo = { novosCandidatos: [], erro: null };
+    try {
+      var municipiosNomes = await carregarMunicipiosNomes(req);
+      var itensNoticias = await buscarNoticiasAgenciaBrasil();
+      var candidatos = detectarCandidatosAlerta(municipiosNomes, itensNoticias);
+      var seqsComCandidato = Object.keys(candidatos);
+
+      if (seqsComCandidato.length) {
+        // busca o estado atual de TODOS os municípios (tabela pequena,
+        // ~57 linhas) em vez de filtrar por seq na URL — evita lidar
+        // com caracteres especiais (ex. 'PFI/BALBINA') num filtro `in.()`
+        var todasLinhas = await sbFetch('municipios_info?select=seq,alerta,alerta_dispensados', { method: 'GET' });
+        var atuaisPorSeq = {};
+        (todasLinhas || []).forEach(function (row) { atuaisPorSeq[row.seq] = row; });
+
+        var paraGravar = [];
+        seqsComCandidato.forEach(function (seq) {
+          var novo = candidatos[seq];
+          var atual = atuaisPorSeq[seq] || {};
+          var alertaAtual = atual.alerta || null;
+          var dispensados = atual.alerta_dispensados || [];
+          if (dispensados.indexOf(novo.fonte_url) !== -1) return;            // admin já descartou essa notícia pra esse município
+          if (alertaAtual && alertaAtual.fonte_url === novo.fonte_url) return; // já é candidato/confirmado com essa mesma notícia
+          if (alertaAtual && alertaAtual.confirmado) return;                  // alerta já confirmado em aberto — só um admin decide, cron não sobrescreve
+          paraGravar.push({ seq: seq, alerta: { tipo: novo.tipo, titulo: novo.titulo, texto: novo.texto, fonte_url: novo.fonte_url, desde: novo.desde, confirmado: false } });
+          noticiasResumo.novosCandidatos.push(seq);
+        });
+
+        if (paraGravar.length) {
+          await sbFetch('municipios_info', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(paraGravar)
+          });
+          try {
+            await enviarPushTodos({
+              title: 'NavLog Amazônia — possível alerta',
+              body: 'Notícia automática aponta possível emergência em: ' + noticiasResumo.novosCandidatos.join(', ') + '. Revise em Configurações.',
+              url: '/index.html#c',
+              tag: 'navlog-alerta-emergencia'
+            });
+          } catch (pushErr) {
+            console.error('push (alerta de emergência) falhou:', String((pushErr && pushErr.message) || pushErr));
+          }
+        }
+      }
+    } catch (noticiasErr) {
+      noticiasResumo.erro = String((noticiasErr && noticiasErr.message) || noticiasErr);
+      console.error('checagem de notícias (Agência Brasil) falhou, seguindo mesmo assim:', noticiasResumo.erro);
+    }
+
     res.status(200).json({
       ok: true,
       ar: resAr,
       chuva: resChuva,
-      queimada: resQueimada
+      queimada: resQueimada,
+      noticias: noticiasResumo
     });
   } catch (err) {
     res.status(500).json({ error: String((err && err.message) || err) });

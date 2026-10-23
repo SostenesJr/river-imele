@@ -146,6 +146,11 @@ if ('serviceWorker' in navigator) {
            todo; agora fica escondida, reativa só ao clique. -->
       <button id="map-toolbar-toggle" class="map-toolbar-toggle" onclick="toggleMapToolbar()" title="Filtros e ferramentas do mapa" data-i18n-title="map_toolbar_toggle_title">☰</button>
       <div id="map-toolbar">
+        <!-- Seleção múltipla de municípios (cruza calhas) — complementa os
+             filtros por rota/tipo abaixo. Ver abrirMuniSelect() em js/app.js. -->
+        <button class="mfbtn muni-select-open-btn" id="muni-select-open-btn" onclick="abrirMuniSelect()">
+          📍 <span data-i18n="muni_select_btn">Selecionar municípios</span><span class="muni-select-badge" id="muni-select-badge"></span>
+        </button>
         <div id="map-filters"></div>
         <div class="map-zoomctl">
           <button class="mcb" onclick="toggleTileEstilo()" id="btn-tile-estilo" title="Alternar mapa claro/escuro" data-i18n-title="tile_toggle_title">🌗</button>
@@ -197,6 +202,29 @@ if ('serviceWorker' in navigator) {
       <button class="sh-size-btn" data-sz="1.5" onclick="setSheetScale(1.5)" title="Balão grande (50% maior)" data-i18n-title="sheet_size_g_title">G</button>
     </div>
     <div id="sheet-body"></div>
+  </div>
+</div>
+
+<!-- Seleção múltipla de municípios no mapa (botão 📍 na gaveta de filtros
+     do mapa) — reaproveita o visual de bottom-sheet do balão acima, com
+     busca + lista de checkboxes; a seleção só vale de verdade ao tocar
+     "Aplicar" (ver abrirMuniSelect()/aplicarMuniSelect() em js/app.js). -->
+<div id="muni-select-overlay" onclick="fecharMuniSelect(event)">
+  <div id="muni-select-sheet" onclick="event.stopPropagation()">
+    <div class="shdl"></div>
+    <div class="muni-select-hdr">
+      <div class="muni-select-title" data-i18n="muni_select_titulo">Selecionar municípios</div>
+      <button class="mp-close" onclick="fecharMuniSelect()">✕</button>
+    </div>
+    <div class="rsw muni-select-search">
+      <span class="rsi">🔍</span>
+      <input type="text" id="muni-select-busca" placeholder="Buscar município..." data-i18n-ph="search_ph" oninput="renderMuniSelectLista()">
+    </div>
+    <div id="muni-select-lista"></div>
+    <div class="sh-actions">
+      <button class="sh-btn sh-reset" onclick="limparMuniSelect()" data-i18n="muni_select_limpar">Limpar</button>
+      <button class="sh-btn sh-save" onclick="aplicarMuniSelect()"><span data-i18n="muni_select_aplicar">Aplicar</span> (<span id="muni-select-count">0</span>)</button>
+    </div>
   </div>
 </div>
 

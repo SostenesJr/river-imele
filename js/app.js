@@ -8,10 +8,9 @@ var CURRENT_USER = null; // { id, email, role } — usuário logado (Supabase Au
 var CONFIG_EMPRESA = { nome_empresa: null, logo_url: null }; // nome/logo mostrados no cabeçalho pra todo mundo
 
 /* Perfil de acesso: 'admin' edita tudo (Configurações); 'cliente' só
-   visualiza (Rotas/Informações/Mapa/Notícias). Se o usuário logado ainda
-   não tiver uma linha em `perfis`, o padrão é 'cliente' (mais seguro) —
-   quem administra o Supabase precisa cadastrar o primeiro admin manualmente
-   (ver README, seção "Como configurar o Supabase"). */
+   visualiza. Se o usuário logado ainda não tiver uma linha em `perfis`,
+   o padrão é 'cliente' (mais seguro) — quem administra o Supabase precisa
+   cadastrar o primeiro admin manualmente (ver README). */
 async function carregarPerfil() {
   var res = await sb.from('perfis').select('role,nome').eq('user_id', CURRENT_USER.id);
   if (res.error) { console.error('Erro ao carregar perfil:', res.error); CURRENT_USER.role = 'cliente'; return; }
@@ -21,8 +20,6 @@ async function carregarPerfil() {
 
 function souAdmin() { return !!(CURRENT_USER && CURRENT_USER.role === 'admin'); }
 
-/* Esconde a aba Configurações na barra lateral pra quem não for admin,
-   e tira a pessoa de lá se por acaso estiver com essa aba selecionada. */
 function aplicarGateAdmin() {
   var admin = souAdmin();
   document.querySelectorAll('.htab[data-s="c"]').forEach(function (el) {
@@ -50,14 +47,7 @@ function aplicarBranding() {
   }
 }
 
-/* ── Tema claro/escuro ──
-   Preferência de cada aparelho (não é dado da empresa, então fica só no
-   localStorage do navegador, não no Supabase). O index.html e o login.html
-   já aplicam o tema salvo ANTES de pintar a tela (script inline no <head>),
-   pra não dar aquele "flash" trocando de tema na hora de abrir. */
 function aplicarTema(tema) {
-  // crossfade das cores em vez de trocar na cara — liga uma classe que ativa
-  // a transição em tudo, por um instante só, e desliga de novo (ver CSS).
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!reduced) {
     document.documentElement.classList.add('theme-transition');
@@ -74,14 +64,6 @@ function alternarTema() {
   aplicarTema(atual === 'light' ? 'dark' : 'light');
 }
 
-/* ── Tamanho do balão (bottom sheet) ──
-   3 tamanhos físicos fixos (P = normal, M = 30% maior, G = 50% maior),
-   no lugar do zoom por pinça (desligado no CSS, ver comentário em
-   #sheet-overlay/#sheet) — pinçar pra dar zoom em cima do balão estava
-   dando zoom na página inteira em alguns navegadores (Safari/iOS ignora
-   user-scalable=no por acessibilidade), o que deslocava a barra lateral
-   fixa pra fora da tela. Preferência de cada aparelho (localStorage),
-   igual tema/idioma. */
 function sheetScaleSalva() {
   try { var v = parseFloat(localStorage.getItem('navlog-sheet-scale')); return v || 1; }
   catch (e) { return 1; }
@@ -95,17 +77,11 @@ function setSheetScale(escala) {
   });
 }
 
-/* ── Idioma da interface (PT/EN/ES/ZH) ──
-   Preferência de cada aparelho (localStorage), igual o tema — não é dado
-   da empresa. setIdiomaEstatico() (em i18n.js) troca o texto estático do
-   HTML (via data-i18n); aqui a gente completa reconstruindo o conteúdo
-   dinâmico das abas (gerado em JS) e o que estiver aberto no momento
-   (balão de visualização/edição, popup do mapa). */
 function aplicarIdioma(lang) {
   setIdiomaEstatico(lang);
   atualizarHeroSub();
   if (typeof atualizarIndicadorAbas === 'function') requestAnimationFrame(atualizarIndicadorAbas);
-  if (typeof ROTAS === 'undefined') return; // data.js ainda não carregou
+  if (typeof ROTAS === 'undefined') return;
   if (typeof atualizarBotaoPush === 'function') atualizarBotaoPush();
   bRO();
   bINFO();
@@ -129,38 +105,24 @@ function atualizarHeroSub() {
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) { el.textContent = tf('hero_sub_tpl', { calhas: calhasAlvo, municipios: munAlvo }); return; }
 
-  // conta subindo do zero até o valor final — cancela uma contagem anterior
-  // em andamento (ex.: troca de idioma rápida) antes de começar outra.
   if (el._heroCountRaf) cancelAnimationFrame(el._heroCountRaf);
   var inicio = null, duracao = 900;
   function passo(ts) {
     if (!inicio) inicio = ts;
     var p = Math.min((ts - inicio) / duracao, 1);
-    var facil = 1 - Math.pow(1 - p, 3); // ease-out cúbico
+    var facil = 1 - Math.pow(1 - p, 3);
     el.textContent = tf('hero_sub_tpl', { calhas: Math.round(calhasAlvo * facil), municipios: Math.round(munAlvo * facil) });
     el._heroCountRaf = (p < 1) ? requestAnimationFrame(passo) : null;
   }
   el._heroCountRaf = requestAnimationFrame(passo);
 }
 
-/* ── Notificações push (Web Push) ──
-   Ativado por "aparelho + navegador" (não por conta): cada inscrição
-   fica salva em push_subscriptions, pareada com quem estava logado no
-   momento de ativar, só pra identificação — quem manda a notificação de
-   verdade é sempre o backend (crons/webhook na Vercel), nunca o
-   navegador de quem ativou. Dispara em qualquer mudança: regime do
-   nível do rio, edição de um município em Configurações, ou mudança na
-   qualidade do ar (ver README, seção "Notificações push", e
-   api/_lib/push.js). */
-var PUSH_ESTADO = 'indisponivel'; // 'indisponivel' | 'desativado' | 'ativado' | 'negado'
+var PUSH_ESTADO = 'indisponivel';
 
 function pushSuportado() {
   return 'serviceWorker' in navigator && typeof window.PushManager !== 'undefined' && typeof window.Notification !== 'undefined';
 }
 
-// applicationServerKey do PushManager precisa ser Uint8Array, não a
-// string base64url em que a VAPID_PUBLIC_KEY vem — conversão padrão
-// usada em qualquer integração Web Push.
 function urlBase64ToUint8Array(base64String) {
   var padding = '='.repeat((4 - base64String.length % 4) % 4);
   var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -282,7 +244,6 @@ async function salvarConfigEmpresa() {
   }
 }
 
-/* ── Login (contas individuais via Supabase Auth) ── */
 function sair() {
   sb.auth.signOut().then(function () { window.location.href = '/login.html'; })
     .catch(function () { window.location.href = '/login.html'; });
@@ -290,7 +251,6 @@ function sair() {
 
 function normKey(s) { return (s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 
-/* Indice unico: codigo do node (seq) -> registro completo (rota + municipio + vizinhos). */
 const NODEIDX = {};
 ROTAS.forEach(function (rota) {
   rota.municipios.forEach(function (mun, i) {
@@ -305,23 +265,22 @@ ROTAS.forEach(function (rota) {
   });
 });
 
-/* ============================================================
-   PERSISTENCIA — Supabase (banco de dados compartilhado)
-   MUNINFO (data.js) é usada só como valor "de fábrica" — pra quando
-   um município ainda não tem linha no banco, e como o que volta ao
-   clicar "Restaurar original". Os dados de verdade (o que aparece
-   pra todo mundo, de qualquer aparelho) vêm de MUNINFO_LIVE, que é
-   carregada do Supabase em carregarMunicipiosInfo().
-   ============================================================ */
-var MUNINFO_LIVE = {}; // seq -> {ta, ps:{seca,cheia}, emb:[...]}
+var MUNINFO_LIVE = {};
 
 function rowToInfo(row) {
   return {
     ta: row.ta,
     ps: { seca: row.ps_seca, cheia: row.ps_cheia },
-    emb: row.emb || [], // cada item pode ter seu próprio `dias` (dias de saída daquela embarcação específica)
-    dias: row.dias || [], // dias da semana que SAI DO PORTO — resumo geral do município (visão rápida)
-    contato: { nome: row.contato_nome || '', tel: row.contato_tel || '' } // agente local/porto
+    emb: row.emb || [],
+    dias: row.dias || [],
+    contato: { nome: row.contato_nome || '', tel: row.contato_tel || '' },
+    // alerta: candidato/confirmado automaticamente pelo cron (ver "Alerta
+    // de emergência por município" no README) — null quando não há nada
+    // em aberto pra esse município.
+    alerta: row.alerta || null,
+    // alertaDispensados: lista de fonte_url já descartadas por um admin
+    // (ver limparAlerta()), pra o cron não recriar o mesmo candidato
+    alertaDispensados: row.alerta_dispensados || []
   };
 }
 
@@ -333,18 +292,17 @@ async function carregarMunicipiosInfo() {
   MUNINFO_LIVE = live;
 }
 
-/* Devolve o registro efetivo (banco, ou o "de fábrica" se ainda não
-   existir linha pra esse município). */
 function getInfo(seq) {
   var fonte = MUNINFO_LIVE[seq] || MUNINFO[seq]
     || { ta: null, ps: { seca: null, cheia: null }, emb: [], dias: [] };
-  var info = JSON.parse(JSON.stringify(fonte)); // clona pra nao vazar referencia
+  var info = JSON.parse(JSON.stringify(fonte));
   if (!info.dias) info.dias = [];
   if (!info.contato) info.contato = { nome: '', tel: '' };
+  if (info.alerta === undefined) info.alerta = null;
+  if (!info.alertaDispensados) info.alertaDispensados = [];
   return info;
 }
 
-/* Salva no banco (compartilhado com todo mundo) e atualiza o cache local. */
 async function setInfo(seq, info) {
   var res = await sb.from('municipios_info').upsert({
     seq: seq,
@@ -360,8 +318,6 @@ async function setInfo(seq, info) {
   MUNINFO_LIVE[seq] = JSON.parse(JSON.stringify(info));
 }
 
-/* "Restaurar original" agora escreve os valores de fábrica de volta
-   no banco — vale pra equipe toda, não só pra quem clicou. */
 async function resetInfo(seq) {
   var original = MUNINFO[seq] || { ta: null, ps: { seca: null, cheia: null }, emb: [], dias: [] };
   original = JSON.parse(JSON.stringify(original));
@@ -370,19 +326,152 @@ async function resetInfo(seq) {
   await setInfo(seq, original);
 }
 
-/* ── Alerta de embarcação mal avaliada: quando TODAS as embarcações que
-   têm avaliação (nota 1-5) estão com nota baixa (1 ou 2), vale a pena
-   chamar atenção — pode ser hora de rever a operação naquele município.
-   Município sem nenhuma avaliação (nota) não conta como "ruim", só como
-   "ainda não avaliado". ── */
+/* ============================================================
+   ALERTA DE EMERGÊNCIA POR MUNICÍPIO (seca/cheia/geral)
+   ============================================================
+   Detectado automaticamente pelo cron (api/cron/clima-alertas.js, 4a
+   checagem — raspa o feed de notícias da Agência Brasil) e salvo na
+   coluna `alerta` de municipios_info como um CANDIDATO
+   (confirmado:false). Fica invisível pra cliente até um admin revisar
+   em Configurações (confirmar ou descartar) — só depois de confirmado
+   aparece na aba Informações. Ver README, seção "Alerta de emergência
+   por município".
+   ============================================================ */
+var ALERTA_TIPO_META = {
+  seca: { ic: '🏜️', key: 'alerta_emerg_tipo_seca', cor: '#f59e0b' },
+  cheia: { ic: '🌊', key: 'alerta_emerg_tipo_cheia', cor: '#3b82c4' },
+  geral: { ic: '⚠️', key: 'alerta_emerg_tipo_geral', cor: '#ef4444' }
+};
+function alertaTipoMeta(tipo) { return ALERTA_TIPO_META[tipo] || ALERTA_TIPO_META.geral; }
+
+function fmtDataBR(iso) {
+  if (!iso) return '—';
+  var p = String(iso).split('-');
+  if (p.length !== 3) return iso;
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+/* Somente leitura — aba Informações. Só mostra algo quando o alerta já
+   foi confirmado por um admin (candidato não aparece aqui). */
+function alertaMunicipioViewHTML(seq) {
+  var info = getInfo(seq);
+  var al = info.alerta;
+  if (!al || !al.confirmado) return '';
+  var meta = alertaTipoMeta(al.tipo);
+  return '<div class="sh-alerta-emerg sh-alerta-emerg-ativo" style="--alerta-cor:' + meta.cor + '">'
+    + '<div class="sh-alerta-emerg-hdr">'
+    + '<span class="sh-alerta-emerg-ic">' + meta.ic + '</span>'
+    + '<span class="sh-alerta-emerg-tt">' + t(meta.key).toUpperCase() + '</span>'
+    + '</div>'
+    + (al.titulo ? '<div class="sh-alerta-emerg-titulo">' + String(al.titulo).replace(/</g, '&lt;') + '</div>' : '')
+    + '<div class="sh-alerta-emerg-meta">' + tf('alerta_emerg_desde_tpl', { data: fmtDataBR(al.desde) }) + '</div>'
+    + (al.fonte_url ? '<a class="sh-alerta-emerg-fonte" href="' + String(al.fonte_url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + t('alerta_emerg_ver_fonte') + '</a>' : '')
+    + '</div>';
+}
+
+/* Painel de revisão/controle — só admin, dentro do balão de edição
+   (Configurações). Candidato (confirmado:false): mostra a notícia e os
+   botões Confirmar/Descartar. Já confirmado: mostra que está ativo (e
+   visível na aba Informações) com um botão pra encerrar manualmente,
+   já que a raspagem automática não tem como saber quando a situação
+   acabou. */
+function alertaMunicipioEditHTML(seq) {
+  if (!souAdmin()) return '';
+  var info = getInfo(seq);
+  var al = info.alerta;
+  if (!al) return '';
+  var meta = alertaTipoMeta(al.tipo);
+  var tituloHTML = al.titulo ? '<div class="sh-alerta-emerg-titulo">' + String(al.titulo).replace(/</g, '&lt;') + '</div>' : '';
+  var fonteHTML = al.fonte_url ? '<a class="sh-alerta-emerg-fonte" href="' + String(al.fonte_url).replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + t('alerta_emerg_ver_fonte') + '</a>' : '';
+
+  if (!al.confirmado) {
+    return '<div class="sh-alerta-emerg sh-alerta-emerg-candidato" style="--alerta-cor:' + meta.cor + '">'
+      + '<div class="sh-alerta-emerg-hdr">'
+      + '<span class="sh-alerta-emerg-ic">' + meta.ic + '</span>'
+      + '<span class="sh-alerta-emerg-tt">' + t('alerta_emerg_candidato_title') + '</span>'
+      + '</div>'
+      + tituloHTML
+      + '<div class="sh-alerta-emerg-hint">' + t('alerta_emerg_candidato_hint') + '</div>'
+      + fonteHTML
+      + '<div class="sh-alerta-emerg-actions">'
+      + '<button type="button" class="sh-btn alerta-dispensar-btn" onclick="limparAlerta(\'' + seq + '\')">' + t('alerta_emerg_dispensar_btn') + '</button>'
+      + '<button type="button" class="sh-btn sh-save alerta-confirmar-btn" onclick="confirmarAlerta(\'' + seq + '\')">' + t('alerta_emerg_confirmar_btn') + '</button>'
+      + '</div></div>';
+  }
+
+  return '<div class="sh-alerta-emerg sh-alerta-emerg-ativo" style="--alerta-cor:' + meta.cor + '">'
+    + '<div class="sh-alerta-emerg-hdr">'
+    + '<span class="sh-alerta-emerg-ic">' + meta.ic + '</span>'
+    + '<span class="sh-alerta-emerg-tt">' + t('alerta_emerg_ativo_title') + '</span>'
+    + '</div>'
+    + tituloHTML
+    + '<div class="sh-alerta-emerg-meta">' + tf('alerta_emerg_desde_tpl', { data: fmtDataBR(al.desde) }) + '</div>'
+    + fonteHTML
+    + '<div class="sh-alerta-emerg-actions">'
+    + '<button type="button" class="sh-btn alerta-dispensar-btn" onclick="limparAlerta(\'' + seq + '\')">' + t('alerta_emerg_encerrar_btn') + '</button>'
+    + '</div></div>';
+}
+
+/* Confirma o candidato: deixa de ser só visível pro admin e passa a
+   aparecer também na aba Informações, pra todo mundo. */
+async function confirmarAlerta(seq) {
+  if (!souAdmin()) return;
+  var info = getInfo(seq);
+  if (!info.alerta) return;
+  var btn = document.querySelector('.alerta-confirmar-btn');
+  if (btn) { btn.disabled = true; btn.textContent = t('salvando'); }
+  var novoAlerta = {
+    tipo: info.alerta.tipo, titulo: info.alerta.titulo, texto: info.alerta.texto,
+    fonte_url: info.alerta.fonte_url, desde: info.alerta.desde, confirmado: true
+  };
+  var res = await sb.from('municipios_info').upsert({ seq: seq, alerta: novoAlerta }, { onConflict: 'seq' });
+  if (res.error) {
+    alert(tf('erro_salvar_tpl', { msg: res.error.message }));
+    if (btn) { btn.disabled = false; }
+    renderSheet();
+    return;
+  }
+  info.alerta = novoAlerta;
+  MUNINFO_LIVE[seq] = info;
+  if (editState && editState.seq === seq) { editState.info = getInfo(seq); renderSheet(); }
+  if (viewSeq === seq) renderInfoView();
+  bINFO(); bCO();
+  flashSeq(seq);
+}
+
+/* Usado tanto pra "Descartar" (candidato ainda não confirmado) quanto
+   pra "Encerrar alerta" (já confirmado, situação resolvida): limpa o
+   alerta e guarda a fonte em alertaDispensados, pra o cron não recriar
+   o mesmo candidato a partir da mesma notícia nas próximas rodadas. */
+async function limparAlerta(seq) {
+  if (!souAdmin()) return;
+  var info = getInfo(seq);
+  if (!info.alerta) return;
+  var btn = document.querySelector('.alerta-dispensar-btn');
+  if (btn) { btn.disabled = true; btn.textContent = t('salvando'); }
+  var dispensados = (info.alertaDispensados || []).slice();
+  if (info.alerta.fonte_url && dispensados.indexOf(info.alerta.fonte_url) === -1) dispensados.push(info.alerta.fonte_url);
+  var res = await sb.from('municipios_info').upsert({ seq: seq, alerta: null, alerta_dispensados: dispensados }, { onConflict: 'seq' });
+  if (res.error) {
+    alert(tf('erro_salvar_tpl', { msg: res.error.message }));
+    if (btn) { btn.disabled = false; }
+    renderSheet();
+    return;
+  }
+  info.alerta = null;
+  info.alertaDispensados = dispensados;
+  MUNINFO_LIVE[seq] = info;
+  if (editState && editState.seq === seq) { editState.info = getInfo(seq); renderSheet(); }
+  if (viewSeq === seq) renderInfoView();
+  bINFO(); bCO();
+}
+
 function embAvaliacaoRuim(emb) {
   var avaliadas = (emb || []).filter(function (it) { return it && it.nota; });
   return avaliadas.length > 0 && avaliadas.every(function (it) { return it.nota <= 2; });
 }
 
-/* ── Observações pessoais por município — cada usuário só vê e edita
-   as próprias (RLS no banco garante isso), salvas no Supabase. ── */
-var OBS = {}; // seq -> texto (do usuario atual)
+var OBS = {};
 var obsSaveTimers = {};
 
 async function carregarObs() {
@@ -396,8 +485,6 @@ async function carregarObs() {
 
 function getObs(seq) { return OBS[seq] || ''; }
 
-/* Salva com debounce (600ms depois de parar de digitar) pra não bater
-   no banco a cada tecla. */
 function setObs(seq, texto) {
   OBS[seq] = texto || '';
   if (obsSaveTimers[seq]) clearTimeout(obsSaveTimers[seq]);
@@ -417,36 +504,9 @@ function salvarObsRemoto(seq) {
   });
 }
 
-/* ============================================================
-   ABA "NOTÍCIAS" — nível do Rio Negro em Manaus
-   Os dados vêm da tabela nivel_rio, alimentada 1x por dia por uma
-   função da Vercel (api/cron/nivel-rio.js) que lê portodemanaus.com.br
-   e grava no Supabase — o app só LÊ essa tabela, nunca escreve nela.
-   ============================================================ */
-var NIVEL_HIST = []; // [{data,nivel_m,variacao_cm,tendencia,fonte}], mais antigo -> mais novo
+var NIVEL_HIST = [];
 
-// Faixa de referência pro medidor visual e pro selo de regime (Seca /
-// Normal / Atenção / Alerta / Emergência). O site-fonte (portodemanaus.com.br)
-// só informa o valor do dia e se subiu ou desceu — ele mesmo não classifica
-// se "está seco" ou "está cheio". Os cortes usados aqui vêm de referências
-// oficiais sobre o Rio Negro em Manaus:
-//   - Cota de atenção 27,00m / cota de alerta (inundação) 27,50m / cota de
-//     emergência 29,00m — Defesa Civil de Manaus e SGB (Serviço Geológico
-//     do Brasil), noticiado em 2026.
-//   - Não existe uma "cota de seca" oficial equivalente pro lado baixo; o
-//     corte de Seca usado aqui é uma referência informal, com base no
-//     registro histórico (mínima de 12,70m em out/2023 — a pior seca em
-//     121 anos de medição). Por isso o lado de cheia é uma cota oficial e
-//     o de seca é uma aproximação — isso fica avisado no rodapé do medidor.
-// "critico:true" dispara o banner de alerta + o selinho pulsante nas abas
-// Notícias (ver nivelAlertaHTML() e atualizarAlertaAba() abaixo). Do lado
-// da seca não tem cota oficial de "emergência" (é decreto do prefeito,
-// caso a caso) — por isso o corte crítico aqui (abaixo de 15m) é só uma
-// referência aproximada da mínima histórica, não uma cota oficial.
 var NIVEL_ESCALA_MIN = 11, NIVEL_ESCALA_MAX = 30;
-/* "label" é fixo (chave interna, não muda com idioma) — o texto exibido
-   vem de t('regime_' + label) na hora de renderizar (ver regimeLabel()),
-   assim a mesma faixa aparece certa nos 4 idiomas. */
 var NIVEL_REGIMES = [
   { ate: 15,   label: 'seca_severa', classe: 'seca-severa', cor: '#ea580c', critico: true  },
   { ate: 19,   label: 'seca',        classe: 'seca',        cor: '#f59e0b', critico: false },
@@ -462,17 +522,11 @@ function classificarNivel(nivel) {
   }
   return NIVEL_REGIMES[NIVEL_REGIMES.length - 1];
 }
-/* Regime atual (última leitura), usado pra colorir os rios no mapa —
-   null enquanto o nível ainda não carregou (mapa mostra os rios sem a
-   camada de cor nesse caso, sem travar nada). */
 function regimeAtual() {
   if (!NIVEL_HIST.length) return null;
   return classificarNivel(NIVEL_HIST[NIVEL_HIST.length - 1].nivel_m);
 }
 
-/* Banner chamativo no topo da aba Notícias quando o nível entra numa faixa
-   crítica (ver campo "critico" em NIVEL_REGIMES) — o selo discreto ao lado
-   do valor já existia, isso aqui é só pra quem não repara no selo. */
 function nivelAlertaHTML(regime) {
   if (!regime.critico) return '';
   var texto = t('alert_text_' + regime.label) || '';
@@ -482,10 +536,6 @@ function nivelAlertaHTML(regime) {
     + '<div class="niv-alert-tx">' + texto + '</div></div>'
     + '</div>';
 }
-/* Selinho vermelho pulsante numa aba da barra lateral, visível de qualquer
-   aba, pra avisar sobre algo crítico sem precisar entrar na aba em questão.
-   "tab" é o código da aba ('n' pro nível do rio, 'w' pra qualidade do ar);
-   tituloKey é a chave de tradução do tooltip. */
 function atualizarAlertaAba(tab, critico, tituloKey) {
   document.querySelectorAll('.htab[data-s="' + tab + '"]').forEach(function (el) {
     var existente = el.querySelector('.tab-alert-dot');
@@ -495,9 +545,6 @@ function atualizarAlertaAba(tab, critico, tituloKey) {
 }
 
 async function carregarNivelRio() {
-  // Precisa dos 400 dias MAIS RECENTES (não os mais antigos) — por isso
-  // busca em ordem decrescente e depois inverte pra ascendente, já que
-  // agora a tabela pode ter milhares de linhas (histórico desde 2000).
   var res = await sb.from('nivel_rio').select('*').order('data', { ascending: false }).limit(400);
   if (res.error) { console.error('Erro ao carregar nivel_rio:', res.error); return; }
   NIVEL_HIST = (res.data || []).map(function (row) {
@@ -506,8 +553,6 @@ async function carregarNivelRio() {
 }
 
 function nivelDoAnoPassado(hoje) {
-  // Procura a leitura de exatamente 1 ano atrás; se não tiver (ex: 29/fev),
-  // aceita até 3 dias de diferença pra ainda mostrar uma comparação útil.
   var p = hoje.split('-');
   var alvoISO = (Number(p[0]) - 1) + '-' + p[1] + '-' + p[2];
   var porData = {};
@@ -626,27 +671,12 @@ function bNIVEL() {
   atualizarAlertaAba('n', !!regime.critico);
 }
 
-/* ============================================================
-   ABA "CLIMA" — clima atual + qualidade do ar nos municípios
-   Usa a Open-Meteo (api.open-meteo.com + air-quality-api.open-meteo.com),
-   um serviço público e gratuito que não exige conta nem chave de API e
-   aceita vários pontos (lat/lng) numa única chamada — por isso dá pra
-   buscar os 57 municípios de uma vez só, em vez de 57 chamadas separadas
-   (x2, uma pro tempo e uma pra qualidade do ar).
-   Roda direto no navegador de quem está usando o app (não passa pelo
-   Supabase); por isso, se a pessoa estiver sem internet ou algum
-   bloqueio de rede impedir a chamada, a seção mostra um aviso com
-   botão de "tentar de novo" em vez de travar o resto da aba.
-   ============================================================ */
-var CLIMA_POR_SEQ = {};      // seq -> {temp, sensacao, chuva, vento, codigo, aqi, pm25, pm10, diario:[{data,max,min,chuva,codigo}]}
-var CLIMA_ATUALIZADO_EM = null; // epoch ms da última busca com sucesso
+var CLIMA_POR_SEQ = {};
+var CLIMA_ATUALIZADO_EM = null;
 var CLIMA_CARREGANDO = false;
 var CLIMA_ERRO = false;
-var CLIMA_INTERVALO_MS = 10 * 60 * 1000; // não busca de novo sozinho antes de 10min (chuva na Amazônia muda rápido)
+var CLIMA_INTERVALO_MS = 10 * 60 * 1000;
 
-/* Códigos "WMO weather code" (padrão usado pela Open-Meteo) agrupados nas
-   categorias que fazem sentido pro clima amazônico — não precisa de um
-   caso pra cada um dos ~25 códigos possíveis. */
 function climaCategoria(codigo) {
   if (codigo === 0) return { ic: '☀️', key: 'clima_desc_limpo' };
   if (codigo === 1 || codigo === 2) return { ic: '🌤️', key: 'clima_desc_parcial' };
@@ -660,10 +690,6 @@ function climaCategoria(codigo) {
   return { ic: '🌡️', key: 'clima_desc_indef' };
 }
 
-/* Faixas do "European AQI" (escala 0-100+ usada pela Open-Meteo, baseada
-   no Copernicus CAMS) — mais simples de mostrar num selinho do que o
-   AQI americano (0-500). Relevante sobretudo na época de seca/fumaça de
-   queimada na região. */
 function aqiCategoria(aqi) {
   if (aqi === null || aqi === undefined || isNaN(aqi)) return null;
   if (aqi <= 20) return { cor: '#22c55e', key: 'aqi_bom' };
@@ -674,16 +700,8 @@ function aqiCategoria(aqi) {
   return { cor: '#a21caf', key: 'aqi_extremo' };
 }
 
-/* Lista estável de municípios com coordenada conhecida (LATLNG, em
-   data.js — as mesmas usadas pro mapa), na ordem em que aparecem nas
-   calhas — usada tanto pra montar a URL da API (lat/lng em lote, na
-   mesma ordem) quanto pra desenhar a grade depois. */
 function climaMunicipiosOrdenados() {
   var lista = [];
-  // Manaus primeiro: é o hub (não é um dos 57 municípios de nenhuma
-  // calha, por isso não vem do ROTAS.forEach abaixo), mas sem o clima
-  // dela o app não mostrava tempo/qualidade do ar da capital em lugar
-  // nenhum — cor igual à do marcador do hub no mapa (#14b8a6).
   var llMAO = LATLNG.MAO;
   if (llMAO) lista.push({ seq: 'MAO', nome: 'Manaus', cor: '#14b8a6', lat: llMAO.lat, lng: llMAO.lng });
   ROTAS.forEach(function (r) {
@@ -699,7 +717,7 @@ async function carregarClima() {
   if (CLIMA_CARREGANDO) return;
   CLIMA_CARREGANDO = true;
   CLIMA_ERRO = false;
-  if (CLIMA_ATUALIZADO_EM) bCLIMA(); // já tinha dado na tela — mostra o botão "atualizando" girando
+  if (CLIMA_ATUALIZADO_EM) bCLIMA();
   var lista = climaMunicipiosOrdenados();
   if (!lista.length) { CLIMA_CARREGANDO = false; return; }
   var lats = lista.map(function (m) { return m.lat; }).join(',');
@@ -708,9 +726,6 @@ async function carregarClima() {
     + '&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m'
     + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=5'
     + '&timezone=America%2FManaus';
-  // Endpoint separado (outro subdomínio) só pra qualidade do ar — mesma
-  // lista de coordenadas, na mesma ordem, então dá pra casar as duas
-  // respostas pelo índice (i).
   var urlAr = 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lats + '&longitude=' + lngs
     + '&current=pm2_5,pm10,european_aqi'
     + '&timezone=America%2FManaus';
@@ -721,9 +736,6 @@ async function carregarClima() {
     if (!resAr.ok) throw new Error('HTTP ' + resAr.status + ' (qualidade do ar)');
     var dataArr = await Promise.all([resTempo.json(), resAr.json()]);
     var dataTempo = dataArr[0], dataAr = dataArr[1];
-    // Com mais de uma coordenada na URL, a Open-Meteo devolve uma lista
-    // (um item por município, na mesma ordem que foi mandada); com uma
-    // só, devolve um objeto único — cobre os dois casos por garantia.
     var itensTempo = Array.isArray(dataTempo) ? dataTempo : [dataTempo];
     var itensAr = Array.isArray(dataAr) ? dataAr : [dataAr];
     var novo = {};
@@ -764,7 +776,7 @@ async function carregarClima() {
   } finally {
     CLIMA_CARREGANDO = false;
     bCLIMA();
-    if (climaViewSeq) renderClimaView(); // balão de clima aberto — atualiza com o dado novo
+    if (climaViewSeq) renderClimaView();
   }
 }
 
@@ -798,7 +810,7 @@ function bCLIMA() {
       + '<div class="clima-empty">' + t('clima_erro_html') + '<button class="sh-btn" onclick="carregarClima()">' + t('clima_tentar_de_novo') + '</button></div>';
     return;
   }
-  if (!CLIMA_ATUALIZADO_EM) return; // ainda carregando — segue mostrando o esqueleto estático do HTML
+  if (!CLIMA_ATUALIZADO_EM) return;
 
   var lista = climaMunicipiosOrdenados();
   var horaFmt = new Date(CLIMA_ATUALIZADO_EM).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -811,11 +823,6 @@ function bCLIMA() {
     + '<div class="clima-grid">' + lista.map(climaCardHTML).join('') + '</div>';
 }
 
-/* Lista de municípios com qualidade do ar "muito ruim"/"extremamente
-   ruim" agora — comum na época de seca/fumaça de queimada na região.
-   Usado tanto pro banner no topo da aba quanto pro selinho de alerta
-   na própria aba (visível de qualquer outra aba, igual o do nível do
-   rio). */
 function climaArCriticoLista(lista) {
   return lista.filter(function (mun) {
     var d = CLIMA_POR_SEQ[mun.seq];
@@ -836,14 +843,10 @@ function climaArAlertaHTML(lista) {
     + '</div>';
 }
 
-/* ── BALÃO DO CLIMA (clicar num cartão da aba Clima abre o detalhe,
-   grande e centralizado — mesmo balão/bottom-sheet já usado nas abas
-   Informações/Configurações, que já é responsivo: desliza de baixo no
-   celular e fica centralizado com cantos arredondados no computador). ── */
-var climaViewSeq = null; // seq do município aberto no balão de clima
+var climaViewSeq = null;
 
 function abrirClimaView(seq) {
-  if (!CLIMA_POR_SEQ[seq]) return; // ainda sem dado desse município — não abre balão vazio
+  if (!CLIMA_POR_SEQ[seq]) return;
   climaViewSeq = seq;
   renderClimaView();
   document.getElementById('sheet-overlay').classList.add('on');
@@ -852,9 +855,6 @@ function abrirClimaView(seq) {
 function renderClimaView() {
   if (!climaViewSeq) return;
   var seq = climaViewSeq;
-  // Manaus (hub) não tem entrada em NODEIDX — não é um dos municípios de
-  // nenhuma calha (ver climaMunicipiosOrdenados()) — então monta o
-  // cabeçalho com um selo "capital/hub" em vez do de calha.
   var hit = NODEIDX[seq];
   if (!hit && seq !== 'MAO') return;
   var r = hit ? hit.rota : null, m = hit ? hit.mun : { seq: 'MAO', nome: 'Manaus' };
@@ -912,10 +912,6 @@ function renderClimaView() {
   if (ll) climaRadarMiniCarregar(seq, ll.lat, ll.lng);
 }
 
-// Bloco do "mini radar" (imagem real da RainViewer, centrada na cidade) —
-// complementa o número de chuva do Open-Meteo com uma olhada visual no
-// radar/satélite de verdade. Some sozinho (climaRadarMiniHTML devolve '')
-// se o município não tiver coordenada conhecida.
 function climaRadarMiniHTML(seq) {
   var ll = LATLNG[seq];
   if (!ll) return '';
@@ -928,17 +924,12 @@ function climaRadarMiniHTML(seq) {
     + '</div>';
 }
 
-/* Faixa horizontal com a previsão dos próximos dias (a Open-Meteo já
-   manda isso na mesma chamada do clima atual, sem precisar de outra
-   requisição). Reaproveita DIAS_SEMANA_KEYS/diaLetra() — o mesmo sistema
-   de tradução da letra do dia usado nos "dias de saída do porto" — pra
-   rotular cada dia certo nos 4 idiomas. */
 function climaPrevisaoHTML(diario) {
   if (!diario || !diario.length) return '';
   var hojeISO = new Date().toISOString().slice(0, 10);
   var diasHTML = diario.map(function (dia, i) {
     var cat = climaCategoria(dia.codigo);
-    var jsDay = new Date(dia.data + 'T12:00:00').getDay(); // meio-dia evita virar de data por fuso
+    var jsDay = new Date(dia.data + 'T12:00:00').getDay();
     var idxSemana = jsDay === 0 ? 6 : jsDay - 1;
     var label = (i === 0 && dia.data === hojeISO) ? t('clima_hoje') : diaLetra(DIAS_SEMANA_KEYS[idxSemana]);
     return '<div class="clima-prev-dia">'
@@ -955,21 +946,9 @@ function climaPrevisaoHTML(diario) {
     + '</div>';
 }
 
-/* ============================================================
-   ABA 1 — ROTAS
-   Lista oculta: só as 10 rotas aparecem. Ao abrir, mostra os
-   municípios na ordem de passagem, com km e transit time.
-   ============================================================ */
-
 function fmtSaca(v) { return (v === null || v === undefined || v === '') ? '—' : ('R$ ' + Number(v).toFixed(2).replace('.', ',')); }
 function fmtTA(v) { return (v === null || v === undefined || v === '') ? '—' : (v + ' d'); }
 
-/* A maioria dos códigos de município é uma sigla curta (3-4 letras: AUT,
-   COA, ITA...), mas Balbina e Novo Remanso não são município oficial —
-   entram como "PFI/BALBINA" e "ITA/NOVO REMANSO" (sigla do município-sede
-   + nome da localidade), bem mais compridos. Essa função encolhe a fonte
-   nos rótulos (chip, selo do balão, linha da rota) só nesses casos, pra
-   não estourar o layout pensado pra códigos de 3-4 letras. */
 function seqFS(seq) {
   if (!seq) return '';
   if (seq.length > 8) return 'font-size:.5em;letter-spacing:0;line-height:1.05;';
@@ -977,17 +956,10 @@ function seqFS(seq) {
   return '';
 }
 function principalEmb(lista) {
-  // as listas ja vem ordenadas da mais usada pra menos usada (fonte: planilha)
   if (!lista || !lista.length) return null;
   return lista[0];
 }
 
-/* ── Avaliação (1-5 estrelas, por embarcação) e dias de saída do
-   porto (por município — não muda de embarcação pra embarcação) ──
-   As chaves ('seg','ter'...) nunca mudam (é o que fica salvo no banco);
-   a letra/nome mostrados na tela vêm traduzidos de i18n.js (chaves dl_ e dn_),
-   pra fazer sentido em qualquer um dos 4 idiomas (ex: em inglês, o certo
-   é "M T W T F S S", não "S T Q Q S S D"). */
 var DIAS_SEMANA_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
 function diaLetra(k) { return t('dl_' + k); }
 function diaNome(k) { return t('dn_' + k); }
@@ -1005,17 +977,12 @@ function diasBadgeHTML(dias) {
   }).join('') + '</div>';
 }
 
-/* Uma calha é "rodoviária" (ônibus/estrada) quando o nome ou a direção
-   menciona isso — usado aqui, no cabeçalho do card, e no mapa (ícone
-   do veículo animado na calha selecionada). */
 function isRodoviaria(r) { return /rodovi/i.test((r.nome || '') + ' ' + (r.dir || '')); }
 
 function kmTotalRota(r) {
   return r.municipios.reduce(function (soma, m) { return soma + (Number(m.km) || 0); }, 0);
 }
 
-/* Tipos de segurança (Aduaneiro / Corredor de Escoamento) presentes na
-   calha, sem repetir — vira selinho no cabeçalho do card. */
 function segTiposDaRota(r) {
   var vistos = {};
   var lista = [];
@@ -1026,8 +993,6 @@ function segTiposDaRota(r) {
   return lista;
 }
 
-/* SEGURANCA_META (data.js) guarda só o que não muda com idioma (cor,
-   ícone, chave "tipo"); o texto (label/curto/desc) vem daqui, traduzido. */
 function segMetaLabel(tipo) { return t('seg_' + tipo + '_label'); }
 function segMetaCurto(tipo) { return t('seg_' + tipo + '_curto'); }
 function segMetaDesc(tipo) { return t('seg_' + tipo + '_desc'); }
@@ -1050,9 +1015,6 @@ function buildRotaHeader(r) {
     + '</div>';
 }
 
-// Estado vazio (sem resultado) reaproveitado pelas 3 listas com busca
-// (Rotas / Informações / Configurações) — some sozinho quando a busca
-// está vazia ou quando algum card/linha bate com o texto digitado.
 function emptyStateHTML(id) {
   return '<div class="search-empty h" id="' + id + '">'
     + '<div class="search-empty-ic">🔍</div>'
@@ -1111,13 +1073,6 @@ function fR(q) {
   if (vazio) vazio.classList.toggle('h', algumaVisivel);
 }
 
-/* ============================================================
-   ABA 2 — INFORMAÇÕES (somente leitura)
-   Grade de balões compactos (o código do node) agrupados por
-   calha. Tocar num balão abre um pop-up com o nome do município
-   e todas as informações + observações pessoais editáveis.
-   ============================================================ */
-
 function bINFO() {
   var body = document.getElementById('ibdy'); if (!body) return;
   body.innerHTML = ROTAS.map(function (r, ri) {
@@ -1161,9 +1116,7 @@ function fINFO(q) {
   if (vazio) vazio.classList.toggle('h', algumaVisivel);
 }
 
-/* ── BALÃO SOMENTE LEITURA (Informações) ── */
-
-var viewSeq = null; // seq do município aberto no balão de visualização
+var viewSeq = null;
 
 function abrirInfoView(seq) {
   var hit = NODEIDX[seq]; if (!hit) return;
@@ -1200,6 +1153,8 @@ function renderInfoView() {
     + '</div>'
 
     + segHTML(seq)
+
+    + alertaMunicipioViewHTML(seq)
 
     + '<div class="sh-view-grid">'
     + '<div class="sh-view-kpi"><div class="sh-view-kt">' + t('kpi_tt_amazon') + '</div><div class="sh-view-kv">' + fmtTA(info.ta) + '</div></div>'
@@ -1241,13 +1196,6 @@ function renderInfoView() {
 
   document.getElementById('sheet-body').innerHTML = html;
 }
-
-/* ============================================================
-   ABA 3 — CONFIGURAÇÕES
-   Mesma lista por calha; ao clicar num município abre um balão
-   (bottom sheet) editável com transit Amazon, preço/saca (seca
-   e cheia) e as embarcações usadas em cada regime do rio.
-   ============================================================ */
 
 function empresaPanelHTML() {
   return '<div class="rcard open empresa-card">'
@@ -1320,12 +1268,10 @@ function fC(q) {
   if (vazio) vazio.classList.toggle('h', algumaVisivel);
 }
 
-/* ── BALÃO EDITÁVEL (bottom sheet) ── */
-
-var editState = null; // { seq, info } — copia de trabalho antes de salvar
+var editState = null;
 
 function abrirConfig(seq) {
-  if (!souAdmin()) return; // defesa extra — a aba já fica escondida pra quem não é admin
+  if (!souAdmin()) return;
   var hit = NODEIDX[seq]; if (!hit) return;
   editState = { seq: seq, info: getInfo(seq) };
   segAberto = true;
@@ -1341,7 +1287,6 @@ function fecharSheet(e) {
   climaViewSeq = null;
 }
 
-/* ── Classificação de segurança (Aduaneiro / Corredor de Escoamento) ── */
 var segAberto = true;
 
 function segHTML(seq) {
@@ -1386,13 +1331,10 @@ function embRowHTML(idx, item) {
 function setEmbNota(idx, valor) {
   if (!editState) return;
   var item = editState.info.emb[idx]; if (!item) return;
-  item.nota = (item.nota === valor) ? null : valor; // clicar na mesma nota de novo limpa
+  item.nota = (item.nota === valor) ? null : valor;
   renderSheet();
 }
 
-/* Dias de saída por embarcação individual (cada barco pode sair em dias
-   diferentes do resto do município — complementa info.dias, que é só
-   o resumo geral do município). */
 function toggleEmbDia(idx, dia) {
   if (!editState) return;
   var item = editState.info.emb[idx]; if (!item) return;
@@ -1402,8 +1344,6 @@ function toggleEmbDia(idx, dia) {
   renderSheet();
 }
 
-/* Dias de saída do porto, resumo do município (visão rápida — cada
-   embarcação também pode ter seus próprios dias, ver toggleEmbDia acima) */
 function toggleInfoDia(dia) {
   if (!editState) return;
   if (!editState.info.dias) editState.info.dias = [];
@@ -1428,6 +1368,8 @@ function renderSheet() {
     + '</div>'
 
     + segHTML(seq)
+
+    + alertaMunicipioEditHTML(seq)
 
     + '<div class="sh-field">'
     + '<label>' + t('ta_label') + '</label>'
@@ -1460,9 +1402,9 @@ function renderSheet() {
     + '<div class="sh-season">'
     + '<div class="sh-season-hdr">' + t('contato_title') + '</div>'
     + '<div class="sh-field"><label>' + t('contato_nome_label') + '</label>'
-    + '<input type="text" id="in-contato-nome" value="' + ((info.contato && info.contato.nome) || '').replace(/"/g, '&quot;') + '" placeholder="' + t('contato_nome_ph') + '" oninput="if(!editState.info.contato) editState.info.contato={nome:\'\',tel:\'\'}; editState.info.contato.nome=this.value"></div>'
+    + '<input type="text" id="in-contato-nome" value="' + ((info.contato && info.contato.nome) || '').replace(/"/g, '&quot;') + '" placeholder="' + t('contato_nome_ph') + '" oninput="if(!editState.info.contato) editState.info.contato={nome:\'\',tel:\'\'}; editState.info.contato.nome=this.value">'
     + '<div class="sh-field"><label>' + t('contato_tel_label') + '</label>'
-    + '<input type="text" id="in-contato-tel" value="' + ((info.contato && info.contato.tel) || '').replace(/"/g, '&quot;') + '" placeholder="' + t('contato_tel_ph') + '" oninput="if(!editState.info.contato) editState.info.contato={nome:\'\',tel:\'\'}; editState.info.contato.tel=this.value"></div>'
+    + '<input type="text" id="in-contato-tel" value="' + ((info.contato && info.contato.tel) || '').replace(/"/g, '&quot;') + '" placeholder="' + t('contato_tel_ph') + '" oninput="if(!editState.info.contato) editState.info.contato={nome:\'\',tel:\'\'}; editState.info.contato.tel=this.value">'
     + '</div>'
 
     + '<div class="sh-actions">'
@@ -1495,15 +1437,11 @@ function addEmb() {
 
 function salvarSheet() {
   if (!editState) return;
-  // limpa embarcacoes sem nome antes de salvar
   editState.info.emb = editState.info.emb.filter(function (it) { return it.n && it.n.trim(); });
   var seq = editState.seq, info = editState.info;
   var btn = document.querySelector('.sh-save');
   if (btn) { btn.disabled = true; btn.textContent = t('salvando'); }
   setInfo(seq, info).then(function () {
-    // pisca "✓ Salvo!" um instante antes de fechar, pra dar um feedback
-    // visual claro (em vez de só sumir na hora) — depois pisca o card na
-    // lista também (flashSeq, o mesmo efeito usado pra updates via Realtime).
     if (btn) { btn.disabled = false; btn.textContent = t('salvo_ok'); btn.classList.add('ok'); }
     setTimeout(function () {
       fecharSheet();
@@ -1534,59 +1472,44 @@ function resetSheetAtual() {
 /* ============================================================
    ABA 3 — MAPA
    ============================================================ */
-var rotaFiltrada = null;
-var tipoFiltrado = null; // null | 'aduaneiro' | 'corredor'
-var mapAnimateEntrance = true; // true = próxima renderMap() anima entrada dos nós/linhas
+/* Filtro por rota/calha — seleção MÚLTIPLA (array de números de rota, ex.
+   ['A','D']), pra dar pra comparar duas ou mais calhas ao mesmo tempo no
+   mapa. null/[] = nenhum filtro de rota ativo (mostra todas). */
+var rotasFiltradas = null;
+var tipoFiltrado = null;
+var mapAnimateEntrance = true;
+
+/* Seleção múltipla de municípios (botão 📍 na gaveta do mapa) — cruza
+   calhas, diferente do filtro por rota (calhas inteiras) ou por tipo
+   (Aduaneiro/Corredor). null = desligada; array de `seq` quando ativa,
+   e nesse caso tem prioridade sobre os outros dois filtros (ver
+   filtrarRota()/filtrarTipo()/buildMapFilters(), que a desligam ao
+   escolher um filtro diferente). */
+var municipiosSelecionados = null;
 
 function nodeAtivo(m, rNum) {
+  if (municipiosSelecionados) return municipiosSelecionados.indexOf(m.seq) !== -1;
   if (tipoFiltrado) {
     var seg = SEGURANCA[m.seq];
     return !!(seg && seg.tipo === tipoFiltrado);
   }
-  return rotaFiltrada === null || rotaFiltrada === rNum;
+  return !rotasFiltradas || rotasFiltradas.indexOf(rNum) !== -1;
 }
 
 function mapLabel(rotaNum, idx) { return rotaNum + idx; }
 
-/* "manchas" fixas de copa de floresta por cima do gradiente verde do fundo —
-   posições e raios fixos (não aleatórios a cada render) pra dar uma textura
-   orgânica ao "recorte" do estado, sem precisar carregar nenhuma imagem. */
-// Encaixe da foto de satélite (img/mapa-fundo.jpg, 1265x832px) no mesmo
-// sistema de coordenadas do proj(lat,lng): calculado comparando o
-// retângulo que envolve AM_BORDER (no espaço do proj()) com o retângulo
-// que envolve o contorno do estado na própria foto (pixels não-brancos),
-// e conferido contra o pino "MANAUS" já pintado na foto (ficou a ~5px de
-// diferença da posição calculada por proj(-3.119,-60.021), num mapa de
-// ~1170px de largura — dentro da margem de uma ilustração, não um raster
-// georreferenciado de verdade).
 var MAPA_FOTO_CALIB = { x: -9.0, y: 11.13, w: 822.3, h: 566.97 };
 
-/* ============================================================
-   RADAR DE CHUVA AO VIVO (RainViewer, api.rainviewer.com)
-   Diferente do Open-Meteo (modelo meteorológico, ver aba Clima), a
-   RainViewer publica mosaicos de radar+satélite atualizados a cada
-   ~5-10min — chuva "vista" de verdade agora, não um número calculado.
-   Cobre o mundo todo (onde não tem radar de solo, como boa parte do
-   Amazonas, ela completa com satélite). Gratuita, sem chave, e usa
-   projeção Web Mercator padrão — exatamente a mesma matemática do
-   proj(lat,lng) usado no mapa (ver LNG0/LNG1/LAT0/LAT1/merc() dentro de
-   renderMap()), então os tiles encaixam certinho sem calibração manual
-   nenhuma (diferente do que foi preciso fazer com a foto de fundo).
-   Duas coisas usam esse mesmo radar:
-   1) uma camada animada (play/liga-desliga) por cima do mapa da aba Mapa;
-   2) um "mini radar" (imagem estática, centrada na cidade) dentro do
-      balão de detalhe de cada município na aba Clima.
-   ============================================================ */
-var RADAR_Z = 6;                 // zoom fixo dos tiles da camada grande (cobre o AM inteiro)
-var RADAR_Z_MINI = 7;             // zoom do mini radar por município (mais perto)
+var RADAR_Z = 6;
+var RADAR_Z_MINI = 7;
 var RADAR_HOST = '';
-var RADAR_FRAMES = [];            // [{time,path}] cronológico: passado -> agora -> previsão (nowcast)
-var RADAR_IDX_AGORA = -1;         // índice do frame mais recente "real" (não é previsão)
-var RADAR_META_EM = 0;            // Date.now() da última busca da lista de frames
+var RADAR_FRAMES = [];
+var RADAR_IDX_AGORA = -1;
+var RADAR_META_EM = 0;
 var RADAR_META_TTL_MS = 10 * 60 * 1000;
-var RADAR_ATIVO = false;          // camada ligada no mapa?
+var RADAR_ATIVO = false;
 var RADAR_TOCANDO = true;
-var RADAR_IDX = -1;               // índice do frame atual (animação da camada do mapa)
+var RADAR_IDX = -1;
 var RADAR_TIMER = null;
 var RADAR_ERRO = false;
 
@@ -1600,8 +1523,6 @@ function radarTile2Lat(y, z) {
   var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
   return Math.atan((Math.exp(n) - Math.exp(-n)) / 2) * 180 / Math.PI;
 }
-// fração (0..1) de onde a lng/lat cai dentro do próprio tile — usada só
-// pelo mini radar, pra centralizar o pino da cidade certinho na imagem.
 function radarFracX(lng, z) { var v = (lng + 180) / 360 * Math.pow(2, z); return v - Math.floor(v); }
 function radarFracY(lat, z) {
   var r = lat * Math.PI / 180;
@@ -1609,7 +1530,6 @@ function radarFracY(lat, z) {
   return v - Math.floor(v);
 }
 
-// 256px, esquema de cor "2" (Universal Blue), opções "1_1" = suavizado + neve
 function radarTileURL(path, x, y, z) { return RADAR_HOST + path + '/256/' + z + '/' + x + '/' + y + '/2/1_1.png'; }
 
 function radarBuscarMeta(cb) {
@@ -1634,11 +1554,6 @@ function radarBuscarMeta(cb) {
   });
 }
 
-// Liga/atualiza/desliga a camada de radar no mapa — agora que o mapa é um
-// Leaflet de verdade (ver initLeafletMapa()), isso é só um L.tileLayer
-// normal (mesmo esquema z/x/y que qualquer camada de mapa), em vez da
-// grade de <image> desenhada à mão que era preciso quando o mapa era um
-// SVG ilustrado sem tiles próprios — bem mais simples.
 var RADAR_LEAFLET_LAYER = null;
 function radarAtualizarCamadaLeaflet() {
   if (!LMAP) return;
@@ -1655,8 +1570,6 @@ function radarAtualizarCamadaLeaflet() {
     RADAR_LEAFLET_LAYER.setUrl(url);
   }
 }
-// troca o frame já em tela (chamado a cada passo da animação — precisa
-// ser leve) e atualiza o painel (horário/play-pause)
 function radarAtualizarFrameDOM() {
   radarAtualizarCamadaLeaflet();
   radarAtualizarUI();
@@ -1670,8 +1583,6 @@ function radarFrameLabel(frame) {
   return tf('radar_min_previsao_tpl', { n: diffMin });
 }
 
-// painel flutuante no canto do mapa (#map-radar-ctl, ver index.html) —
-// liga/desliga, play/pause e o rótulo do frame atual
 function radarAtualizarUI() {
   var el = document.getElementById('map-radar-ctl');
   if (!el) return;
@@ -1715,9 +1626,6 @@ function radarToggleCamada() {
   }
 }
 
-// ---- mini radar por município (balão de detalhe da aba Clima) ----
-// Mostra uma janelinha 120x120 do mesmo radar, centrada na cidade — sem
-// animar (só o frame mais recente "real"), pra não multiplicar pedidos.
 function climaRadarMiniURL(lat, lng) {
   var z = RADAR_Z_MINI;
   var x = radarLon2Tile(lng, z), y = radarLat2Tile(lat, z);
@@ -1734,7 +1642,7 @@ function climaRadarMiniCarregar(seq, lat, lng) {
   var elId = 'climaRadarThumb-' + seq;
   radarBuscarMeta(function () {
     var el = document.getElementById(elId);
-    if (!el || climaViewSeq !== seq) return; // balão já fechou/trocou antes de terminar
+    if (!el || climaViewSeq !== seq) return;
     if (RADAR_ERRO || !RADAR_FRAMES.length) {
       el.innerHTML = '<div class="clima-radar-erro">' + t('clima_radar_indisponivel') + '</div>';
       return;
@@ -1743,29 +1651,16 @@ function climaRadarMiniCarregar(seq, lat, lng) {
     if (!info) { el.innerHTML = '<div class="clima-radar-erro">' + t('clima_radar_indisponivel') + '</div>'; return; }
     el.innerHTML = '<div class="clima-radar-pin"></div>';
     el.style.backgroundImage = 'url(' + info.url + ')';
-    // centraliza a cidade numa janela de 120x120 (60px = metade)
     el.style.backgroundPosition = (-(info.px - 60)) + 'px ' + (-(info.py - 60)) + 'px';
   });
 }
 
-/* ============================================================
-   MOTOR DO MAPA (Leaflet + tiles reais — OpenStreetMap/CartoDB)
-   Antes o mapa era um SVG ilustrado, desenhado à mão, com pan/zoom/pinça
-   escritos do zero (ver histórico). Agora é um Leaflet de verdade: tiles
-   reais (dá pra ir de "estado inteiro" até "rua de um município" com zoom
-   nativo), e o pan/zoom/pinça já vêm de graça do próprio Leaflet — todo o
-   T.x/T.y/T.s e o código de arrastar/beliscar foi removido.
-   As rotas/rios/pinos continuam sendo OS MESMOS dados de sempre
-   (RIOS/ROTAS/LATLNG, a lógica de "seguir o rio" em idxMaisPerto/
-   trechoRio) — só passaram a ser desenhados como camadas do Leaflet
-   (L.polyline/L.marker) em vez de path/rect de SVG feitos na mão.
-   ============================================================ */
 var LMAP = null;
 var LTILE_CLARO = null, LTILE_ESCURO = null;
 var LAYER_RIOS, LAYER_ROTAS, LAYER_NODES, LAYER_HUB;
 var MAPA_TILE_ESTILO = (function () {
   try { return localStorage.getItem('navlog-tile-estilo') || 'escuro'; }
-  catch (e) { return 'escuro'; } // modo privado etc. — segue no padrão
+  catch (e) { return 'escuro'; }
 })();
 var AM_LNG0 = -74.5, AM_LNG1 = -53.5, AM_LAT0 = -10.6, AM_LAT1 = 2.7;
 
@@ -1780,11 +1675,6 @@ function initLeafletMapa() {
     maxBounds: bounds.pad(0.7), maxBoundsViscosity: 0.55
   });
 
-  // claro: OpenStreetMap padrão · escuro (padrão do app): Esri Dark Gray
-  // Canvas. O CartoDB Dark Matter usado antes (basemaps.cartocdn.com) passou
-  // a exigir conta/API key da CARTO pra uso anônimo (apareceu um watermark
-  // "API KEY REQUIRED" cobrindo o mapa) — trocado pro Esri, que continua
-  // livre pra uso sem chave.
   LTILE_CLARO = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, subdomains: 'abc', attribution: '&copy; OpenStreetMap'
   });
@@ -1795,7 +1685,6 @@ function initLeafletMapa() {
   var btnTile = document.getElementById('btn-tile-estilo');
   if (btnTile) btnTile.classList.toggle('tile-toggle-active', MAPA_TILE_ESTILO === 'claro');
 
-  // ordem = ordem de empilhamento (rios embaixo, pinos por cima)
   LAYER_RIOS = L.layerGroup().addTo(LMAP);
   LAYER_ROTAS = L.layerGroup().addTo(LMAP);
   LAYER_HUB = L.layerGroup().addTo(LMAP);
@@ -1804,10 +1693,6 @@ function initLeafletMapa() {
   LMAP.on('click', function () { fecharPopupMapa(); fecharMapToolbar(); });
 }
 
-/* Gaveta lateral com os filtros/ferramentas do mapa (antes era uma barra
-   fixa em cima, ocupando espaço da tela o tempo todo) — abre/fecha ao
-   clicar no botão ☰ flutuante, e fecha sozinha ao clicar em qualquer ponto
-   do mapa (ver LMAP.on('click', ...) acima). */
 function toggleMapToolbar() {
   var painel = document.getElementById('map-toolbar');
   var btn = document.getElementById('map-toolbar-toggle');
@@ -1825,9 +1710,6 @@ function fecharMapToolbar() {
   if (btn) { btn.classList.remove('on'); btn.textContent = '☰'; }
 }
 
-/* Alterna entre o tile claro (OpenStreetMap) e escuro (CartoDB Dark Matter,
-   o padrão) — a escolha fica salva (localStorage) pra continuar igual da
-   próxima vez que a pessoa abrir o app. */
 function toggleTileEstilo() {
   MAPA_TILE_ESTILO = (MAPA_TILE_ESTILO === 'claro') ? 'escuro' : 'claro';
   try { localStorage.setItem('navlog-tile-estilo', MAPA_TILE_ESTILO); } catch (e) { /* modo privado etc. */ }
@@ -1841,7 +1723,7 @@ function toggleTileEstilo() {
 function renderMap() {
   initLeafletMapa();
   if (!LMAP) return;
-  mapAnimateEntrance = false; // entrada animada dos nós/linhas era um recurso do SVG — não existe mais com tiles reais
+  mapAnimateEntrance = false;
 
   LAYER_RIOS.clearLayers();
   LAYER_ROTAS.clearLayers();
@@ -1850,14 +1732,10 @@ function renderMap() {
 
   var hubLL = { lat: -3.119, lng: -60.021 };
 
-  // Regime atual do nível do rio (Seca/Normal/Atenção/Alerta/Emergência)
-  // pintado como um "glow" por baixo do traçado azul de cada rio — o rio
-  // continua com cara de água, só ganha uma auréola na cor do regime,
-  // reforçando visualmente o que já é mostrado na aba Notícias.
   var regime = regimeAtual();
 
   RIOS.forEach(function (rv) {
-    var latlngs = rv.coords; // já são [lat,lng] — o Leaflet usa direto, sem proj() nenhum
+    var latlngs = rv.coords;
     if (regime) {
       L.polyline(latlngs, {
         color: regime.cor, weight: rv.w + 5, opacity: 0.35, lineCap: 'round',
@@ -1867,31 +1745,16 @@ function renderMap() {
     L.polyline(latlngs, { color: '#2f9bd6', weight: rv.w, opacity: 0.8, lineCap: 'round', className: 'river-main', interactive: false }).addTo(LAYER_RIOS);
   });
 
-  // hub (Manaus) — mesmo "ping" de sempre, agora em HTML/CSS (.lm-hub*) em
-  // vez de círculos de SVG; fica com o mesmo tamanho em qualquer zoom.
   var hubIcon = L.divIcon({
     className: '', iconSize: [16, 16], iconAnchor: [8, 8],
     html: '<div class="lm-hub"><div class="lm-hub-ring"></div><div class="lm-hub-ring lm-hub-ring2"></div><div class="lm-hub-dot"></div><div class="lm-hub-label">MANAUS</div></div>'
   });
   L.marker([hubLL.lat, hubLL.lng], { icon: hubIcon, interactive: false, zIndexOffset: 500 }).addTo(LAYER_HUB);
 
-  /* Rotas fluviais: em vez de traçar reto (ou uma curva "solta") entre os
-     municípios, a linha da rota acompanha o próprio traçado do rio (o fio
-     azul já desenhado acima), andando pelos pontos do rio mais perto de
-     cada município. Mapeamento calha -> rio; H e I ficam de fora (são
-     rodoviárias, não têm rio pra seguir) e usam a curva Catmull-Rom abaixo. */
   var RIOS_POR_NOME = {}; RIOS.forEach(function (rv) { RIOS_POR_NOME[rv.name] = rv; });
   var RIO_TRONCO = RIOS_POR_NOME['Amazonas/Solimoes'];
   var ROTA_RIO = { A: 'Amazonas/Solimoes', B: 'Amazonas/Solimoes', C: 'Madeira', D: 'Amazonas/Solimoes', E: 'Amazonas/Solimoes', F: 'Rio Negro', G: 'Purus', J: 'Jurua' };
-  // Madeira/Purus/Jurua nascem longe de Manaus: pra chegar neles a rota
-  // primeiro desce/sobe o tronco (Solimões/Amazonas) até a foz do afluente,
-  // só depois entra no afluente propriamente. Rio Negro já passa perto o
-  // bastante do hub (a foz dele é o próprio encontro das águas em Manaus).
   var RIO_AFLUENTE_TRONCO = { Madeira: true, Purus: true, Jurua: true };
-  // acima disso (em graus) o município é considerado fora da beira do rio —
-  // a "entrada" dele é por um igarapé/afluente que o mapa não tem desenhado,
-  // então a linha da rota vai só até o ponto do rio mais próximo, e um fio
-  // fino à parte liga esse ponto até o município (ver "fio d'água" abaixo).
   var LIMITE_BEIRA_RIO = 0.15;
 
   function idxMaisPerto(river, lat, lng) {
@@ -1909,11 +1772,6 @@ function renderMap() {
     else { for (var i = iA; i >= iB; i--) pts.push(river.coords[i]); }
     return pts;
   }
-  /* Catmull-Rom -> pontos intermediários: o Leaflet só sabe desenhar
-     segmentos retos entre os pontos de um polyline, então pra rota
-     rodoviária (H/I) continuar curvando suave em cada município (como a
-     antiga curva Bézier do SVG), geramos pontos extras ao longo da mesma
-     curva, em vez de control points. */
   function catmullRomPontos(p0, p1, p2, p3, n) {
     var tensao = 6, pts = [];
     var c1lng = p1.lng + (p2.lng - p0.lng) / tensao, c1lat = p1.lat + (p2.lat - p0.lat) / tensao;
@@ -1943,14 +1801,13 @@ function renderMap() {
     }
 
     if (nomeRio) {
-      // ---- rota fluvial: a linha segue o traçado do rio (o fio azul) ----
       var river = RIOS_POR_NOME[nomeRio];
       var afluente = !!RIO_AFLUENTE_TRONCO[nomeRio];
       var idxAtual, pontoAtual;
 
       if (afluente) {
         var hubNoTronco = idxMaisPerto(RIO_TRONCO, hubLL.lat, hubLL.lng);
-        var bocaIdx = river.coords.length - 1; // foz do afluente no tronco (sempre o último ponto, nesses 3 rios)
+        var bocaIdx = river.coords.length - 1;
         var bocaLL = river.coords[bocaIdx];
         var troncoNaBoca = idxMaisPerto(RIO_TRONCO, bocaLL[0], bocaLL[1]);
         desenharTrecho([[hubLL.lat, hubLL.lng]].concat(trechoRio(RIO_TRONCO, hubNoTronco.idx, troncoNaBoca.idx)), null);
@@ -1966,17 +1823,11 @@ function renderMap() {
       r.municipios.forEach(function (m) {
         var ll = LATLNG[m.seq]; if (!ll) return;
         var dock = idxMaisPerto(river, ll.lat, ll.lng);
-        // o traçado do rio é uma poligonal simplificada — em trechos onde
-        // vários municípios vizinhos caem no mesmo ponto mais próximo dela
-        // (pouca resolução ali), liga direto o ponto anterior até este,
-        // em vez de deixar a linha "sumir" (comprimento zero).
         var pontosLL = (dock.idx === idxAtual) ? [pontoAtual, [ll.lat, ll.lng]] : trechoRio(river, idxAtual, dock.idx);
         desenharTrecho(pontosLL, m);
         idxAtual = dock.idx;
         pontoAtual = pontosLL[pontosLL.length - 1];
 
-        // "fio d'água": município fora da beira do rio (entrada por
-        // igarapé/afluente) — liga o ponto do rio mais próximo até ele.
         if (dock.dist > LIMITE_BEIRA_RIO) {
           L.polyline([[ll.lat, ll.lng], river.coords[dock.idx]], {
             color: '#2f9bd6', weight: 1.3, opacity: opacidade, dashArray: '1.5,4',
@@ -1985,8 +1836,6 @@ function renderMap() {
         }
       });
     } else {
-      // ---- rota rodoviária (H/I), sem rio pra seguir: curva suave entre
-      // os pontos, respeitando ramificação (campo `de`, ex. Humaitá na I) ----
       var pares = r.municipios.map(function (m) {
         var ll = LATLNG[m.seq]; return ll ? { m: m, p: ll } : null;
       }).filter(Boolean);
@@ -2013,9 +1862,6 @@ function renderMap() {
     }
   });
 
-  // ---- pinos dos municípios: balões HTML (.lm-node), mesmo tamanho em
-  // qualquer zoom, sem precisar calcular largura a partir do texto (o CSS
-  // já cuida disso com padding). ----
   ROTAS.forEach(function (r) {
     r.municipios.forEach(function (m, idx) {
       var ll = LATLNG[m.seq]; if (!ll) return;
@@ -2035,8 +1881,6 @@ function renderMap() {
     });
   });
 
-  // legenda do regime do rio (o mesmo "regime" usado pra pintar o glow
-  // dos rios acima) — clicável, leva direto pra aba Notícias
   var legenda = document.getElementById('map-regime-legend');
   if (legenda) {
     if (regime) {
@@ -2056,12 +1900,6 @@ function showMapPopup(hit, label) {
   if (!popup) {
     popup = document.createElement('div'); popup.id = 'map-popup';
     document.getElementById('sc-m').appendChild(popup);
-    // Zoom por pinça desligado aqui de propósito — igual no balão de
-    // Informações/Configurações (#sheet), beliscar em cima deste popup
-    // (dentro do mapa) estava dando zoom na PÁGINA INTEIRA em vez de só
-    // no popup, deslocando a barra lateral fixa. touch-action (CSS,
-    // ver #map-popup) já resolve a maioria dos navegadores; isso aqui é
-    // reforço pro gesto específico do Safari, que às vezes escapa dele.
     popup.addEventListener('gesturestart', function (e) { e.preventDefault(); });
     popup.addEventListener('gesturechange', function (e) { e.preventDefault(); });
   }
@@ -2074,9 +1912,6 @@ function showMapPopup(hit, label) {
   popup.style.borderColor = seg ? segMeta.cor : r.cor;
   popup.innerHTML =
     '<button class="mp-close" onclick="fecharPopupMapa()">✕</button>'
-    // Tamanho do popup (P/M/G) — no lugar do zoom por pinça (ver comentário
-    // acima). Fica fora de .mp-body (que é o que escala), igual o botão
-    // fechar, pra não crescer/encolher junto com o conteúdo.
     + '<div class="mp-size-ctl">'
     + '<button class="mp-size-btn on" data-sz="1" onclick="setMapPopupScale(1)" title="' + t('sheet_size_p_title') + '">P</button>'
     + '<button class="mp-size-btn" data-sz="1.3" onclick="setMapPopupScale(1.3)" title="' + t('sheet_size_m_title') + '">M</button>'
@@ -2109,11 +1944,6 @@ function showMapPopup(hit, label) {
   popup.classList.add('on');
 }
 
-/* ── Tamanho do popup do mapa (P/M/G) — mesma ideia do balão de
-   Informações/Configurações (setSheetScale(), acima), só que com
-   preferência própria (localStorage separado): são dois popups
-   diferentes, abertos de jeitos diferentes (clicar num pino do mapa vs.
-   abrir pela lista/balão), então cada um lembra o próprio tamanho. */
 function mapPopupScaleSalva() {
   try { var v = parseFloat(localStorage.getItem('navlog-mappopup-scale')); return v || 1; }
   catch (e) { return 1; }
@@ -2137,15 +1967,23 @@ function fecharPopupMapa() {
   var p = document.getElementById('map-popup'); if (p) p.classList.remove('on');
 }
 
+/* Toggle: cada toque soma/retira a calha da seleção (não fecha a gaveta,
+   pra dar pra marcar duas ou mais calhas em sequência e comparar as
+   rotas no mapa — ver README, "Comparar duas ou mais calhas"). */
 function filtrarRota(num) {
   tipoFiltrado = null;
-  rotaFiltrada = (rotaFiltrada === num) ? null : num;
+  municipiosSelecionados = null;
+  if (!rotasFiltradas) rotasFiltradas = [];
+  var i = rotasFiltradas.indexOf(num);
+  if (i === -1) rotasFiltradas.push(num); else rotasFiltradas.splice(i, 1);
+  if (!rotasFiltradas.length) rotasFiltradas = null;
   atualizarBotoesFiltro();
-  fecharPopupMapa(); renderMap(); fecharMapToolbar();
+  fecharPopupMapa(); renderMap();
 }
 
 function filtrarTipo(tipo) {
-  rotaFiltrada = null;
+  rotasFiltradas = null;
+  municipiosSelecionados = null;
   tipoFiltrado = (tipoFiltrado === tipo) ? null : tipo;
   atualizarBotoesFiltro();
   fecharPopupMapa(); renderMap(); fecharMapToolbar();
@@ -2153,12 +1991,20 @@ function filtrarTipo(tipo) {
 
 function atualizarBotoesFiltro() {
   document.querySelectorAll('.mfbtn[data-rota]').forEach(function (b) {
-    var isActive = !tipoFiltrado && b.dataset.rota === (rotaFiltrada || '');
+    var num = b.dataset.rota;
+    var isActive = !tipoFiltrado && !municipiosSelecionados && !!num && !!rotasFiltradas && rotasFiltradas.indexOf(num) !== -1;
+    // o botão "Todas" (data-rota="") fica ativo quando nenhuma calha
+    // específica está marcada e nenhum outro filtro está ligado
+    if (!num) isActive = !tipoFiltrado && !municipiosSelecionados && !rotasFiltradas;
     b.classList.toggle('active', isActive);
   });
   document.querySelectorAll('.mfbtn[data-tipo]').forEach(function (b) {
-    b.classList.toggle('active', b.dataset.tipo === (tipoFiltrado || ''));
+    b.classList.toggle('active', !municipiosSelecionados && b.dataset.tipo === (tipoFiltrado || ''));
   });
+  var btnMuni = document.getElementById('muni-select-open-btn');
+  if (btnMuni) btnMuni.classList.toggle('active', !!municipiosSelecionados);
+  var badge = document.getElementById('muni-select-badge');
+  if (badge) badge.textContent = municipiosSelecionados ? ' (' + municipiosSelecionados.length + ')' : '';
 }
 
 function buildMapFilters() {
@@ -2166,7 +2012,7 @@ function buildMapFilters() {
   cont.innerHTML = '';
   var all = document.createElement('button'); all.className = 'mfbtn active'; all.dataset.rota = '';
   all.textContent = t('map_filter_todas');
-  all.onclick = function () { rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa(); renderMap(); fecharMapToolbar(); };
+  all.onclick = function () { rotasFiltradas = null; tipoFiltrado = null; municipiosSelecionados = null; atualizarBotoesFiltro(); fecharPopupMapa(); renderMap(); fecharMapToolbar(); };
   cont.appendChild(all);
   ROTAS.forEach(function (r) {
     var btn = document.createElement('button'); btn.className = 'mfbtn'; btn.dataset.rota = r.num;
@@ -2185,29 +2031,84 @@ function buildMapFilters() {
     btn.onclick = function () { filtrarTipo(tipo); };
     cont.appendChild(btn);
   });
+  atualizarBotoesFiltro();
 }
 
-/* Pan/zoom/pinça agora são o próprio Leaflet (mouse, roda, toque com um ou
-   dois dedos) — não precisa de nenhum código próprio pra isso. Só os botões
-   +/−/⟳ da barra de ferramentas continuam chamando funções daqui. */
+/* ── Seleção múltipla de municípios (botão 📍, ver index.html/#muni-
+   select-overlay) ── a lista cobre todos os municípios de todas as
+   calhas (Manaus/MAO fica de fora: ela é o hub, sempre visível no mapa,
+   e não é um "node" filtrável como os outros). A seleção fica num rascunho
+   (muniSelectTemp) enquanto o balão está aberto, e só passa a valer de
+   verdade (municipiosSelecionados) ao tocar "Aplicar" — assim dá pra
+   marcar/desmarcar várias vezes sem o mapa recarregando a cada toque. */
+var muniSelectTemp = [];
+
+function todosMunicipiosParaSelecao() {
+  var lista = [];
+  ROTAS.forEach(function (r) {
+    r.municipios.forEach(function (m) { lista.push({ seq: m.seq, nome: m.nome, cor: r.cor }); });
+  });
+  return lista;
+}
+
+function abrirMuniSelect() {
+  muniSelectTemp = (municipiosSelecionados || []).slice();
+  var busca = document.getElementById('muni-select-busca'); if (busca) busca.value = '';
+  renderMuniSelectLista();
+  var overlay = document.getElementById('muni-select-overlay'); if (overlay) overlay.classList.add('on');
+  fecharMapToolbar();
+}
+function fecharMuniSelect(e) {
+  if (e && e.target !== e.currentTarget) return;
+  var overlay = document.getElementById('muni-select-overlay'); if (overlay) overlay.classList.remove('on');
+}
+function toggleMuniSelectItem(seq) {
+  var i = muniSelectTemp.indexOf(seq);
+  if (i === -1) muniSelectTemp.push(seq); else muniSelectTemp.splice(i, 1);
+  var el = document.querySelector('.muni-select-item[data-seq="' + seq + '"]');
+  if (el) {
+    var on = muniSelectTemp.indexOf(seq) !== -1;
+    el.classList.toggle('on', on);
+    var check = el.querySelector('.muni-select-check'); if (check) check.textContent = on ? '✓' : '';
+  }
+  var cEl = document.getElementById('muni-select-count'); if (cEl) cEl.textContent = muniSelectTemp.length;
+}
+function renderMuniSelectLista() {
+  var cont = document.getElementById('muni-select-lista'); if (!cont) return;
+  var busca = normKey((document.getElementById('muni-select-busca') || {}).value || '');
+  var itens = todosMunicipiosParaSelecao().filter(function (it) {
+    return !busca || normKey(it.nome).indexOf(busca) !== -1 || normKey(it.seq).indexOf(busca) !== -1;
+  });
+  cont.innerHTML = itens.length ? itens.map(function (it) {
+    var on = muniSelectTemp.indexOf(it.seq) !== -1;
+    return '<div class="muni-select-item' + (on ? ' on' : '') + '" data-seq="' + it.seq + '" onclick="toggleMuniSelectItem(\'' + it.seq + '\')">'
+      + '<span class="muni-select-dot" style="background:' + it.cor + '"></span>'
+      + '<span class="muni-select-nome">' + it.nome + '</span>'
+      + '<span class="muni-select-check">' + (on ? '✓' : '') + '</span>'
+      + '</div>';
+  }).join('') : '<div class="search-empty"><span class="search-empty-ic">🔎</span><span class="search-empty-tx">' + t('busca_sem_resultado') + '</span></div>';
+  var cEl = document.getElementById('muni-select-count'); if (cEl) cEl.textContent = muniSelectTemp.length;
+}
+function limparMuniSelect() {
+  muniSelectTemp = [];
+  renderMuniSelectLista();
+}
+function aplicarMuniSelect() {
+  municipiosSelecionados = muniSelectTemp.length ? muniSelectTemp.slice() : null;
+  rotasFiltradas = null; tipoFiltrado = null;
+  atualizarBotoesFiltro();
+  fecharMuniSelect();
+  fecharPopupMapa(); renderMap();
+}
+
 function zI() { if (LMAP) LMAP.zoomIn(); }
 function zO() { if (LMAP) LMAP.zoomOut(); }
 function zR() {
-  rotaFiltrada = null; tipoFiltrado = null; atualizarBotoesFiltro(); fecharPopupMapa();
+  rotasFiltradas = null; tipoFiltrado = null; municipiosSelecionados = null; atualizarBotoesFiltro(); fecharPopupMapa();
   if (LMAP) LMAP.setView([-4.4, -63.8], 6);
   renderMap();
 }
 
-/* ============================================================
-   NAVEGAÇÃO ENTRE ABAS
-   ============================================================ */
-/* "pill" deslizante atrás da aba ativa, na barra lateral — desliza até a
-   posição/altura certa em vez de só trocar a cor na hora. Recalculada a
-   cada troca de aba, no resize e quando o idioma muda (o rótulo da aba
-   muda de altura, por causa da quebra de linha, em cada idioma). Antes
-   também existia uma versão horizontal (translateX/width) pro menu de
-   abas de cima e outra pro menu inferior mobile (#btabs, removido) — a
-   barra lateral é uma pilha vertical só, então agora é só translateY/height. */
 function atualizarIndicadorAbas() {
   var ativoH = document.querySelector('.htab.on');
   var pill = document.getElementById('htab-pill');
@@ -2229,8 +2130,6 @@ function SS(name, btn) {
   });
   document.querySelectorAll('.htab').forEach(function (b) { b.classList.toggle('on', b.dataset.s === name); });
 
-  // conteúdo da aba recém-aberta entra com um fade + leve deslocamento
-  // (reflow força reiniciar a animação, igual o truque usado em flashSeq)
   var scAtual = document.getElementById('sc-' + name);
   if (scAtual) {
     scAtual.classList.remove('scr-enter');
@@ -2243,30 +2142,18 @@ function SS(name, btn) {
   if (name === 'c') bCO();
   if (name === 'm') {
     buildMapFilters(); renderMap();
-    // o Leaflet mede o tamanho do container na hora que é criado — como a
-    // aba Mapa ficava com display:none até este clique, sem isso o mapa
-    // nascia com um tamanho errado (geralmente cortado/deslocado) até
-    // alguém redimensionar a janela. invalidateSize() corrige na hora.
     if (LMAP) setTimeout(function () { LMAP.invalidateSize(); }, 0);
   }
-  else radarPararTimer(); // saiu da aba Mapa: pausa a animação do radar (economiza rede/bateria), a camada continua "ligada" pra quando voltar
+  else radarPararTimer();
   if (name === 'n') bNIVEL();
   if (name === 'w') {
     bCLIMA();
-    // busca de novo só se nunca buscou ou se já faz tempo — abrir/fechar
-    // a aba não deve disparar uma chamada nova toda vez
     var stale = !CLIMA_ATUALIZADO_EM || (Date.now() - CLIMA_ATUALIZADO_EM > CLIMA_INTERVALO_MS);
     if (stale && !CLIMA_CARREGANDO) carregarClima();
   }
 }
 
-/* ============================================================
-   INICIALIZAÇÃO
-   Chamada pelo index.html depois de carregar data.js e app.js.
-   ============================================================ */
-/* ── Indicador "ao vivo" (status da conexão Realtime) ── */
 function setLiveStatus(state) {
-  // state: 'connecting' | 'live' | 'offline'
   var dot = document.getElementById('live-dot'); if (!dot) return;
   dot.classList.remove('live', 'offline');
   if (state === 'live') { dot.classList.add('live'); dot.title = t('live_live_title'); }
@@ -2274,13 +2161,11 @@ function setLiveStatus(state) {
   else { dot.title = t('live_connecting'); }
 }
 
-/* Pisca por um instante o card/chip do município que acabou de ser
-   atualizado por outra pessoa, pra chamar atenção pra mudança. */
 function flashSeq(seq) {
   requestAnimationFrame(function () {
     document.querySelectorAll('[data-seq="' + seq + '"]').forEach(function (el) {
       el.classList.remove('flash-update');
-      void el.offsetWidth; // reinicia a animação, se já tinha rodado
+      void el.offsetWidth;
       el.classList.add('flash-update');
     });
   });
@@ -2293,10 +2178,6 @@ async function initApp() {
   requestAnimationFrame(atualizarIndicadorAbas);
   setSheetScale(sheetScaleSalva());
 
-  // Reforço pro Safari/iOS: touch-action (CSS) já barra a pinça na maioria
-  // dos navegadores, mas o Safari tem um gesto próprio (gesturestart/
-  // gesturechange, fora do padrão) que às vezes escapa do touch-action —
-  // isso aqui garante que nem esse jeito dá zoom em cima do balão.
   var sheetOverlayEl = document.getElementById('sheet-overlay');
   if (sheetOverlayEl) {
     sheetOverlayEl.addEventListener('gesturestart', function (e) { e.preventDefault(); });
@@ -2308,9 +2189,6 @@ async function initApp() {
   if (!session) { window.location.replace('/login.html'); return; }
   CURRENT_USER = session.user;
 
-  // barra lateral é estreita (72px) — o e-mail inteiro não cabe legível
-  // numa coluna dessa largura, então vira um "avatar" com a inicial, com o
-  // e-mail completo aparecendo no title (tooltip ao passar o mouse/segurar).
   var badge = document.getElementById('user-badge');
   if (badge) {
     var email = CURRENT_USER.email || '';
@@ -2329,11 +2207,9 @@ async function initApp() {
   bINFO();
   bCO();
   bNIVEL();
-  carregarClima(); // dispara em paralelo (não é await) — não deve atrasar o resto do app
-  atualizarBotaoPush(); // idem: só ajusta o ícone do sino, não deve atrasar o resto do app
+  carregarClima();
+  atualizarBotaoPush();
 
-  // Realtime: quando alguém edita Configurações em outro aparelho,
-  // a tela de quem estiver olhando atualiza sozinha.
   setLiveStatus('connecting');
   sb.channel('municipios_info_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'municipios_info' }, function (payload) {
@@ -2348,16 +2224,12 @@ async function initApp() {
       else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') setLiveStatus('offline');
     });
 
-  // Realtime também pro nível do rio: quando a coleta diária (Vercel Cron)
-  // grava a leitura do dia, quem estiver com o app aberto vê na hora.
   sb.channel('nivel_rio_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'nivel_rio' }, function () {
       carregarNivelRio().then(function () {
-        // Atualiza o selinho de alerta mesmo se quem estiver olhando não
-        // estiver na aba Notícias agora — senão só reagia entrando lá.
         if (NIVEL_HIST.length) atualizarAlertaAba('n', !!classificarNivel(NIVEL_HIST[NIVEL_HIST.length - 1].nivel_m).critico);
         if (cur === 'n') bNIVEL();
-        if (cur === 'm') renderMap(); // cor dos rios (regime do nível) precisa acompanhar em tempo real
+        if (cur === 'm') renderMap();
       });
     })
     .subscribe();

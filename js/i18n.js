@@ -140,8 +140,20 @@ var I18N = {
     clima_ar_alerta_title_tpl: 'Qualidade do ar ruim em {n} município(s)',
     clima_ar_alerta_mais_tpl: ' e mais {n}',
 
+    alerta_emerg_tipo_seca: 'Alerta de seca', alerta_emerg_tipo_cheia: 'Alerta de cheia/enchente', alerta_emerg_tipo_geral: 'Alerta de emergência',
+    alerta_emerg_desde_tpl: 'Notícia de {data}',
+    alerta_emerg_ver_fonte: 'Ver notícia completa ›',
+    alerta_emerg_candidato_title: 'Possível alerta — aguardando revisão',
+    alerta_emerg_candidato_hint: 'Uma notícia automática menciona este município junto com uma possível emergência (seca, cheia etc). Confirme pra mostrar aos clientes na aba Informações, ou descarte se não for relevante.',
+    alerta_emerg_confirmar_btn: 'Confirmar alerta', alerta_emerg_dispensar_btn: 'Descartar',
+    alerta_emerg_ativo_title: 'Alerta ativo (visível na aba Informações)',
+    alerta_emerg_encerrar_btn: 'Encerrar alerta',
+
     map_filter_todas: 'TODAS', map_popup_inicio: 'Início', map_popup_fim: 'Fim',
     ver_detalhes: 'ver detalhes ›', min_abbr: 'mín', max_abbr: 'máx',
+
+    muni_select_btn: 'Selecionar municípios', muni_select_titulo: 'Selecionar municípios',
+    muni_select_limpar: 'Limpar', muni_select_aplicar: 'Aplicar',
 
     dl_seg: 'S', dl_ter: 'T', dl_qua: 'Q', dl_qui: 'Q', dl_sex: 'S', dl_sab: 'S', dl_dom: 'D',
     dn_seg: 'Segunda-feira', dn_ter: 'Terça-feira', dn_qua: 'Quarta-feira', dn_qui: 'Quinta-feira',
@@ -268,8 +280,20 @@ var I18N = {
     clima_ar_alerta_title_tpl: 'Poor air quality in {n} municipalit(ies)',
     clima_ar_alerta_mais_tpl: ' and {n} more',
 
+    alerta_emerg_tipo_seca: 'Drought alert', alerta_emerg_tipo_cheia: 'Flood alert', alerta_emerg_tipo_geral: 'Emergency alert',
+    alerta_emerg_desde_tpl: 'News from {data}',
+    alerta_emerg_ver_fonte: 'See full story ›',
+    alerta_emerg_candidato_title: 'Possible alert — awaiting review',
+    alerta_emerg_candidato_hint: 'An automated news match mentions this municipality along with a possible emergency (drought, flood, etc). Confirm to show it to clients in the Info tab, or dismiss if not relevant.',
+    alerta_emerg_confirmar_btn: 'Confirm alert', alerta_emerg_dispensar_btn: 'Dismiss',
+    alerta_emerg_ativo_title: 'Active alert (visible in the Info tab)',
+    alerta_emerg_encerrar_btn: 'End alert',
+
     map_filter_todas: 'ALL', map_popup_inicio: 'Start', map_popup_fim: 'End',
     ver_detalhes: 'see details ›', min_abbr: 'min', max_abbr: 'max',
+
+    muni_select_btn: 'Select municipalities', muni_select_titulo: 'Select municipalities',
+    muni_select_limpar: 'Clear', muni_select_aplicar: 'Apply',
 
     dl_seg: 'M', dl_ter: 'T', dl_qua: 'W', dl_qui: 'T', dl_sex: 'F', dl_sab: 'S', dl_dom: 'S',
     dn_seg: 'Monday', dn_ter: 'Tuesday', dn_qua: 'Wednesday', dn_qui: 'Thursday',
@@ -396,8 +420,20 @@ var I18N = {
     clima_ar_alerta_title_tpl: 'Mala calidad del aire en {n} municipio(s)',
     clima_ar_alerta_mais_tpl: ' y {n} más',
 
+    alerta_emerg_tipo_seca: 'Alerta de sequía', alerta_emerg_tipo_cheia: 'Alerta de inundación', alerta_emerg_tipo_geral: 'Alerta de emergencia',
+    alerta_emerg_desde_tpl: 'Noticia del {data}',
+    alerta_emerg_ver_fonte: 'Ver noticia completa ›',
+    alerta_emerg_candidato_title: 'Posible alerta — pendiente de revisión',
+    alerta_emerg_candidato_hint: 'Una noticia automática menciona este municipio junto con una posible emergencia (sequía, inundación, etc). Confirme para mostrarla a los clientes en la pestaña Información, o descártela si no es relevante.',
+    alerta_emerg_confirmar_btn: 'Confirmar alerta', alerta_emerg_dispensar_btn: 'Descartar',
+    alerta_emerg_ativo_title: 'Alerta activa (visible en la pestaña Información)',
+    alerta_emerg_encerrar_btn: 'Finalizar alerta',
+
     map_filter_todas: 'TODAS', map_popup_inicio: 'Inicio', map_popup_fim: 'Fin',
     ver_detalhes: 'ver detalles ›', min_abbr: 'mín', max_abbr: 'máx',
+
+    muni_select_btn: 'Seleccionar municipios', muni_select_titulo: 'Seleccionar municipios',
+    muni_select_limpar: 'Limpiar', muni_select_aplicar: 'Aplicar',
 
     dl_seg: 'L', dl_ter: 'M', dl_qua: 'X', dl_qui: 'J', dl_sex: 'V', dl_sab: 'S', dl_dom: 'D',
     dn_seg: 'Lunes', dn_ter: 'Martes', dn_qua: 'Miércoles', dn_qui: 'Jueves',
@@ -524,8 +560,20 @@ var I18N = {
     clima_ar_alerta_title_tpl: '{n} 个市镇空气质量差',
     clima_ar_alerta_mais_tpl: '，另有 {n} 个',
 
+    alerta_emerg_tipo_seca: '干旱预警', alerta_emerg_tipo_cheia: '洪水预警', alerta_emerg_tipo_geral: '紧急预警',
+    alerta_emerg_desde_tpl: '{data} 的新闻',
+    alerta_emerg_ver_fonte: '查看完整新闻 ›',
+    alerta_emerg_candidato_title: '可能的预警 — 待审核',
+    alerta_emerg_candidato_hint: '一条自动匹配的新闻提到了这个市镇，并可能涉及紧急情况（干旱、洪水等）。确认后将在"信息"标签页向客户显示，如不相关可忽略。',
+    alerta_emerg_confirmar_btn: '确认预警', alerta_emerg_dispensar_btn: '忽略',
+    alerta_emerg_ativo_title: '预警生效中（在"信息"标签页可见）',
+    alerta_emerg_encerrar_btn: '结束预警',
+
     map_filter_todas: '全部', map_popup_inicio: '起点', map_popup_fim: '终点',
     ver_detalhes: '查看详情 ›', min_abbr: '最低', max_abbr: '最高',
+
+    muni_select_btn: '选择市镇', muni_select_titulo: '选择市镇',
+    muni_select_limpar: '清除', muni_select_aplicar: '应用',
 
     dl_seg: '一', dl_ter: '二', dl_qua: '三', dl_qui: '四', dl_sex: '五', dl_sab: '六', dl_dom: '日',
     dn_seg: '星期一', dn_ter: '星期二', dn_qua: '星期三', dn_qui: '星期四',
